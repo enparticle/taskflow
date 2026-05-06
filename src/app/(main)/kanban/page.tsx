@@ -55,9 +55,9 @@ export default function KanbanPage() {
 
   async function moveTask(taskId: string, newStatus: TaskStatus, reason?: string) {
     await supabase.from("tasks").update({
-      status: newStatus,
+      status: newStatus as any,
       blocked_reason: newStatus === "blocked" ? (reason ?? null) : null,
-    }).eq("id", taskId);
+    } as any).eq("id", taskId);
     await load();
   }
 
