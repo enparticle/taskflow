@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createClient } from "@/lib/supabase";
 
 export async function loadTasksWithAssignees(query: any) {

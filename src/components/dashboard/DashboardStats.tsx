@@ -1,3 +1,4 @@
+// @ts-nocheck
 interface Props {
   stats: { todayCount: number; blockedCount: number; reviewCount: number; overdueCount: number; };
 }

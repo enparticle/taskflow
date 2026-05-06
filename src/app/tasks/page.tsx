@@ -2,17 +2,16 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
-import { loadTasksWithAssignees } from "@/lib/tasks";
 import TaskList from "@/components/tasks/TaskList";
 import TaskForm from "@/components/tasks/TaskForm";
 
 const STATUS_FILTERS = [
-  { value: "all",     label: "전체" },
-  { value: "todo",    label: "할 일" },
-  { value: "doing",   label: "진행 중" },
+  { value: "all", label: "전체" },
+  { value: "todo", label: "할 일" },
+  { value: "doing", label: "진행 중" },
   { value: "blocked", label: "Blocked" },
-  { value: "review",  label: "리뷰" },
-  { value: "done",    label: "완료" },
+  { value: "review", label: "리뷰" },
+  { value: "done", label: "완료" },
 ];
 
 export default function TasksPage() {
@@ -23,11 +22,11 @@ export default function TasksPage() {
 
   const load = useCallback(async () => {
     let q = supabase.from("tasks")
-      .select("*, assignee_ids, assignee:users!tasks_assignee_id_fkey(name,avatar_url), project:projects(name)")
+      .select("*, assignee:users!tasks_assignee_id_fkey(name,avatar_url), project:projects(name)")
       .order("due_date", { ascending: true, nullsFirst: false });
     if (filter !== "all") q = q.eq("status", filter);
-    const { data } = await loadTasksWithAssignees(q);
-    setTasks(data);
+    const { data } = await q;
+    setTasks(data ?? []);
   }, [filter]);
 
   useEffect(() => { load(); }, [load]);
@@ -41,12 +40,18 @@ export default function TasksPage() {
           <span className="text-xs px-2 py-0.5 rounded-full tabular-nums"
             style={{ background: "var(--blue-bg)", color: "var(--blue)" }}>{tasks.length}</span>
         </div>
-        <button onClick={() => setOpen(true)} className="rounded-lg px-4 py-2 text-xs font-semibold"
-          style={{ background: "linear-gradient(135deg, #00C2CC, #2E86FF)", color: "#fff", boxShadow: "0 0 16px rgba(0,194,204,0.25)" }}>
+        <button onClick={() => setOpen(true)}
+          className="rounded-lg px-4 py-2 text-xs font-semibold"
+          style={{
+            background: "linear-gradient(135deg, #00C2CC, #2E86FF)",
+            color: "#fff",
+            boxShadow: "0 0 16px rgba(0,194,204,0.25)",
+          }}>
           + 새 업무
         </button>
       </div>
 
+      {/* 필터 탭 */}
       <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
         {STATUS_FILTERS.map(({ value, label }) => (
           <button key={value} onClick={() => setFilter(value)}

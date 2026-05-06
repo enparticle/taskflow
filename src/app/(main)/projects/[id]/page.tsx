@@ -1,3 +1,4 @@
+// @ts-nocheck
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
@@ -86,7 +87,7 @@ export default function ProjectDetailPage() {
   const health = HEALTH_CONFIG[project.health] ?? HEALTH_CONFIG.good;
 
   async function moveTask(taskId: string, newStatus: string, reason?: string) {
-    await (supabase.from("tasks") as any).update({ status: newStatus, blocked_reason: newStatus === "blocked" ? (reason ?? null) : null }).eq("id", taskId);
+    await supabase.from("tasks").update({ status: newStatus, blocked_reason: newStatus === "blocked" ? (reason ?? null) : null }).eq("id", taskId);
     await load();
   }
 

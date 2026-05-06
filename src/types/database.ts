@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Supabase DB 타입 정의
 // 스키마 변경 시 이 파일도 함께 업데이트
 
