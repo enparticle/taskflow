@@ -56,7 +56,7 @@ export default function DashboardPage() {
   const supabase = createClient();
   const [openForm, setOpenForm] = useState(false);
   const [openDetail, setOpenDetail] = useState<string | null>(null);
-  const [stats, setStats] = useState({ today: 0, blocked: 0, review: 0, overdue: 0, total: 0, done: 0 });
+  const [stats, setStats] = useState({ today: 0, blocked: 0, review: 0, overdue: 0, total: 0, done: 0, completionRate: 0 });
   const [statusDist, setStatusDist] = useState<any[]>([]);
   const [priorityDist, setPriorityDist] = useState<any[]>([]);
   const [memberStats, setMemberStats] = useState<any[]>([]);
@@ -135,7 +135,7 @@ export default function DashboardPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const completionRate = (stats as any).completionRate ?? 0;
+  const completionRate = stats.completionRate ?? 0;
   const STATUS_COLOR: Record<string, string> = { backlog: "#4A7099", todo: "#7BA7C8", doing: "#2E86FF", blocked: "#FF4D6A", review: "#F5A623", done: "#00D4A0" };
   const STATUS_LABEL: Record<string, string> = { backlog: "백로그", todo: "할 일", doing: "진행 중", blocked: "Blocked", review: "리뷰", done: "완료" };
   const HEALTH_COLOR: Record<string, string> = { good: "#00D4A0", at_risk: "#F5A623", critical: "#FF4D6A" };
