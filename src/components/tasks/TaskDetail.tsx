@@ -104,12 +104,12 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
   }
 
   async function update(field: string, value: any) {
-    await supabase.from("tasks").update({ [field]: value }).eq("id", taskId);
+    await (supabase.from("tasks") as any).update({ [field]: value }).eq("id", taskId);
     await loadTask(); setEditing(null);
   }
 
   async function updateAssignees(ids: string[]) {
-    await supabase.from("tasks").update({ assignee_ids: ids, assignee_id: ids[0] || null }).eq("id", taskId);
+    await (supabase.from("tasks") as any).update({ assignee_ids: ids, assignee_id: ids[0] || null }).eq("id", taskId);
     setAssigneeIds(ids);
     // onRefresh 호출 제거 - 담당자 변경은 패널 내부 state만 업데이트
     // 패널 닫힐 때 부모가 refresh하므로 onClose 시 반영됨
@@ -123,7 +123,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
   }
 
   async function changeStatus(newStatus: TaskStatus, reason?: string) {
-    await supabase.from("tasks").update({
+    await (supabase.from("tasks") as any).update({
       status: newStatus,
       blocked_reason: newStatus === "blocked" ? (reason ?? null) : null,
     }).eq("id", taskId);
@@ -168,7 +168,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
             {canDelete && (
               <button onClick={async () => {
                 if (!confirm("이 업무를 삭제할까요?")) return;
-                await supabase.from("tasks").delete().eq("id", taskId);
+                await (supabase.from("tasks") as any).delete().eq("id", taskId);
                 onRefresh();
               }}
                 className="text-xs px-3 py-1.5 rounded-lg transition-all"
