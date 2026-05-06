@@ -1,0 +1,68 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg:        #0D1B2E;
+  --bg-2:      #112240;
+  --bg-3:      #152A4A;
+  --bg-4:      #1A3258;
+  --border:    #1E3A5F;
+  --border-2:  #2A5080;
+  --text-1:    #E8F4FF;
+  --text-2:    #7BA7C8;
+  --text-3:    #4A7099;
+  --cyan:      #00C2CC;
+  --cyan-bg:   rgba(0,194,204,0.10);
+  --blue:      #2E86FF;
+  --blue-bg:   rgba(46,134,255,0.10);
+  --amber:     #F5A623;
+  --amber-bg:  rgba(245,166,35,0.10);
+  --red:       #FF4D6A;
+  --red-bg:    rgba(255,77,106,0.10);
+  --green:     #00D4A0;
+  --green-bg:  rgba(0,212,160,0.10);
+  --purple:    #A78BFA;
+  --purple-bg: rgba(167,139,250,0.10);
+  --green-bg:  rgba(0,212,160,0.10);
+}
+
+* { box-sizing: border-box; }
+
+select {
+  color-scheme: dark;
+}
+
+select option {
+  background: #1E2435;
+  color: #E8F4FF;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text-1);
+  font-family: 'Pretendard', -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 2px; }
+::selection { background: var(--blue-bg); color: var(--text-1); }
+
+.card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.card:hover {
+  border-color: var(--border-2);
+  box-shadow: 0 0 0 1px var(--border-2), 0 4px 24px rgba(0,0,0,0.3);
+}
+
+.glow-cyan { box-shadow: 0 0 12px rgba(0,194,204,0.15); }
+.glow-blue { box-shadow: 0 0 12px rgba(46,134,255,0.15); }
