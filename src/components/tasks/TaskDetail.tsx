@@ -3,7 +3,8 @@ import { useState, useEffect, useRef } from "react";
 import { getAuthUser, getProjectRole, canDeleteTask } from "@/lib/auth";
 import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase";
-import type { Task, User, Project, TaskStatus } from "@/types/database";
+import type { Task, User, Project } from "@/types/database";
+type TaskStatus = string;
 
 type T = Task & {
   assignee?: User | null;
@@ -123,9 +124,9 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
 
   async function changeStatus(newStatus: TaskStatus, reason?: string) {
     await supabase.from("tasks").update({
-      status: newStatus as any,
+      status: newStatus,
       blocked_reason: newStatus === "blocked" ? (reason ?? null) : null,
-    } as any).eq("id", taskId);
+    }).eq("id", taskId);
     await loadTask();
     setShowStatusMenu(false); setShowBlockedInput(false); setBlockedReason("");
   }

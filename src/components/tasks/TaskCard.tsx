@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase";
-import type { Task, User, Project, TaskStatus } from "@/types/database";
+import type { Task, User, Project } from "@/types/database";
+type TaskStatus = string;
 import TaskDetail from "./TaskDetail";
 
 type T = Task & {

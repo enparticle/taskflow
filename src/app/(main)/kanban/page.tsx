@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase";
-import type { Task, User, Project, TaskStatus } from "@/types/database";
+import type { Task, User, Project } from "@/types/database";
+type TaskStatus = string;
 import TaskDetail from "@/components/tasks/TaskDetail";
 import TaskForm from "@/components/tasks/TaskForm";
 
@@ -55,9 +56,9 @@ export default function KanbanPage() {
 
   async function moveTask(taskId: string, newStatus: TaskStatus, reason?: string) {
     await supabase.from("tasks").update({
-      status: newStatus as any,
+      status: newStatus,
       blocked_reason: newStatus === "blocked" ? (reason ?? null) : null,
-    } as any).eq("id", taskId);
+    }).eq("id", taskId);
     await load();
   }
 
