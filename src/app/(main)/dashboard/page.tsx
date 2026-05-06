@@ -66,30 +66,29 @@ export default function DashboardPage() {
   const load = useCallback(async () => {
     const now = new Date();
     const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
-    // 이번 달 시작/끝
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    // ?�번 ???�작/??    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).toISOString();
 
     const sel = "*, assignee_ids, assignee:users!tasks_assignee_id_fkey(name), project:projects(name)";
 
-    // 전체 진행 중 업무 (완료되지 않은 것)
+    // ?�체 진행 �??�무 (?�료?��? ?��? �?
     const { data: activeTasks } = await supabase.from("tasks").select(sel).not("status", "eq", "done");
-    // 이번 달 완료 업무
+    // ?�번 ???�료 ?�무
     const { data: doneTasks } = await supabase.from("tasks").select(sel)
       .eq("status", "done").gte("completed_at", monthStart).lte("completed_at", monthEnd);
-    // 전체 업무 (차트용)
+    // ?�체 ?�무 (차트??
     const { data: allTasks } = await supabase.from("tasks").select(sel);
 
     const tasks = allTasks ?? [];
-    const active = activeTasks ?? [];
-    const doneThisMonth = doneTasks ?? [];
+    const active: any[] = activeTasks ?? [];
+    const doneThisMonth: any[] = doneTasks ?? [];
 
     const today = active.filter(t => t.due_date && new Date(t.due_date) <= todayEnd).length;
     const blocked = active.filter(t => t.status === "blocked").length;
     const review = active.filter(t => t.status === "review").length;
     const overdue = active.filter(t => t.due_date && new Date(t.due_date) < new Date()).length;
 
-    // 완료율 = 이번 달 완료 / (이번 달 완료 + 현재 진행 중)
+    // ?�료??= ?�번 ???�료 / (?�번 ???�료 + ?�재 진행 �?
     const total = doneThisMonth.length + active.length;
     const completionRate = total > 0 ? Math.round((doneThisMonth.length / total) * 100) : 0;
 
@@ -100,14 +99,14 @@ export default function DashboardPage() {
       completionRate,
     });
     const statusMap: Record<string, { label: string; color: string }> = {
-      backlog: { label: "백로그", color: "#4A7099" }, todo: { label: "할 일", color: "#7BA7C8" },
+      backlog: { label: "백로�?, color: "#4A7099" }, todo: { label: "????, color: "#7BA7C8" },
       doing: { label: "진행", color: "#2E86FF" }, blocked: { label: "Blocked", color: "#FF4D6A" },
-      review: { label: "리뷰", color: "#F5A623" }, done: { label: "완료", color: "#00D4A0" },
+      review: { label: "리뷰", color: "#F5A623" }, done: { label: "?�료", color: "#00D4A0" },
     };
     setStatusDist(Object.entries(statusMap).map(([k, v]) => ({ ...v, value: tasks.filter(t => t.status === k).length })));
     const prioMap: Record<string, { label: string; color: string }> = {
-      urgent: { label: "긴급", color: "#FF4D6A" }, high: { label: "높음", color: "#F5A623" },
-      medium: { label: "보통", color: "#2E86FF" }, low: { label: "낮음", color: "#4A7099" },
+      urgent: { label: "긴급", color: "#FF4D6A" }, high: { label: "?�음", color: "#F5A623" },
+      medium: { label: "보통", color: "#2E86FF" }, low: { label: "??��", color: "#4A7099" },
     };
     setPriorityDist(Object.entries(prioMap).map(([k, v]) => ({ ...v, value: tasks.filter(t => t.priority === k && t.status !== "done").length })));
     const { data: users } = await supabase.from("users").select("*").eq("is_active", true);
@@ -125,7 +124,7 @@ export default function DashboardPage() {
       total: tasks.filter(t => t.project_id === p.id).length,
       health: p.health,
     })));
-    // 최근 30일 업무
+    // 최근 30???�무
     const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const { data: recent } = await supabase.from("tasks").select(sel)
       .gte("updated_at", thirtyDaysAgo.toISOString())
@@ -137,40 +136,39 @@ export default function DashboardPage() {
 
   const completionRate = (stats as any).completionRate ?? 0;
   const STATUS_COLOR: Record<string, string> = { backlog: "#4A7099", todo: "#7BA7C8", doing: "#2E86FF", blocked: "#FF4D6A", review: "#F5A623", done: "#00D4A0" };
-  const STATUS_LABEL: Record<string, string> = { backlog: "백로그", todo: "할 일", doing: "진행 중", blocked: "Blocked", review: "리뷰", done: "완료" };
+  const STATUS_LABEL: Record<string, string> = { backlog: "백로�?, todo: "????, doing: "진행 �?, blocked: "Blocked", review: "리뷰", done: "?�료" };
   const HEALTH_COLOR: Record<string, string> = { good: "#00D4A0", at_risk: "#F5A623", critical: "#FF4D6A" };
 
   return (
     <div className="space-y-4 max-w-6xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: "var(--text-1)" }}>대시보드</h1>
+          <h1 className="text-xl font-bold" style={{ color: "var(--text-1)" }}>?�?�보??/h1>
           <div className="flex items-center gap-3 mt-0.5">
             <p className="text-xs" style={{ color: "var(--text-3)" }}>
               {new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" })}
             </p>
             <span className="text-xs px-2 py-0.5 rounded-full"
               style={{ background: "var(--cyan-bg)", color: "var(--cyan)", border: "1px solid var(--cyan)33" }}>
-              {new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long" })} 기준
+              {new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long" })} 기�?
             </span>
             <span className="text-xs" style={{ color: "var(--text-3)" }}>
-              최근 업무 피드 · 최근 30일
-            </span>
+              최근 ?�무 ?�드 · 최근 30??            </span>
           </div>
         </div>
         <button onClick={() => setOpenForm(true)} className="rounded-lg px-4 py-2 text-xs font-semibold"
           style={{ background: "linear-gradient(135deg, #00C2CC, #2E86FF)", color: "#fff", boxShadow: "0 0 16px rgba(0,194,204,0.25)" }}>
-          + 새 업무
+          + ???�무
         </button>
       </div>
 
-      {/* 통계 카드 */}
+      {/* ?�계 카드 */}
       <div className="grid grid-cols-4 gap-3">
         {[
-          { label: "진행 중 업무", value: stats.total,  color: "#2E86FF", bg: "rgba(46,134,255,0.08)",  icon: "≡", sub: `이번 달 완료 ${stats.done}건` },
-          { label: "오늘 마감",  value: stats.today,   color: "#F5A623", bg: "rgba(245,166,35,0.08)",  icon: "◷", sub: `지연 ${stats.overdue}건` },
-          { label: "Blocked",    value: stats.blocked, color: "#FF4D6A", bg: "rgba(255,77,106,0.08)",  icon: "⊘", sub: "즉시 확인 필요" },
-          { label: "완료율",     value: `${completionRate}%`, color: "#00D4A0", bg: "rgba(0,212,160,0.08)", icon: "✓", sub: `${stats.done} / ${stats.total}건` },
+          { label: "진행 �??�무", value: stats.total,  color: "#2E86FF", bg: "rgba(46,134,255,0.08)",  icon: "??, sub: `?�번 ???�료 ${stats.done}�? },
+          { label: "?�늘 마감",  value: stats.today,   color: "#F5A623", bg: "rgba(245,166,35,0.08)",  icon: "??, sub: `지??${stats.overdue}�? },
+          { label: "Blocked",    value: stats.blocked, color: "#FF4D6A", bg: "rgba(255,77,106,0.08)",  icon: "??, sub: "즉시 ?�인 ?�요" },
+          { label: "?�료??,     value: `${completionRate}%`, color: "#00D4A0", bg: "rgba(0,212,160,0.08)", icon: "??, sub: `${stats.done} / ${stats.total}�? },
         ].map((c, i) => (
           <div key={i} className="rounded-2xl p-4"
             style={{ background: c.bg, border: `1px solid ${c.color}22`, boxShadow: `0 0 20px ${c.color}11` }}>
@@ -184,10 +182,10 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* 차트 행 */}
+      {/* 차트 ??*/}
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-          <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-2)" }}>업무 상태 분포</p>
+          <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-2)" }}>?�무 ?�태 분포</p>
           <DonutChart data={statusDist} size={100} />
           <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5">
             {statusDist.filter(d => d.value > 0).map((d, i) => (
@@ -200,11 +198,11 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-          <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-2)" }}>우선순위별 진행 업무</p>
+          <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-2)" }}>?�선?�위�?진행 ?�무</p>
           <BarChart data={priorityDist} height={100} />
         </div>
         <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-          <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-2)" }}>팀원별 업무량</p>
+          <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-2)" }}>?�?�별 ?�무??/p>
           <div className="space-y-3">
             {memberStats.map((m, i) => (
               <div key={i}>
@@ -214,7 +212,7 @@ export default function DashboardPage() {
                       style={{ background: `${m.color}22`, color: m.color, fontSize: 10 }}>{m.name[0]}</div>
                     <span className="text-xs" style={{ color: "var(--text-2)" }}>{m.name}</span>
                   </div>
-                  <span className="text-xs tabular-nums" style={{ color: m.color }}>{m.total}건</span>
+                  <span className="text-xs tabular-nums" style={{ color: m.color }}>{m.total}�?/span>
                 </div>
                 <ProgressBar value={m.total > 0 ? (m.doing / Math.max(m.total, 1)) * 100 : 0} color={m.color} />
               </div>
@@ -227,11 +225,11 @@ export default function DashboardPage() {
       <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
         <div className="flex items-center gap-2 mb-4">
           <div className="w-1 h-4 rounded-full" style={{ background: "var(--cyan)" }} />
-          <p className="text-xs font-semibold" style={{ color: "var(--text-2)" }}>프로젝트 타임라인</p>
+          <p className="text-xs font-semibold" style={{ color: "var(--text-2)" }}>?�로?�트 ?�?�라??/p>
           <div className="flex items-center gap-3 ml-auto">
             {[
-              { color: "#00D4A0", label: "완료" }, { color: "#2E86FF", label: "진행 중" },
-              { color: "#F5A623", label: "계획" }, { color: "#FF4D6A", label: "지연" },
+              { color: "#00D4A0", label: "?�료" }, { color: "#2E86FF", label: "진행 �? },
+              { color: "#F5A623", label: "계획" }, { color: "#FF4D6A", label: "지?? },
             ].map(l => (
               <div key={l.label} className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-full" style={{ background: l.color }} />
@@ -243,10 +241,10 @@ export default function DashboardPage() {
         <GanttChart />
       </div>
 
-      {/* 하단 행 */}
+      {/* ?�단 ??*/}
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-          <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-2)" }}>프로젝트 진행 현황</p>
+          <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-2)" }}>?�로?�트 진행 ?�황</p>
           <div className="space-y-3">
             {projectStats.map((p, i) => {
               const pct = p.total > 0 ? Math.round((p.done / p.total) * 100) : 0;
@@ -267,11 +265,11 @@ export default function DashboardPage() {
                 </div>
               );
             })}
-            {projectStats.length === 0 && <p className="text-xs text-center py-4" style={{ color: "var(--text-3)" }}>진행 중인 프로젝트 없음</p>}
+            {projectStats.length === 0 && <p className="text-xs text-center py-4" style={{ color: "var(--text-3)" }}>진행 중인 ?�로?�트 ?�음</p>}
           </div>
         </div>
         <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-          <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-2)" }}>최근 업무</p>
+          <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-2)" }}>최근 ?�무</p>
           <div className="space-y-1.5">
             {recentTasks.map((t: any) => (
               <div key={t.id} className="flex items-center gap-2 rounded-lg px-3 py-2 cursor-pointer transition-all"
