@@ -110,16 +110,18 @@ export default function DashboardPage() {
       medium: { label: "보통", color: "#2E86FF" }, low: { label: "낮음", color: "#4A7099" },
     };
     setPriorityDist(Object.entries(prioMap).map(([k, v]) => ({ ...v, value: tasks.filter(t => t.priority === k && t.status !== "done").length })));
-    const { data: users } = await supabase.from("users").select("*").eq("is_active", true);
+    const { data: usersRaw } = await supabase.from("users").select("*").eq("is_active", true);
+    const users: any[] = usersRaw ?? [];
     const colors = ["#00C2CC","#2E86FF","#F5A623","#00D4A0","#A78BFA","#FF4D6A"];
-    setMemberStats((users ?? []).map((u, i) => ({
+    setMemberStats(users.map((u: any, i: number) => ({
       name: u.name,
       doing: tasks.filter(t => t.assignee_id === u.id && t.status === "doing").length,
       total: tasks.filter(t => t.assignee_id === u.id && t.status !== "done").length,
       color: colors[i % colors.length],
     })));
-    const { data: projects } = await supabase.from("projects").select("*").eq("status", "active");
-    setProjectStats((projects ?? []).map((p: any) => ({
+    const { data: projectsRaw } = await supabase.from("projects").select("*").eq("status", "active");
+    const projects: any[] = projectsRaw ?? [];
+    setProjectStats(projects.map((p: any) => ({
       name: p.name,
       done: tasks.filter(t => t.project_id === p.id && t.status === "done").length,
       total: tasks.filter(t => t.project_id === p.id).length,
