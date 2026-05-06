@@ -3,9 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await context.params;
     const supabase = createServerClient();
     const body = await req.json();
 
@@ -20,18 +21,13 @@ export async function PATCH(
     const { data, error } = await supabase
       .from("tasks")
       .update(body)
-      .eq("id", params.id)
+      .eq("id", id)
       .select()
       .single();
 
-    if (error) {
-      console.error("tasks update error:", error);
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json(data);
   } catch (e) {
-    console.error("API error:", e);
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });
   }
 }
