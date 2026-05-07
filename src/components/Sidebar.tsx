@@ -16,9 +16,10 @@ const TOP_NAV = [
 ];
 
 const BOTTOM_NAV = [
-  { href: "/reports",  label: "리포트",  icon: "📊" },
-  { href: "/team",     label: "팀 현황", icon: "◈" },
-  { href: "/settings", label: "설정",    icon: "⚙" },
+  { href: "/reports",   label: "리포트",   icon: "📊" },
+  { href: "/recurring", label: "반복 업무", icon: "🔄" },
+  { href: "/team",      label: "팀 현황",  icon: "◈" },
+  { href: "/settings",  label: "설정",     icon: "⚙" },
 ];
 
 const HEALTH_COLOR: Record<string, string> = {

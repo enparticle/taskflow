@@ -38,16 +38,27 @@ export default function TaskForm({ onClose, onCreated, defaultProjectId }: Props
   const [showAssigneeMenu, setShowAssigneeMenu] = useState(false);
   const assigneeRef = useRef<HTMLDivElement>(null);
 
+  const [milestones, setMilestones] = useState<any[]>([]);
+
   const [form, setForm] = useState({
     title: "", description: "", task_type: "planning", priority: "medium",
     assignee_ids: [] as string[], project_id: defaultProjectId ?? "",
-    due_date: "", estimated_hours: "",
+    milestone_id: "", due_date: "", estimated_hours: "",
   });
 
   useEffect(() => {
     supabase.from("users").select("*").eq("is_active", true).then(({ data }) => { if (data) setUsers(data); });
     supabase.from("projects").select("*").eq("status", "active").then(({ data }) => { if (data) setProjects(data); });
   }, []);
+
+  useEffect(() => {
+    if (!form.project_id) { setMilestones([]); return; }
+    supabase.from("milestones").select("*")
+      .eq("project_id", form.project_id)
+      .neq("status", "cancelled")
+      .order("sort_order")
+      .then(({ data }) => setMilestones(data ?? []));
+  }, [form.project_id]);
 
   // 외부 클릭 시 닫기
   useEffect(() => {
@@ -65,6 +76,8 @@ export default function TaskForm({ onClose, onCreated, defaultProjectId }: Props
   const [classified, setClassified] = useState(false);
   const [recommending, setRecommending] = useState(false);
   const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [deadlineRec, setDeadlineRec] = useState<any>(null);
+  const [deadlineLoading, setDeadlineLoading] = useState(false);
 
   async function autoClassify() {
     if (!form.title.trim()) return;
@@ -119,6 +132,26 @@ export default function TaskForm({ onClose, onCreated, defaultProjectId }: Props
     setRecommending(false);
   }
 
+  async function recommendDeadline() {
+    if (!form.title.trim()) return;
+    setDeadlineLoading(true); setDeadlineRec(null);
+    try {
+      const res = await fetch("/api/recommend-deadline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: form.title,
+          task_type: form.task_type,
+          priority: form.priority,
+          estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : null,
+        }),
+      });
+      const data = await res.json();
+      if (!data.error) setDeadlineRec(data);
+    } catch {}
+    setDeadlineLoading(false);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.title.trim()) { setError("업무명을 입력해주세요"); return; }
@@ -129,6 +162,7 @@ export default function TaskForm({ onClose, onCreated, defaultProjectId }: Props
       assignee_id: form.assignee_ids[0] || null,
       assignee_ids: form.assignee_ids,
       project_id: form.project_id || null,
+      milestone_id: form.milestone_id || null,
       due_date: form.due_date || null,
       estimated_hours: form.estimated_hours ? Number(form.estimated_hours) : null,
       status: "todo",
@@ -287,22 +321,64 @@ export default function TaskForm({ onClose, onCreated, defaultProjectId }: Props
 
           <div>
             <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-3)" }}>프로젝트</label>
-            <select value={form.project_id} onChange={e => set("project_id", e.target.value)} style={fieldStyle}>
+            <select value={form.project_id} onChange={e => { set("project_id", e.target.value); set("milestone_id", ""); }} style={fieldStyle}>
               <option value="">없음</option>
               {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          {milestones.length > 0 && (
             <div>
-              <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-3)" }}>마감일</label>
-              <input type="date" value={form.due_date} onChange={e => set("due_date", e.target.value)} style={fieldStyle} />
+              <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-3)" }}>계획 (마일스톤)</label>
+              <select value={form.milestone_id} onChange={e => set("milestone_id", e.target.value)} style={fieldStyle}>
+                <option value="">미분류</option>
+                {milestones.map(m => (
+                  <option key={m.id} value={m.id}>
+                    {m.status === "completed" ? "✓ " : m.status === "in_progress" ? "▶ " : "○ "}{m.title}
+                  </option>
+                ))}
+              </select>
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-3)" }}>예상 시간</label>
-              <input type="number" value={form.estimated_hours} onChange={e => set("estimated_hours", e.target.value)}
-                placeholder="시간 (예: 4)" min="0.5" step="0.5" style={fieldStyle} />
+          )}
+
+          {/* 마감일 */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium" style={{ color: "var(--text-3)" }}>마감일</label>
+              <button type="button" onClick={recommendDeadline}
+                disabled={deadlineLoading || !form.title.trim()}
+                className="text-xs px-2 py-0.5 rounded-lg disabled:opacity-40"
+                style={{ background: "rgba(167,139,250,0.12)", color: "#A78BFA", border: "1px solid rgba(167,139,250,0.25)" }}>
+                {deadlineLoading ? "분석 중…" : "✦ AI 추천"}
+              </button>
             </div>
+            <input type="date" value={form.due_date} onChange={e => { set("due_date", e.target.value); setDeadlineRec(null); }} style={fieldStyle} />
+            {deadlineRec && (
+              <div className="mt-1.5 rounded-lg px-3 py-2"
+                style={{ background: "rgba(167,139,250,0.08)", border: "1px solid rgba(167,139,250,0.2)" }}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold" style={{ color: "#A78BFA" }}>
+                      추천: {deadlineRec.recommended_date} ({deadlineRec.recommended_days}일 후)
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-3)" }}>{deadlineRec.reason}</p>
+                  </div>
+                  <button type="button"
+                    onClick={() => { set("due_date", deadlineRec.recommended_date); setDeadlineRec(null); }}
+                    className="text-xs px-2.5 py-1 rounded-lg font-semibold shrink-0"
+                    style={{ background: "rgba(167,139,250,0.2)", color: "#A78BFA" }}>
+                    적용
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 예상 시간 */}
+          <div>
+            <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-3)" }}>예상 시간</label>
+            <input type="number" value={form.estimated_hours} onChange={e => set("estimated_hours", e.target.value)}
+              placeholder="시간 (예: 4)" min="0.5" step="0.5" style={fieldStyle} />
           </div>
 
           {error && <p className="text-xs" style={{ color: "var(--red)" }}>{error}</p>}

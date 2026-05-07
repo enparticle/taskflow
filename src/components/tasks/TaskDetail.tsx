@@ -5,6 +5,7 @@ import { getAuthUser, getProjectRole, canDeleteTask } from "@/lib/auth";
 import { createPortal } from "react-dom";
 import TaskComments from "@/components/tasks/TaskComments";
 import TaskReviews from "@/components/tasks/TaskReviews";
+import TaskDependencies from "@/components/tasks/TaskDependencies";
 import { createClient } from "@/lib/supabase";
 import type { Task, User, Project } from "@/types/database";
 type TaskStatus = string;
@@ -53,6 +54,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
   const [loading, setLoading] = useState(true);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [milestones, setMilestones] = useState<any[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
   const [editVal, setEditVal] = useState("");
   const [showStatusMenu, setShowStatusMenu] = useState(false);
@@ -81,6 +83,13 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
       .eq("id", taskId).single();
     setTask(data);
     setAssigneeIds((data as any)?.assignee_ids ?? ((data as any)?.assignee_id ? [(data as any).assignee_id] : []));
+
+    // 프로젝트의 마일스톤 로드
+    if ((data as any)?.project_id) {
+      const { data: ms } = await supabase.from("milestones").select("*")
+        .eq("project_id", (data as any).project_id).neq("status", "cancelled").order("sort_order");
+      setMilestones(ms ?? []);
+    }
     const { data: evs } = await supabase.from("task_events").select("*")
       .eq("task_id", taskId).order("changed_at", { ascending: false }).limit(10);
     setEvents(evs ?? []);
@@ -358,6 +367,20 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
                 {["low","medium","high","urgent"].map(v => <option key={v} value={v}>{PRIORITY[v].label}</option>)}
               </select>
             </div>
+            {milestones.length > 0 && (
+              <div className="rounded-xl p-3 col-span-2" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
+                <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>계획 (마일스톤)</p>
+                <select value={(task as any).milestone_id ?? ""} onChange={e => update("milestone_id", e.target.value || null)}
+                  className="w-full text-xs focus:outline-none" style={{ background: "transparent", color: "#E8F4FF", border: "none", colorScheme: "dark" }}>
+                  <option value="">미분류</option>
+                  {milestones.map((m: any) => (
+                    <option key={m.id} value={m.id}>
+                      {m.status === "completed" ? "✓ " : m.status === "in_progress" ? "▶ " : "○ "}{m.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
               <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>난이도</p>
               <select value={(task as any).difficulty ?? ""} onChange={e => update("difficulty", e.target.value || null)}
@@ -431,6 +454,12 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
               <TaskReviews taskId={taskId} assigneeIds={assigneeIds} />
             </div>
           )}
+
+          {/* 업무 의존성 */}
+          <div>
+            <p className="text-xs font-medium mb-2" style={{ color: "var(--text-3)" }}>업무 의존성</p>
+            <TaskDependencies taskId={taskId} projectId={(task as any).project_id} />
+          </div>
 
           {/* 댓글 */}
           <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>

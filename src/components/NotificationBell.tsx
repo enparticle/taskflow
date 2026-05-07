@@ -38,14 +38,18 @@ export default function NotificationBell() {
     if (!myUser) return;
     loadNotifications();
 
-    // 실시간 구독
+    // 실시간 구독 - INSERT 즉시 반영
     const channel = supabase
-      .channel("notifications")
+      .channel(`notifications-${myUser.id}`)
       .on("postgres_changes", {
         event: "INSERT", schema: "public", table: "notifications",
         filter: `user_id=eq.${myUser.id}`,
-      }, () => loadNotifications())
-      .subscribe();
+      }, (payload) => {
+        setNotifications(prev => [payload.new, ...prev]);
+      })
+      .subscribe((status) => {
+        console.log("notification subscription:", status);
+      });
 
     return () => { supabase.removeChannel(channel); };
   }, [myUser]);
@@ -99,8 +103,12 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 w-80 rounded-2xl shadow-2xl z-50 overflow-hidden"
-          style={{ background: "var(--bg-2)", border: "1px solid var(--border-2)", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}>
+        <div className="fixed w-80 rounded-2xl shadow-2xl z-50 overflow-hidden"
+          style={{
+            top: 56, left: 224,
+            background: "var(--bg-2)", border: "1px solid var(--border-2)",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.5)"
+          }}>
           <div className="flex items-center justify-between px-4 py-3"
             style={{ borderBottom: "1px solid var(--border)" }}>
             <p className="text-xs font-semibold" style={{ color: "var(--text-1)" }}>

@@ -38,7 +38,7 @@ function ProgressBar({ value, color }: { value: number; color: string }) {
   );
 }
 
-type Tab = "overview" | "milestones" | "tasks" | "kanban" | "members";
+type Tab = "overview" | "milestones" | "tasks" | "grouped" | "kanban" | "members";
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -47,6 +47,7 @@ export default function ProjectDetailPage() {
   const [myRole, setMyRole] = useState<string | null>(null);
   const [sysRole, setSysRole] = useState<string>("member");
   const [tasks, setTasks] = useState<any[]>([]);
+  const [milestones, setMilestones] = useState<any[]>([]);
   const [tab, setTab] = useState<Tab>("overview");
   const [openForm, setOpenForm] = useState(false);
   const [openDetail, setOpenDetail] = useState<string | null>(null);
@@ -70,6 +71,10 @@ export default function ProjectDetailPage() {
       const projRole = await getProjectRole(id, authUser.userId);
       setMyRole(projRole);
     }
+    const { data: ms } = await supabase.from("milestones")
+      .select("*").eq("project_id", id).order("sort_order");
+    setMilestones(ms ?? []);
+
     const q = supabase.from("tasks")
       .select("*, assignee_ids, assignee:users!tasks_assignee_id_fkey(name,avatar_url), project:projects(name)")
       .eq("project_id", id).order("created_at", { ascending: true });
@@ -100,6 +105,7 @@ export default function ProjectDetailPage() {
     { id: "overview",   label: "개요" },
     ...(canManageMiles ? [{ id: "milestones" as Tab, label: "계획" }] : []),
     { id: "tasks",      label: `업무 (${total})` },
+    { id: "grouped",    label: "계획별 업무" },
     { id: "kanban",     label: "칸반" },
     ...(canManageMembers ? [{ id: "members" as Tab, label: "팀 구성" }] : []),
   ];
@@ -242,6 +248,74 @@ export default function ProjectDetailPage() {
 
       {/* 업무 목록 */}
       {tab === "tasks" && <TaskList tasks={tasks} onRefresh={load} />}
+
+      {/* 계획별 업무 */}
+      {tab === "grouped" && (
+        <div className="space-y-4">
+          {/* 미분류 업무 */}
+          {(() => {
+            const unclassified = tasks.filter(t => !t.milestone_id);
+            if (unclassified.length === 0) return null;
+            return (
+              <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+                <div className="flex items-center gap-2 px-4 py-3"
+                  style={{ background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
+                  <div className="w-2 h-2 rounded-full" style={{ background: "var(--text-3)" }} />
+                  <p className="text-xs font-semibold" style={{ color: "var(--text-2)" }}>미분류</p>
+                  <span className="text-xs px-1.5 py-0.5 rounded-full ml-auto"
+                    style={{ background: "var(--bg-4)", color: "var(--text-3)" }}>{unclassified.length}</span>
+                </div>
+                <div className="p-2">
+                  <TaskList tasks={unclassified} onRefresh={load} />
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* 마일스톤별 그룹 */}
+          {milestones.map(m => {
+            const mTasks = tasks.filter(t => t.milestone_id === m.id);
+            if (mTasks.length === 0) return null;
+            const MS_STATUS: Record<string, { color: string; label: string }> = {
+              planned:     { color: "#7BA7C8", label: "계획" },
+              in_progress: { color: "#2E86FF", label: "진행 중" },
+              completed:   { color: "#00D4A0", label: "완료" },
+              cancelled:   { color: "#4A7099", label: "취소" },
+            };
+            const cfg = MS_STATUS[m.status] ?? MS_STATUS.planned;
+            const doneCnt = mTasks.filter(t => t.status === "done").length;
+            const pct = Math.round((doneCnt / mTasks.length) * 100);
+            return (
+              <div key={m.id} className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${cfg.color}33` }}>
+                <div className="px-4 py-3" style={{ background: `${cfg.color}08`, borderBottom: `1px solid ${cfg.color}22` }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 rounded-full" style={{ background: cfg.color }} />
+                    <p className="text-xs font-semibold" style={{ color: "var(--text-1)" }}>{m.title}</p>
+                    <span className="text-xs px-1.5 py-0.5 rounded-md"
+                      style={{ background: `${cfg.color}18`, color: cfg.color }}>{cfg.label}</span>
+                    {m.due_date && (
+                      <span className="text-xs ml-1" style={{ color: "var(--text-3)" }}>
+                        ~ {new Date(m.due_date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
+                      </span>
+                    )}
+                    <span className="text-xs px-1.5 py-0.5 rounded-full ml-auto"
+                      style={{ background: `${cfg.color}18`, color: cfg.color }}>
+                      {doneCnt}/{mTasks.length} · {pct}%
+                    </span>
+                  </div>
+                  <div className="rounded-full overflow-hidden" style={{ height: 4, background: "var(--bg-4)" }}>
+                    <div className="h-full rounded-full transition-all"
+                      style={{ width: `${pct}%`, background: cfg.color }} />
+                  </div>
+                </div>
+                <div className="p-2" style={{ background: "var(--bg-2)" }}>
+                  <TaskList tasks={mTasks} onRefresh={load} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* 칸반 */}
       {tab === "kanban" && (
