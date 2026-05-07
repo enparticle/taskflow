@@ -8,6 +8,7 @@ import TaskForm from "@/components/tasks/TaskForm";
 import TaskDetail from "@/components/tasks/TaskDetail";
 import { loadTasksWithAssignees } from "@/lib/tasks";
 import ProjectForm from "@/components/projects/ProjectForm";
+import PlanningFeedback from "@/components/tasks/PlanningFeedback";
 import { getAuthUser, getProjectRole, canEditProject, canManageMilestone, canManageProjectMembers } from "@/lib/auth";
 import MilestonePanel from "@/components/milestones/MilestonePanel";
 import ProjectMemberPanel from "@/components/team/ProjectMemberPanel";
@@ -172,6 +173,8 @@ export default function ProjectDetailPage() {
 
       {/* 개요 */}
       {tab === "overview" && (
+        <div className="space-y-3">
+        <PlanningFeedback mode="project" projectId={id} projectName={project?.name} onTaskClick={(tid) => setOpenDetail(tid)} />
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
             <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-2)" }}>상태별 업무</p>
@@ -215,6 +218,7 @@ export default function ProjectDetailPage() {
               {tasks.length === 0 && <p className="text-xs text-center py-6" style={{ color: "var(--text-3)" }}>업무 없음</p>}
             </div>
           </div>
+        </div>
         </div>
       )}
 

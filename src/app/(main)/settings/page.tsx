@@ -114,6 +114,26 @@ export default function SettingsPage() {
     admin: "관리자", leader: "리더", member: "멤버",
   };
 
+  const [notifyLoading, setNotifyLoading] = useState(false);
+  const [notifyResult, setNotifyResult] = useState("");
+
+  async function sendNotifications() {
+    setNotifyLoading(true); setNotifyResult("");
+    try {
+      const res = await fetch("/api/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ daysAhead: 3 }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setNotifyResult(data.message);
+    } catch (e: any) {
+      setNotifyResult("오류: " + e.message);
+    }
+    setNotifyLoading(false);
+  }
+
   return (
     <div className="max-w-2xl space-y-5">
       <div className="flex items-center gap-2">
@@ -234,6 +254,32 @@ export default function SettingsPage() {
             style={{ background: "var(--amber-bg)", color: "var(--amber)" }}>
             계정 연결은 관리자만 할 수 있습니다
           </p>
+        </div>
+      )}
+
+      {/* 알림 발송 - 관리자만 */}
+      {isAdmin && (
+        <div className="rounded-2xl p-5" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
+          <div className="flex items-center gap-2 mb-1">
+            <h2 className="text-sm font-semibold" style={{ color: "var(--text-1)" }}>마감 알림 발송</h2>
+            <span className="text-xs px-2 py-0.5 rounded-full"
+              style={{ background: "var(--purple-bg)", color: "var(--purple)" }}>관리자</span>
+          </div>
+          <p className="text-xs mb-4" style={{ color: "var(--text-3)" }}>
+            3일 이내 마감 업무가 있는 담당자에게 이메일을 발송합니다
+          </p>
+          <div className="flex items-center gap-3">
+            <button onClick={sendNotifications} disabled={notifyLoading}
+              className="rounded-lg px-4 py-2 text-xs font-semibold disabled:opacity-40"
+              style={{ background: "linear-gradient(135deg, #00C2CC, #2E86FF)", color: "#fff" }}>
+              {notifyLoading ? "발송 중…" : "지금 발송"}
+            </button>
+            {notifyResult && (
+              <p className="text-xs" style={{ color: notifyResult.startsWith("오류") ? "var(--red)" : "var(--green)" }}>
+                {notifyResult}
+              </p>
+            )}
+          </div>
         </div>
       )}
 

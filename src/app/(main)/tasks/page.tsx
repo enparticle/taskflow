@@ -4,7 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
 import { loadTasksWithAssignees } from "@/lib/tasks";
 import TaskList from "@/components/tasks/TaskList";
+import TaskDetail from "@/components/tasks/TaskDetail";
 import TaskForm from "@/components/tasks/TaskForm";
+import PlanningFeedback from "@/components/tasks/PlanningFeedback";
 
 const STATUS_FILTERS = [
   { value: "all",     label: "전체" },
@@ -20,6 +22,7 @@ export default function TasksPage() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("all");
+  const [openDetail, setOpenDetail] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     let q = supabase.from("tasks")
@@ -61,8 +64,16 @@ export default function TasksPage() {
         ))}
       </div>
 
-      <TaskList tasks={tasks} onRefresh={load} />
+      <div className="grid grid-cols-3 gap-4">
+        <div className="col-span-2">
+          <TaskList tasks={tasks} onRefresh={load} />
+        </div>
+        <div>
+          <PlanningFeedback mode="tasks" filterStatus={filter} onTaskClick={id => setOpenDetail(id)} />
+        </div>
+      </div>
       {open && <TaskForm onClose={() => setOpen(false)} onCreated={() => { load(); setOpen(false); }} />}
+      {openDetail && <TaskDetail taskId={openDetail} onClose={() => setOpenDetail(null)} onRefresh={() => { setOpenDetail(null); load(); }} />}
     </div>
   );
 }

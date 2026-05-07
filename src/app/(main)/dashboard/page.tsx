@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase";
 import TaskForm from "@/components/tasks/TaskForm";
 import TaskDetail from "@/components/tasks/TaskDetail";
 import GanttChart from "@/components/dashboard/GanttChart";
+import PlanningFeedback from "@/components/tasks/PlanningFeedback";
 
 function DonutChart({ data, size = 120 }: { data: { label: string; value: number; color: string }[]; size?: number }) {
   const total = data.reduce((s, d) => s + d.value, 0);
@@ -299,6 +300,9 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* AI 피드백 */}
+      <PlanningFeedback mode="dashboard" />
 
       {openForm && <TaskForm onClose={() => setOpenForm(false)} onCreated={() => { load(); setOpenForm(false); }} />}
       {openDetail && <TaskDetail taskId={openDetail} onClose={() => setOpenDetail(null)} onRefresh={() => { setOpenDetail(null); load(); }} />}
