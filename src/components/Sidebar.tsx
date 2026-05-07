@@ -16,6 +16,7 @@ const TOP_NAV = [
 ];
 
 const BOTTOM_NAV = [
+  { href: "/reports",  label: "리포트",  icon: "📊" },
   { href: "/team",     label: "팀 현황", icon: "◈" },
   { href: "/settings", label: "설정",    icon: "⚙" },
 ];

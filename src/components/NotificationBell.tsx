@@ -10,6 +10,7 @@ const TYPE_CONFIG: Record<string, { icon: string; color: string }> = {
   review:   { icon: "✎", color: "#F5A623" },
   rejected: { icon: "✕", color: "#FF4D6A" },
   approved: { icon: "✓", color: "#00D4A0" },
+  mention:  { icon: "@", color: "#A78BFA" },
 };
 
 export default function NotificationBell() {

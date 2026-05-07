@@ -9,6 +9,7 @@ import TaskDetail from "@/components/tasks/TaskDetail";
 import { loadTasksWithAssignees } from "@/lib/tasks";
 import ProjectForm from "@/components/projects/ProjectForm";
 import PlanningFeedback from "@/components/tasks/PlanningFeedback";
+import BurndownChart from "@/components/dashboard/BurndownChart";
 import { getAuthUser, getProjectRole, canEditProject, canManageMilestone, canManageProjectMembers } from "@/lib/auth";
 import MilestonePanel from "@/components/milestones/MilestonePanel";
 import ProjectMemberPanel from "@/components/team/ProjectMemberPanel";
@@ -197,6 +198,11 @@ export default function ProjectDetailPage() {
               })}
             </div>
           </div>
+          <div className="space-y-3">
+          <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
+            <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-2)" }}>번다운 차트</p>
+            <BurndownChart projectId={id} startDate={project?.start_date} endDate={project?.end_date} />
+          </div>
           <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
             <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-2)" }}>최근 업무</p>
             <div className="space-y-1.5">
@@ -217,6 +223,7 @@ export default function ProjectDetailPage() {
               })}
               {tasks.length === 0 && <p className="text-xs text-center py-6" style={{ color: "var(--text-3)" }}>업무 없음</p>}
             </div>
+          </div>
           </div>
         </div>
         </div>

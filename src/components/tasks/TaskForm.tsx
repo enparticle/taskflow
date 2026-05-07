@@ -61,6 +61,33 @@ export default function TaskForm({ onClose, onCreated, defaultProjectId }: Props
   }, []);
 
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
+  const [classifying, setClassifying] = useState(false);
+  const [classified, setClassified] = useState(false);
+  const [recommending, setRecommending] = useState(false);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+
+  async function autoClassify() {
+    if (!form.title.trim()) return;
+    setClassifying(true);
+    try {
+      const res = await fetch("/api/classify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: form.title, description: form.description }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setForm(f => ({
+        ...f,
+        task_type: data.task_type ?? f.task_type,
+        priority: data.priority ?? f.priority,
+        estimated_hours: data.estimated_hours ? String(data.estimated_hours) : f.estimated_hours,
+      }));
+      setClassified(true);
+      setTimeout(() => setClassified(false), 3000);
+    } catch {}
+    setClassifying(false);
+  }
 
   function toggleAssignee(userId: string) {
     setForm(f => ({
@@ -69,6 +96,27 @@ export default function TaskForm({ onClose, onCreated, defaultProjectId }: Props
         ? f.assignee_ids.filter(id => id !== userId)
         : [...f.assignee_ids, userId],
     }));
+  }
+
+  async function recommendAssignees() {
+    if (!form.title.trim()) return;
+    setRecommending(true);
+    setRecommendations([]);
+    try {
+      const res = await fetch("/api/recommend-assignee", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: form.title,
+          task_type: form.task_type,
+          priority: form.priority,
+          projectId: form.project_id || null,
+        }),
+      });
+      const data = await res.json();
+      if (data.recommendations) setRecommendations(data.recommendations);
+    } catch {}
+    setRecommending(false);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -110,8 +158,22 @@ export default function TaskForm({ onClose, onCreated, defaultProjectId }: Props
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
             <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-3)" }}>업무명 *</label>
-            <input type="text" value={form.title} onChange={e => set("title", e.target.value)}
-              placeholder="업무명을 입력하세요" style={fieldStyle} autoFocus />
+            <div className="flex gap-2">
+              <input type="text" value={form.title} onChange={e => { set("title", e.target.value); setClassified(false); }}
+                placeholder="업무명을 입력하세요"
+                style={{ ...fieldStyle, width: undefined, flex: 1 }} autoFocus />
+              <button type="button" onClick={autoClassify}
+                disabled={classifying || !form.title.trim()}
+                className="rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-40 shrink-0 transition-all"
+                style={{
+                  background: classified ? "rgba(0,212,160,0.15)" : "rgba(167,139,250,0.15)",
+                  color: classified ? "#00D4A0" : "#A78BFA",
+                  border: `1px solid ${classified ? "rgba(0,212,160,0.3)" : "rgba(167,139,250,0.3)"}`,
+                  whiteSpace: "nowrap",
+                }}>
+                {classifying ? "분류 중…" : classified ? "✓ 분류됨" : "✦ AI 분류"}
+              </button>
+            </div>
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-3)" }}>설명</label>
@@ -135,7 +197,45 @@ export default function TaskForm({ onClose, onCreated, defaultProjectId }: Props
 
           {/* 담당자 다중 선택 */}
           <div ref={assigneeRef}>
-            <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-3)" }}>담당자 (복수 선택 가능)</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium" style={{ color: "var(--text-3)" }}>담당자 (복수 선택 가능)</label>
+              <button type="button" onClick={recommendAssignees}
+                disabled={recommending || !form.title.trim()}
+                className="text-xs px-2 py-0.5 rounded-lg disabled:opacity-40 transition-all"
+                style={{ background: "rgba(167,139,250,0.12)", color: "#A78BFA", border: "1px solid rgba(167,139,250,0.25)" }}>
+                {recommending ? "분석 중…" : "✦ AI 추천"}
+              </button>
+            </div>
+
+            {/* 추천 결과 */}
+            {recommendations.length > 0 && (
+              <div className="mb-2 rounded-xl p-2 space-y-1"
+                style={{ background: "rgba(167,139,250,0.06)", border: "1px solid rgba(167,139,250,0.2)" }}>
+                <p className="text-xs mb-1.5" style={{ color: "#A78BFA" }}>추천 담당자</p>
+                {recommendations.map((r, i) => (
+                  <button key={i} type="button"
+                    onClick={() => {
+                      if (!form.assignee_ids.includes(r.user_id)) {
+                        setForm(f => ({ ...f, assignee_ids: [...f.assignee_ids, r.user_id] }));
+                      }
+                    }}
+                    className="flex items-center gap-2 w-full rounded-lg px-2.5 py-1.5 transition-all text-left"
+                    style={{
+                      background: form.assignee_ids.includes(r.user_id) ? "rgba(0,194,204,0.1)" : "var(--bg-3)",
+                      border: `1px solid ${form.assignee_ids.includes(r.user_id) ? "var(--cyan)33" : "var(--border)"}`,
+                    }}>
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                      style={{ background: "var(--cyan-bg)", color: "var(--cyan)", fontSize: 9 }}>
+                      {r.name[0]}
+                    </div>
+                    <span className="text-xs font-medium flex-1" style={{ color: "var(--text-1)" }}>{r.name}</span>
+                    <span className="text-xs" style={{ color: "var(--text-3)" }}>{r.reason}</span>
+                    <span className="text-xs font-bold px-1.5 py-0.5 rounded shrink-0"
+                      style={{ background: "rgba(0,212,160,0.1)", color: "#00D4A0" }}>{r.score}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="relative">
               <button type="button" onClick={() => setShowAssigneeMenu(!showAssigneeMenu)}
                 className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-left"
