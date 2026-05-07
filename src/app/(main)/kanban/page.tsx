@@ -36,6 +36,9 @@ export default function KanbanPage() {
   const [tasks, setTasks] = useState<T[]>([]);
   const [openDetail, setOpenDetail] = useState<string | null>(null);
   const [openForm, setOpenForm] = useState(false);
+  const [period, setPeriod] = useState<"week" | "month" | "quarter" | "all">("all");
+  const [projects, setProjects] = useState<any[]>([]);
+  const [filterProject, setFilterProject] = useState("");
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<TaskStatus | null>(null);
   const [showBlockedModal, setShowBlockedModal] = useState(false);
@@ -44,14 +47,28 @@ export default function KanbanPage() {
   const dragTask = useRef<T | null>(null);
 
   const load = useCallback(async () => {
-    const { data } = await supabase
-      .from("tasks")
+    let q = supabase.from("tasks")
       .select("*, assignee:users!tasks_assignee_id_fkey(name,avatar_url), project:projects(name)")
       .order("created_at", { ascending: true });
-    setTasks(data ?? []);
-  }, []);
 
-  useEffect(() => { load(); }, [load]);
+    if (filterProject) q = q.eq("project_id", filterProject);
+
+    if (period !== "all") {
+      const since = new Date();
+      if (period === "week") since.setDate(since.getDate() - 7);
+      if (period === "month") since.setMonth(since.getMonth() - 1);
+      if (period === "quarter") since.setMonth(since.getMonth() - 3);
+      q = q.gte("created_at", since.toISOString());
+    }
+
+    const { data } = await q;
+    setTasks(data ?? []);
+  }, [period, filterProject]);
+
+  useEffect(() => {
+    load();
+    supabase.from("projects").select("id,name").eq("status","active").then(({ data }) => setProjects(data ?? []));
+  }, [load]);
 
   const byStatus = (status: TaskStatus) => tasks.filter(t => t.status === status);
 

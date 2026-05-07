@@ -9,7 +9,6 @@ const HEALTH_COLOR: Record<string, string> = {
 const MS_STATUS_COLOR: Record<string, string> = {
   planned: "#7BA7C8", in_progress: "#2E86FF", completed: "#00D4A0", cancelled: "#4A7099",
 };
-
 const PERIOD_OPTIONS = [
   { label: "1개월", months: 1 },
   { label: "3개월", months: 3 },
@@ -35,6 +34,7 @@ export default function GanttChart() {
   const [rows, setRows] = useState<any[]>([]);
   const [today] = useState(new Date());
   const [periodMonths, setPeriodMonths] = useState(3);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     const { data: projects } = await supabase
@@ -42,20 +42,27 @@ export default function GanttChart() {
     const { data: milestones } = await supabase
       .from("milestones").select("*").order("sort_order");
     if (!projects) return;
-    setRows(projects.map(p => ({
+    const mapped = projects.map(p => ({
       ...p,
       milestones: (milestones ?? []).filter(m => m.project_id === p.id),
-    })));
+    }));
+    setRows(mapped);
+    // 기본: 모두 접기
+    const init: Record<string, boolean> = {};
+    mapped.forEach(p => { init[p.id] = false; });
+    setExpanded(init);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  // 필터 기간
+  const toggleExpand = (id: string) => {
+    setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
   const rangeStart = new Date(today);
-  rangeStart.setDate(rangeStart.getDate() - 7); // 1주 전부터
+  rangeStart.setDate(rangeStart.getDate() - 7);
   const rangeEnd = new Date(today);
   rangeEnd.setMonth(rangeEnd.getMonth() + periodMonths);
-
   const totalDays = (rangeEnd.getTime() - rangeStart.getTime()) / (1000 * 60 * 60 * 24);
 
   const LABEL_W = 160;
@@ -67,7 +74,10 @@ export default function GanttChart() {
   const todayX = LABEL_W + dateToX(today, rangeStart, totalDays, BAR_W);
 
   let totalRows = 0;
-  rows.forEach(p => { totalRows += 1 + (p.milestones?.length ?? 0); });
+  rows.forEach(p => {
+    totalRows += 1;
+    if (expanded[p.id]) totalRows += (p.milestones?.length ?? 0);
+  });
   const svgH = HEADER_H + totalRows * ROW_H + 20;
 
   let rowIdx = 0;
@@ -76,27 +86,46 @@ export default function GanttChart() {
   rows.forEach((p, pi) => {
     const py = HEADER_H + rowIdx * ROW_H;
     const hc = HEALTH_COLOR[p.health] ?? "#7BA7C8";
+    const isExpanded = expanded[p.id];
+    const hasMilestones = (p.milestones?.length ?? 0) > 0;
 
     elements.push(
       <rect key={`pbg-${pi}`} x={0} y={py} width={LABEL_W + BAR_W} height={ROW_H}
         fill={pi % 2 === 0 ? "var(--bg-3)" : "var(--bg-2)"} />
     );
+
+    // 클릭 가능한 프로젝트 라벨
     elements.push(
-      <text key={`plabel-${pi}`} x={12} y={py + ROW_H / 2 + 1}
-        fill="var(--text-1)" fontSize={11} fontWeight={600} fontFamily="Pretendard, sans-serif"
-        dominantBaseline="middle">
-        ⬡ {p.name.length > 16 ? p.name.slice(0, 16) + "…" : p.name}
-      </text>
+      <g key={`plabel-${pi}`} style={{ cursor: hasMilestones ? "pointer" : "default" }}
+        onClick={() => hasMilestones && toggleExpand(p.id)}>
+        <rect x={0} y={py} width={LABEL_W} height={ROW_H} fill="transparent" />
+        {hasMilestones && (
+          <text x={8} y={py + ROW_H / 2 + 1} fill={hc} fontSize={9}
+            fontFamily="Pretendard, sans-serif" dominantBaseline="middle">
+            {isExpanded ? "▾" : "▸"}
+          </text>
+        )}
+        <text x={hasMilestones ? 20 : 12} y={py + ROW_H / 2 + 1}
+          fill="var(--text-1)" fontSize={11} fontWeight={600} fontFamily="Pretendard, sans-serif"
+          dominantBaseline="middle">
+          {p.name.length > 15 ? p.name.slice(0, 15) + "…" : p.name}
+        </text>
+        {hasMilestones && (
+          <text x={LABEL_W - 8} y={py + ROW_H / 2 + 1} fill={hc} fontSize={8}
+            fontFamily="Pretendard, sans-serif" dominantBaseline="middle" textAnchor="end">
+            {p.milestones.length}
+          </text>
+        )}
+      </g>
     );
 
     if (p.end_date) {
       const startD = p.start_date ? new Date(p.start_date) : new Date();
       const endD = new Date(p.end_date);
-      // 기간 밖이면 클리핑
       const x1 = LABEL_W + dateToX(startD, rangeStart, totalDays, BAR_W);
       const x2 = LABEL_W + dateToX(endD, rangeStart, totalDays, BAR_W);
       const bw = Math.max(x2 - x1, 4);
-      if (x2 > LABEL_W) { // 화면 안에 있는 경우만
+      if (x2 > LABEL_W) {
         elements.push(
           <g key={`pbar-${pi}`}>
             <rect x={Math.max(x1, LABEL_W)} y={py + 10}
@@ -110,14 +139,13 @@ export default function GanttChart() {
         );
       }
     } else {
-      const label = p.start_date ? "마감 미정" : "대기";
       elements.push(
         <g key={`pbar-${pi}`}>
           <rect x={LABEL_W + 8} y={py + 11} width={60} height={ROW_H - 22} rx={4}
             fill="rgba(74,112,153,0.10)" stroke="#4A709955" strokeWidth={1} strokeDasharray="4 2" />
           <text x={LABEL_W + 38} y={py + ROW_H / 2 + 1} fill="#4A7099" fontSize={9}
             fontFamily="Pretendard, sans-serif" dominantBaseline="middle" textAnchor="middle">
-            {label}
+            대기
           </text>
         </g>
       );
@@ -125,60 +153,62 @@ export default function GanttChart() {
 
     rowIdx++;
 
-    p.milestones?.forEach((m: any, mi: number) => {
-      const my = HEADER_H + rowIdx * ROW_H;
-      const mc = MS_STATUS_COLOR[m.status] ?? "#7BA7C8";
-      const isOverdue = m.due_date && m.status !== "completed" && new Date(m.due_date) < today;
+    // 마일스톤 - 펼쳐진 경우만 표시
+    if (isExpanded) {
+      p.milestones?.forEach((m: any, mi: number) => {
+        const my = HEADER_H + rowIdx * ROW_H;
+        const mc = MS_STATUS_COLOR[m.status] ?? "#7BA7C8";
+        const isOverdue = m.due_date && m.status !== "completed" && new Date(m.due_date) < today;
 
-      elements.push(
-        <rect key={`mbg-${pi}-${mi}`} x={0} y={my} width={LABEL_W + BAR_W} height={ROW_H}
-          fill={(pi + mi) % 2 === 0 ? "rgba(0,0,0,0.08)" : "rgba(0,0,0,0.04)"} />
-      );
-      elements.push(
-        <text key={`mlabel-${pi}-${mi}`} x={24} y={my + ROW_H / 2 + 1}
-          fill={m.status === "completed" ? "var(--text-3)" : "var(--text-2)"}
-          fontSize={10} fontFamily="Pretendard, sans-serif" dominantBaseline="middle"
-          textDecoration={m.status === "completed" ? "line-through" : undefined}>
-          · {m.title.length > 14 ? m.title.slice(0, 14) + "…" : m.title}
-        </text>
-      );
+        elements.push(
+          <rect key={`mbg-${pi}-${mi}`} x={0} y={my} width={LABEL_W + BAR_W} height={ROW_H}
+            fill={(pi + mi) % 2 === 0 ? "rgba(0,0,0,0.08)" : "rgba(0,0,0,0.04)"} />
+        );
+        elements.push(
+          <text key={`mlabel-${pi}-${mi}`} x={24} y={my + ROW_H / 2 + 1}
+            fill={m.status === "completed" ? "var(--text-3)" : "var(--text-2)"}
+            fontSize={10} fontFamily="Pretendard, sans-serif" dominantBaseline="middle"
+            textDecoration={m.status === "completed" ? "line-through" : undefined}>
+            · {m.title.length > 14 ? m.title.slice(0, 14) + "…" : m.title}
+          </text>
+        );
 
-      if (m.due_date) {
-        const sd = m.start_date ? new Date(m.start_date) : new Date(m.due_date);
-        const ed = new Date(m.due_date);
-        const x1 = LABEL_W + dateToX(sd, rangeStart, totalDays, BAR_W);
-        const x2 = LABEL_W + dateToX(ed, rangeStart, totalDays, BAR_W);
-        const bw = Math.max(x2 - x1, m.start_date ? 4 : 8);
-        if (x2 > LABEL_W) {
+        if (m.due_date) {
+          const sd = m.start_date ? new Date(m.start_date) : new Date(m.due_date);
+          const ed = new Date(m.due_date);
+          const x1 = LABEL_W + dateToX(sd, rangeStart, totalDays, BAR_W);
+          const x2 = LABEL_W + dateToX(ed, rangeStart, totalDays, BAR_W);
+          const bw = Math.max(x2 - x1, m.start_date ? 4 : 8);
+          if (x2 > LABEL_W) {
+            elements.push(
+              <g key={`mbar-${pi}-${mi}`}>
+                <rect x={Math.max(x1, LABEL_W)} y={my + 12}
+                  width={Math.min(bw, 8)} height={ROW_H - 24} rx={3}
+                  fill={isOverdue ? "rgba(255,77,106,0.3)" : `${mc}33`}
+                  stroke={isOverdue ? "#FF4D6A" : mc} strokeWidth={1} />
+                {!m.start_date && (
+                  <polygon points={`${x2},${my + 12} ${x2 + 6},${my + 6} ${x2 - 6},${my + 6}`}
+                    fill={isOverdue ? "#FF4D6A" : mc} />
+                )}
+              </g>
+            );
+          }
+        } else {
           elements.push(
             <g key={`mbar-${pi}-${mi}`}>
-              <rect x={Math.max(x1, LABEL_W)} y={my + 12}
-                width={Math.min(bw, 8)} height={ROW_H - 24} rx={3}
-                fill={isOverdue ? "rgba(255,77,106,0.3)" : `${mc}33`}
-                stroke={isOverdue ? "#FF4D6A" : mc} strokeWidth={1} />
-              {!m.start_date && (
-                <polygon points={`${x2},${my + 12} ${x2 + 6},${my + 6} ${x2 - 6},${my + 6}`}
-                  fill={isOverdue ? "#FF4D6A" : mc} />
-              )}
+              <rect x={LABEL_W + 8} y={my + 13} width={52} height={ROW_H - 26} rx={3}
+                fill="rgba(74,112,153,0.08)" stroke="#4A709944" strokeWidth={1} strokeDasharray="3 2" />
+              <text x={LABEL_W + 34} y={my + ROW_H / 2 + 1} fill="#4A7099" fontSize={8}
+                fontFamily="Pretendard, sans-serif" dominantBaseline="middle" textAnchor="middle">
+                대기
+              </text>
             </g>
           );
         }
-      } else {
-        const mlabel = m.start_date ? "마감 미정" : "대기";
-        elements.push(
-          <g key={`mbar-${pi}-${mi}`}>
-            <rect x={LABEL_W + 8} y={my + 13} width={52} height={ROW_H - 26} rx={3}
-              fill="rgba(74,112,153,0.08)" stroke="#4A709944" strokeWidth={1} strokeDasharray="3 2" />
-            <text x={LABEL_W + 34} y={my + ROW_H / 2 + 1} fill="#4A7099" fontSize={8}
-              fontFamily="Pretendard, sans-serif" dominantBaseline="middle" textAnchor="middle">
-              {mlabel}
-            </text>
-          </g>
-        );
-      }
 
-      rowIdx++;
-    });
+        rowIdx++;
+      });
+    }
   });
 
   if (rows.length === 0) return (
@@ -190,7 +220,6 @@ export default function GanttChart() {
 
   return (
     <div>
-      {/* 기간 필터 */}
       <div className="flex items-center gap-1 mb-3">
         <span className="text-xs mr-2" style={{ color: "var(--text-3)" }}>표시 기간</span>
         {PERIOD_OPTIONS.map(opt => (
@@ -204,21 +233,33 @@ export default function GanttChart() {
             {opt.label}
           </button>
         ))}
-        <span className="ml-auto text-xs" style={{ color: "var(--text-3)" }}>
-          {rangeStart.toLocaleDateString("ko-KR", { month: "short", day: "numeric" })} ~{" "}
-          {rangeEnd.toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
-        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => setExpanded(prev => {
+            const all: Record<string, boolean> = {};
+            rows.forEach(p => { all[p.id] = true; });
+            return all;
+          })} className="text-xs px-2 py-1 rounded-lg"
+            style={{ background: "var(--bg-3)", color: "var(--text-3)", border: "1px solid var(--border)" }}>
+            모두 펼치기
+          </button>
+          <button onClick={() => setExpanded(prev => {
+            const all: Record<string, boolean> = {};
+            rows.forEach(p => { all[p.id] = false; });
+            return all;
+          })} className="text-xs px-2 py-1 rounded-lg"
+            style={{ background: "var(--bg-3)", color: "var(--text-3)", border: "1px solid var(--border)" }}>
+            모두 접기
+          </button>
+          <span className="text-xs" style={{ color: "var(--text-3)" }}>
+            {rangeStart.toLocaleDateString("ko-KR", { month: "short", day: "numeric" })} ~{" "}
+            {rangeEnd.toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
+          </span>
+        </div>
       </div>
 
       <div className="overflow-x-auto" style={{ borderRadius: 12 }}>
         <svg width={LABEL_W + BAR_W} height={svgH}
           style={{ background: "var(--bg-2)", borderRadius: 12, display: "block" }}>
-          <defs>
-            <clipPath id="clip-label">
-              <rect x={0} y={0} width={LABEL_W - 8} height={svgH} />
-            </clipPath>
-          </defs>
-
           <rect x={0} y={0} width={LABEL_W + BAR_W} height={HEADER_H} fill="var(--bg-3)" />
 
           {weeks.map((w, i) => {

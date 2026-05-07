@@ -110,7 +110,7 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
           </button>
 
           {open && !showBlocked && (
-            <div className="absolute left-0 top-8 z-30 w-32 rounded-xl overflow-hidden shadow-2xl"
+            <div className="absolute left-0 top-8 z-50 w-32 rounded-xl overflow-hidden shadow-2xl"
               style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)" }}>
               {STATUS_LIST.map(sv => (
                 <button key={sv}
@@ -129,7 +129,7 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
           )}
 
           {showBlocked && (
-            <div className="absolute left-0 top-8 z-30 w-64 rounded-xl p-3 shadow-2xl"
+            <div className="absolute left-0 top-8 z-50 w-64 rounded-xl p-3 shadow-2xl"
               style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)" }}>
               <p className="mb-2 text-xs font-semibold" style={{ color: "var(--text-1)" }}>Blocked 사유 *</p>
               <textarea value={reason} onChange={e => setReason(e.target.value)}

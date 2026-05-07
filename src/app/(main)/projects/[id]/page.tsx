@@ -257,7 +257,7 @@ export default function ProjectDetailPage() {
             const unclassified = tasks.filter(t => !t.milestone_id);
             if (unclassified.length === 0) return null;
             return (
-              <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+              <div className="rounded-2xl" style={{ border: "1px solid var(--border)", overflow: "visible" }}>
                 <div className="flex items-center gap-2 px-4 py-3"
                   style={{ background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
                   <div className="w-2 h-2 rounded-full" style={{ background: "var(--text-3)" }} />
@@ -265,7 +265,7 @@ export default function ProjectDetailPage() {
                   <span className="text-xs px-1.5 py-0.5 rounded-full ml-auto"
                     style={{ background: "var(--bg-4)", color: "var(--text-3)" }}>{unclassified.length}</span>
                 </div>
-                <div className="p-2">
+                <div className="p-2" style={{ overflow: "visible" }}>
                   <TaskList tasks={unclassified} onRefresh={load} />
                 </div>
               </div>
@@ -286,7 +286,7 @@ export default function ProjectDetailPage() {
             const doneCnt = mTasks.filter(t => t.status === "done").length;
             const pct = Math.round((doneCnt / mTasks.length) * 100);
             return (
-              <div key={m.id} className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${cfg.color}33` }}>
+              <div key={m.id} className="rounded-2xl" style={{ border: `1px solid ${cfg.color}33`, overflow: "visible" }}>
                 <div className="px-4 py-3" style={{ background: `${cfg.color}08`, borderBottom: `1px solid ${cfg.color}22` }}>
                   <div className="flex items-center gap-2 mb-2">
                     <div className="w-2 h-2 rounded-full" style={{ background: cfg.color }} />
@@ -308,7 +308,7 @@ export default function ProjectDetailPage() {
                       style={{ width: `${pct}%`, background: cfg.color }} />
                   </div>
                 </div>
-                <div className="p-2" style={{ background: "var(--bg-2)" }}>
+                <div className="p-2" style={{ background: "var(--bg-2)", overflow: "visible" }}>
                   <TaskList tasks={mTasks} onRefresh={load} />
                 </div>
               </div>
