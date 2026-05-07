@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { getAuthUser, getProjectRole, canDeleteTask } from "@/lib/auth";
 import { createPortal } from "react-dom";
+import TaskComments from "@/components/tasks/TaskComments";
+import TaskReviews from "@/components/tasks/TaskReviews";
 import { createClient } from "@/lib/supabase";
 import type { Task, User, Project } from "@/types/database";
 type TaskStatus = string;
@@ -420,6 +422,19 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* 리뷰 (리뷰 상태일 때만) */}
+          {task.status === "review" && assigneeIds.length > 0 && (
+            <div>
+              <p className="text-xs font-medium mb-2" style={{ color: "var(--text-3)" }}>리뷰어 검토</p>
+              <TaskReviews taskId={taskId} assigneeIds={assigneeIds} />
+            </div>
+          )}
+
+          {/* 댓글 */}
+          <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+            <TaskComments taskId={taskId} />
           </div>
 
           {/* 변경 이력 */}

@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+import NotificationBell from "@/components/NotificationBell";
+import SearchModal from "@/components/SearchModal";
+import TaskDetail from "@/components/tasks/TaskDetail";
 import { createClient } from "@/lib/supabase";
 
 const TOP_NAV = [
@@ -27,6 +30,8 @@ export default function Sidebar() {
   const supabase = createClient();
   const [projects, setProjects] = useState<any[]>([]);
   const [userEmail, setUserEmail] = useState<string>("");
+  const [showSearch, setShowSearch] = useState(false);
+  const [openDetail, setOpenDetail] = useState<string | null>(null);
 
   const [linkedName, setLinkedName] = useState<string>("");
 
@@ -66,17 +71,26 @@ export default function Sidebar() {
   }
 
   return (
+    <>
     <aside className="flex w-56 shrink-0 flex-col"
       style={{ background: "var(--bg-2)", borderRight: "1px solid var(--border)" }}>
 
       {/* 로고 */}
-      <div className="flex h-14 items-center gap-2 px-5"
+      <div className="flex h-14 items-center gap-2 px-4"
         style={{ borderBottom: "1px solid var(--border)" }}>
-        <div className="w-2 h-2 rounded-full"
+        <div className="w-2 h-2 rounded-full shrink-0"
           style={{ background: "var(--cyan)", boxShadow: "0 0 8px var(--cyan)" }} />
-        <span className="text-sm font-bold tracking-widest uppercase" style={{ color: "var(--text-1)" }}>
+        <span className="text-sm font-bold tracking-widest uppercase flex-1" style={{ color: "var(--text-1)" }}>
           Task<span style={{ color: "var(--cyan)" }}>Flow</span>
         </span>
+        <button onClick={() => setShowSearch(true)}
+          className="w-6 h-6 flex items-center justify-center rounded-lg transition-all"
+          style={{ color: "var(--text-3)" }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--text-1)"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--text-3)"; }}>
+          🔍
+        </button>
+        <NotificationBell />
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
@@ -147,5 +161,15 @@ export default function Sidebar() {
         </div>
       </div>
     </aside>
+    {showSearch && (
+      <SearchModal
+        onClose={() => setShowSearch(false)}
+        onTaskClick={id => { setShowSearch(false); setOpenDetail(id); }}
+      />
+    )}
+    {openDetail && (
+      <TaskDetail taskId={openDetail} onClose={() => setOpenDetail(null)} onRefresh={() => setOpenDetail(null)} />
+    )}
+    </>
   );
 }
