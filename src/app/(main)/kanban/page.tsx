@@ -119,12 +119,31 @@ export default function KanbanPage() {
   return (
     <div className="flex flex-col h-full" style={{ maxHeight: "calc(100vh - 64px)" }}>
       {/* 헤더 */}
-      <div className="flex items-center justify-between mb-5 shrink-0">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between mb-4 shrink-0 flex-wrap gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="w-1 h-5 rounded-full" style={{ background: "var(--cyan)" }} />
           <h1 className="text-xl font-bold" style={{ color: "var(--text-1)" }}>칸반 보드</h1>
           <span className="text-xs px-2 py-0.5 rounded-full tabular-nums"
             style={{ background: "var(--cyan-bg)", color: "var(--cyan)" }}>{tasks.length}</span>
+          {/* 기간 필터 */}
+          <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
+            {([["all","전체"],["quarter","3개월"],["month","1개월"],["week","1주일"]] as const).map(([v,l]) => (
+              <button key={v} onClick={() => setPeriod(v as any)}
+                className="rounded-lg px-3 py-1 text-xs font-medium transition-all"
+                style={{
+                  background: period === v ? "var(--bg-4)" : "transparent",
+                  color: period === v ? "var(--text-1)" : "var(--text-3)",
+                  border: period === v ? "1px solid var(--border-2)" : "1px solid transparent",
+                }}>{l}</button>
+            ))}
+          </div>
+          {/* 프로젝트 필터 */}
+          <select value={filterProject} onChange={e => setFilterProject(e.target.value)}
+            className="rounded-lg px-3 py-1.5 text-xs focus:outline-none"
+            style={{ background: "var(--bg-2)", border: "1px solid var(--border)", color: "var(--text-2)", colorScheme: "dark" }}>
+            <option value="">전체 프로젝트</option>
+            {projects.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
         </div>
         <button onClick={() => setOpenForm(true)}
           className="rounded-lg px-4 py-2 text-xs font-semibold"
