@@ -30,7 +30,17 @@ export default function TasksPage() {
       .order("due_date", { ascending: true, nullsFirst: false });
     if (filter !== "all") q = q.eq("status", filter);
     const { data } = await loadTasksWithAssignees(q);
-    setTasks(data);
+    const ORDER: Record<string, number> = { doing: 0, todo: 1, review: 2, blocked: 3, backlog: 4, done: 5 };
+    const sorted = (data ?? []).sort((a: any, b: any) => {
+      const oa = ORDER[a.status] ?? 9;
+      const ob = ORDER[b.status] ?? 9;
+      if (oa !== ob) return oa - ob;
+      if (a.due_date && b.due_date) return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      if (a.due_date) return -1;
+      if (b.due_date) return 1;
+      return 0;
+    });
+    setTasks(sorted);
   }, [filter]);
 
   useEffect(() => { load(); }, [load]);

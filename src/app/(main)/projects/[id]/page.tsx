@@ -79,7 +79,17 @@ export default function ProjectDetailPage() {
       .select("*, assignee_ids, assignee:users!tasks_assignee_id_fkey(name,avatar_url), project:projects(name)")
       .eq("project_id", id).order("created_at", { ascending: true });
     const { data: t } = await loadTasksWithAssignees(q);
-    setTasks(t ?? []);
+    const ORDER: Record<string, number> = { doing: 0, todo: 1, backlog: 2, blocked: 3, review: 4, done: 5 };
+    const sorted = (t ?? []).sort((a: any, b: any) => {
+      const oa = ORDER[a.status] ?? 9;
+      const ob = ORDER[b.status] ?? 9;
+      if (oa !== ob) return oa - ob;
+      if (a.due_date && b.due_date) return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      if (a.due_date) return -1;
+      if (b.due_date) return 1;
+      return 0;
+    });
+    setTasks(sorted);
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
