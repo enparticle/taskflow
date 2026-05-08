@@ -64,6 +64,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
   const [showAssigneeMenu, setShowAssigneeMenu] = useState(false);
   const [canDelete, setCanDelete] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
+  const isMeeting = (task as any)?.task_type === "meeting";
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const panelRef = useRef<HTMLDivElement>(null);
   const assigneeRef = useRef<HTMLDivElement>(null);
@@ -240,6 +241,15 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
               </p>
             )}
           </div>
+
+          {/* 미팅 완료 버튼 */}
+          {isMeeting && task.status !== "done" && canEdit && (
+            <button onClick={() => changeStatus("done" as any)}
+              className="w-full rounded-xl py-2.5 text-xs font-semibold transition-all"
+              style={{ background: "rgba(0,212,160,0.15)", color: "#00D4A0", border: "1px solid rgba(0,212,160,0.3)" }}>
+              ✓ 미팅 완료 처리
+            </button>
+          )}
 
           {/* 상태 */}
           <div>
@@ -427,7 +437,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
                   {(task as any).actual_hours ? `${(task as any).actual_hours}시간` : "미정 — 클릭해서 입력"}
                 </p>
               )}
-            </div>
+            </div>}
           </div>
 
           {/* 타임라인 */}

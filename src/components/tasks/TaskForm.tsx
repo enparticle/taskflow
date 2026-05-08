@@ -72,6 +72,7 @@ export default function TaskForm({ onClose, onCreated, defaultProjectId }: Props
   }, []);
 
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
+  const isMeeting = form.task_type === "meeting";
   const [classifying, setClassifying] = useState(false);
   const [classified, setClassified] = useState(false);
   const [recommending, setRecommending] = useState(false);
@@ -327,6 +328,15 @@ export default function TaskForm({ onClose, onCreated, defaultProjectId }: Props
             </select>
           </div>
 
+          {isMeeting && (
+            <div className="rounded-xl px-3 py-2.5"
+              style={{ background: "rgba(123,167,200,0.08)", border: "1px solid rgba(123,167,200,0.2)" }}>
+              <p className="text-xs" style={{ color: "#7BA7C8" }}>
+                📅 미팅은 일시만 입력하면 됩니다. 완료 처리는 상세 패널에서 버튼 한 번으로 가능합니다.
+              </p>
+            </div>
+          )}
+
           {milestones.length > 0 && (
             <div>
               <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-3)" }}>계획 (마일스톤)</label>
@@ -374,12 +384,14 @@ export default function TaskForm({ onClose, onCreated, defaultProjectId }: Props
             )}
           </div>
 
-          {/* 예상 시간 */}
-          <div>
-            <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-3)" }}>예상 시간</label>
-            <input type="number" value={form.estimated_hours} onChange={e => set("estimated_hours", e.target.value)}
-              placeholder="시간 (예: 4)" min="0.5" step="0.5" style={fieldStyle} />
-          </div>
+          {/* 예상 시간 - 미팅이면 숨김 */}
+          {!isMeeting && (
+            <div>
+              <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-3)" }}>예상 시간</label>
+              <input type="number" value={form.estimated_hours} onChange={e => set("estimated_hours", e.target.value)}
+                placeholder="시간 (예: 4)" min="0.5" step="0.5" style={fieldStyle} />
+            </div>
+          )}
 
           {error && <p className="text-xs" style={{ color: "var(--red)" }}>{error}</p>}
 
