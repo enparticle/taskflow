@@ -46,8 +46,8 @@ export default function Sidebar() {
       if (data.user?.email) setUserEmail(data.user.email);
       if (data.user) {
         const { data: linked } = await supabase
-          .from("users").select("name").eq("auth_id", data.user.id).single();
-        if (linked) setLinkedName(linked.name);
+          .from("users").select("name, role").eq("auth_id", data.user.id).single();
+        if (linked) { setLinkedName(linked.name); setUserRole(linked.role ?? ""); }
       }
     });
   }, []);
@@ -137,7 +137,7 @@ export default function Sidebar() {
         </div>
 
         <div className="pt-1">
-          {BOTTOM_NAV.map(n => <NavLink key={n.href} {...n} />)}
+          {BOTTOM_NAV.filter(n => n.href !== "/report-export" || userRole === "admin").map(n => <NavLink key={n.href} {...n} />)}
         </div>
       </nav>
 
