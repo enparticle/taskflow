@@ -422,6 +422,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
                 </p>
               )}
             </div>
+            {!isMeeting && (
             <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
               <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>실제 소요 시간</p>
               {editing === "actual_hours" ? (
@@ -437,7 +438,8 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
                   {(task as any).actual_hours ? `${(task as any).actual_hours}시간` : "미정 — 클릭해서 입력"}
                 </p>
               )}
-            </div>}
+            </div>
+            )}
           </div>
 
           {/* 타임라인 */}
