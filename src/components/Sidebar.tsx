@@ -138,7 +138,7 @@ export default function Sidebar() {
 
         <div className="pt-1">
           {BOTTOM_NAV.map(n => {
-            if (n.href === "/report-export" && userRole !== "admin") return null;
+            if (n.href === "/report-export" && userRole !== null && userRole !== "admin") return null;
             return <NavLink key={n.href} {...n} />;
           })}
         </div>

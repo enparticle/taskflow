@@ -2,7 +2,8 @@
 "use client";
 import { useEffect } from "react";
 import { createClient } from "@/lib/supabase";
-import Sidebar from "@/components/Sidebar";
+import dynamic from "next/dynamic";
+const Sidebar = dynamic(() => import("@/components/Sidebar"), { ssr: false });
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
