@@ -34,6 +34,7 @@ export default function Sidebar() {
   const supabase = createClient();
   const [projects, setProjects] = useState<any[]>([]);
   const [userEmail, setUserEmail] = useState<string>("");
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [openDetail, setOpenDetail] = useState<string | null>(null);
 
