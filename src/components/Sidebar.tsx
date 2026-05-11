@@ -16,7 +16,8 @@ const TOP_NAV = [
 ];
 
 const BOTTOM_NAV = [
-  { href: "/reports",       label: "리포트",      icon: "📊" },
+  { href: "/guide",         label: "사용 가이드",  icon: "📖" },
+  { href: "/reports",       label: "리포트",       icon: "📊" },
   { href: "/report-export", label: "외부용 보고서", icon: "📋" },
   { href: "/recurring",     label: "반복 업무",    icon: "🔄" },
   { href: "/team",          label: "팀 현황",      icon: "◈" },
