@@ -137,10 +137,10 @@ export default function Sidebar() {
         </div>
 
         <div className="pt-1">
-          {BOTTOM_NAV.filter(n => {
-            if (n.href === "/report-export") return typeof window !== "undefined" && userRole === "admin";
-            return true;
-          }).map(n => <NavLink key={n.href} {...n} />)}
+          {BOTTOM_NAV.map(n => {
+            if (n.href === "/report-export" && userRole !== "admin") return null;
+            return <NavLink key={n.href} {...n} />;
+          })}
         </div>
       </nav>
 
