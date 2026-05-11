@@ -9,6 +9,7 @@ import TaskDetail from "@/components/tasks/TaskDetail";
 import { loadTasksWithAssignees } from "@/lib/tasks";
 import ProjectForm from "@/components/projects/ProjectForm";
 import PlanningFeedback from "@/components/tasks/PlanningFeedback";
+import { calcAndUpdateHealth } from "@/lib/health";
 import BurndownChart from "@/components/dashboard/BurndownChart";
 import { getAuthUser, getProjectRole, canEditProject, canManageMilestone, canManageProjectMembers } from "@/lib/auth";
 import MilestonePanel from "@/components/milestones/MilestonePanel";

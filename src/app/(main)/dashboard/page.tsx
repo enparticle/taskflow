@@ -2,6 +2,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
+import { calcAllProjectsHealth } from "@/lib/health";
 import TaskForm from "@/components/tasks/TaskForm";
 import TaskDetail from "@/components/tasks/TaskDetail";
 import GanttChart from "@/components/dashboard/GanttChart";
