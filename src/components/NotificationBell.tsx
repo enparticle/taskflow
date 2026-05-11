@@ -13,7 +13,7 @@ const TYPE_CONFIG: Record<string, { icon: string; color: string }> = {
   mention:  { icon: "@", color: "#A78BFA" },
 };
 
-export default function NotificationBell() {
+export default function NotificationBell({ onTaskClick }: { onTaskClick?: (id: string) => void } = {}) {
   const supabase = createClient();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
@@ -65,9 +65,13 @@ export default function NotificationBell() {
     setNotifications(data ?? []);
   }
 
-  async function markRead(id: string) {
+  async function markRead(id: string, taskId?: string) {
     await supabase.from("notifications").update({ is_read: true }).eq("id", id);
     loadNotifications();
+    if (taskId && onTaskClick) {
+      setOpen(false);
+      onTaskClick(taskId);
+    }
   }
 
   async function markAllRead() {
@@ -136,7 +140,8 @@ export default function NotificationBell() {
                       background: n.is_read ? "transparent" : "rgba(46,134,255,0.05)",
                       borderBottom: "1px solid var(--border)",
                     }}
-                    onClick={() => markRead(n.id)}
+                    onClick={() => markRead(n.id, n.task_id)}
+                    style={{ cursor: n.task_id ? "pointer" : "default" }}
                     onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = "var(--bg-3)"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = n.is_read ? "transparent" : "rgba(46,134,255,0.05)"; }}>
                     <span className="shrink-0 text-sm mt-0.5" style={{ color: cfg.color }}>{cfg.icon}</span>

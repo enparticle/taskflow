@@ -76,6 +76,7 @@ export default function TaskComments({ taskId }: { taskId: string }) {
       if (e.key === "Escape") { setShowMention(false); return; }
     }
     if (e.key === "Enter" && !e.shiftKey && !showMention) { e.preventDefault(); submit(); }
+    // Shift+Enter는 줄바꿈 (기본 동작 허용)
   }
 
   async function submit() {
@@ -165,13 +166,14 @@ export default function TaskComments({ taskId }: { taskId: string }) {
 
       {/* 입력창 */}
       <div className="relative">
-        <div className="flex gap-2">
-          <input ref={inputRef} value={content}
-            onChange={handleInput}
+        <div className="flex gap-2 items-end">
+          <textarea ref={inputRef as any} value={content}
+            onChange={handleInput as any}
             onKeyDown={handleKeyDown}
-            placeholder="댓글 입력 (@이름으로 멘션, Enter로 전송)"
-            className="flex-1 rounded-lg px-3 py-2 text-xs focus:outline-none"
-            style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)", color: "var(--text-1)" }} />
+            placeholder="댓글 입력 (@이름으로 멘션, Enter로 전송, Shift+Enter로 줄바꿈)"
+            rows={1}
+            className="flex-1 rounded-lg px-3 py-2 text-xs focus:outline-none resize-none"
+            style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)", color: "var(--text-1)", minHeight: 34, maxHeight: 100 }} />
           <button onClick={submit} disabled={loading || !content.trim()}
             className="rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-40"
             style={{ background: "var(--cyan-bg)", color: "var(--cyan)", border: "1px solid var(--cyan)33" }}>

@@ -95,7 +95,7 @@ export default function Sidebar() {
           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--text-3)"; }}>
           🔍
         </button>
-        <NotificationBell />
+        <NotificationBell onTaskClick={id => setOpenDetail(id)} />
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
