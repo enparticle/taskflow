@@ -117,8 +117,8 @@ export default function DashboardPage() {
     const colors = ["#00C2CC","#2E86FF","#F5A623","#00D4A0","#A78BFA","#FF4D6A"];
     setMemberStats(users.map((u: any, i: number) => ({
       name: u.name,
-      doing: tasks.filter(t => t.assignee_id === u.id && t.status === "doing").length,
-      total: tasks.filter(t => t.assignee_id === u.id && t.status !== "done").length,
+      doing: tasks.filter(t => (t.assignee_id === u.id || (t.assignee_ids ?? []).includes(u.id)) && t.status === "doing").length,
+      total: tasks.filter(t => (t.assignee_id === u.id || (t.assignee_ids ?? []).includes(u.id)) && t.status !== "done").length,
       color: colors[i % colors.length],
     })));
     const { data: projectsRaw } = await supabase.from("projects").select("*").eq("status", "active");
