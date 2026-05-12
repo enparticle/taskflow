@@ -11,31 +11,33 @@ const BASE_RULES = `
 
 금지사항:
 - "X건이 있습니다", "확인이 필요합니다" 같은 단순 사실 나열 금지
-- 모호한 조언 ("검토하세요", "고려하세요") 금지
+- 모호한 조언 금지
 - 수치 그대로 반복 금지`;
+
+const PROJECT_HEALTH_CRITERIA = `
+project_health 판단 기준 (엄격하게 적용):
+- critical: 지연 1건 이상 OR blocked 1건 이상 OR (마감 14일 이내 & 진행률 50% 미만) OR 마감 초과
+- at_risk: 예상시간 미입력 업무 30% 이상 OR (마감 30일 이내 & 진행률 30% 미만) OR 할일/백로그가 전체의 60% 이상
+- good: 위 조건 모두 해당 없음`;
 
 function buildPrompt(snapshot: any): string {
   const context = snapshot.context ?? "";
   const isProject = context.startsWith("프로젝트:");
   const isTasks = context.includes("업무 목록") || context.includes("업무");
-  const isDashboard = context.includes("대시보드");
 
   let roleDesc = "조직 운영과 팀 역학에 정통한 시니어 컨설턴트";
   let focusDesc = "표면적 수치가 아닌 구조적 문제와 팀 역학을 진단";
-  let extraFields = "";
 
   if (isProject) {
     roleDesc = "프로젝트 관리 전문가";
     focusDesc = "이 프로젝트의 진행 리스크, 마일스톤 달성 가능성, 팀 내 병목을 진단";
-    extraFields = `
-  "project_health": "good|at_risk|critical",`;
   } else if (isTasks) {
     roleDesc = "업무 프로세스 전문가";
     focusDesc = "업무 분배, 우선순위 설정, 진행 흐름의 문제를 진단";
-  } else if (isDashboard) {
-    roleDesc = "조직 운영과 팀 역학에 정통한 시니어 컨설턴트";
-    focusDesc = "팀 전체의 구조적 문제와 역학을 진단";
   }
+
+  const projectHealthField = isProject ? '\n  "project_health": "good|at_risk|critical",' : "";
+  const projectHealthNote = isProject ? PROJECT_HEALTH_CRITERIA : "";
 
   return `당신은 ${roleDesc}입니다. 아래 데이터를 보고 ${focusDesc}해주세요.
 
@@ -44,24 +46,21 @@ ${JSON.stringify(snapshot)}
 ${BASE_RULES}
 
 아래 JSON 형식으로만 응답하세요. 마크다운이나 코드블록 없이 순수 JSON만:
-{${extraFields}
-  "summary": "핵심 진단 한 문장 (60자이내, 구조적 문제 또는 강점 중심)",
+{${projectHealthField}
+  "summary": "핵심 진단 한 문장 (60자이내)",
   "items": [
     {
       "level": "danger|warning|info",
       "title": "진단명 (20자이내)",
-      "detail": "패턴→원인→리스크 순서로 서술 (120자이내)",
+      "detail": "패턴 원인 리스크 순서로 서술 (120자이내)",
       "action": "이번 주 실행 가능한 구체적 조치 (70자이내)"
     }
   ],
   "overall_risk": "high|medium|low"
 }
 
-level은 danger/warning/info 중 하나, overall_risk는 high/medium/low 중 하나.${isProject ? '\nproject_health 판단 기준 (엄격하게 적용):
-- critical: 지연 1건 이상 OR blocked 1건 이상 OR (마감 14일 이내 & 진행률 50% 미만) OR 마감 초과
-- at_risk: 예상시간 미입력 업무 30% 이상 OR (마감 30일 이내 & 진행률 30% 미만) OR 할일/백로그가 전체의 60% 이상
-- good: 위 조건 모두 해당 없음' : ''}
-items는 최대 6개. 가장 중요한 구조적 문제부터 나열하세요.`;
+level은 danger/warning/info 중 하나, overall_risk는 high/medium/low 중 하나.
+items는 최대 6개. 가장 중요한 구조적 문제부터 나열하세요.${projectHealthNote}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -75,10 +74,8 @@ export async function POST(req: NextRequest) {
     const message = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 1500,
-      messages: [
-        { role: "user", content: prompt },
-      ],
       system: "당신은 JSON만 반환합니다. 절대로 마크다운, 코드블록, 설명 텍스트를 포함하지 마세요. 응답은 반드시 { 로 시작하고 } 로 끝나야 합니다.",
+      messages: [{ role: "user", content: prompt }],
     });
 
     const text = message.content[0].type === "text" ? message.content[0].text.trim() : "";
