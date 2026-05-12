@@ -134,6 +134,16 @@ export default function PlanningFeedback({ mode, projectId, projectName, filterS
       if (data.error) throw new Error(data.error);
       setResult(data);
       setLastUpdated(new Date());
+
+      // 프로젝트 모드일 때 AI가 판단한 health 자동 반영
+      if (mode === "project" && projectId && data.project_health) {
+        const supabaseModule = await import("@supabase/supabase-js");
+        const sb = supabaseModule.createClient(
+          "https://tvgygdyucadaoqmnsgmp.supabase.co",
+          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR2Z3lnZHl1Y2FkYW9xbW5zZ21wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NjA2MzMsImV4cCI6MjA5MzQzNjYzM30.rbMmaPhtqxJv6GUNaUvvtE7C6Cih4VfldlDOsTLvygA"
+        );
+        await sb.from("projects").update({ health: data.project_health }).eq("id", projectId);
+      }
     } catch (e: any) {
       setError("분석 중 오류가 발생했습니다: " + e.message);
     }
@@ -225,6 +235,18 @@ export default function PlanningFeedback({ mode, projectId, projectName, filterS
                   </div>
                 );
               })}
+              {mode === "project" && result?.project_health && (
+                <div className="rounded-xl px-3 py-2 flex items-center gap-2"
+                  style={{
+                    background: result.project_health === "good" ? "rgba(0,212,160,0.08)" : result.project_health === "at_risk" ? "rgba(245,166,35,0.08)" : "rgba(255,77,106,0.08)",
+                    border: `1px solid ${result.project_health === "good" ? "rgba(0,212,160,0.2)" : result.project_health === "at_risk" ? "rgba(245,166,35,0.2)" : "rgba(255,77,106,0.2)"}`,
+                  }}>
+                  <span style={{ fontSize: 12 }}>{result.project_health === "good" ? "🟢" : result.project_health === "at_risk" ? "🟡" : "🔴"}</span>
+                  <p className="text-xs font-medium" style={{ color: result.project_health === "good" ? "#00D4A0" : result.project_health === "at_risk" ? "#F5A623" : "#FF4D6A" }}>
+                    AI가 프로젝트 상태를 <strong>{result.project_health === "good" ? "정상" : result.project_health === "at_risk" ? "주의" : "위험"}</strong>으로 업데이트했습니다
+                  </p>
+                </div>
+              )}
               {lastUpdated && (
                 <p className="text-xs text-center pt-1" style={{ color: "var(--text-3)" }}>
                   {lastUpdated.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 기준
