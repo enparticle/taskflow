@@ -83,13 +83,20 @@ export default function ProjectForm({ project, onClose, onSaved }: Props) {
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
             <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-3)" }}>프로젝트명 *</label>
-            <input type="text" value={form.name} onChange={e => set("name", e.target.value)}
-              placeholder="프로젝트명을 입력하세요" style={fieldStyle} autoFocus />
+            <div className="flex gap-2">
+              <input type="text" value={form.name} onChange={e => set("name", e.target.value)}
+                placeholder="예: enCELL-Pharm 개발, TaskFlow 구축" style={{ ...fieldStyle, flex: 1 }} autoFocus />
+              <button type="button" onClick={aiDraft} disabled={drafting || !form.name.trim()}
+                className="rounded-lg px-3 text-xs font-semibold disabled:opacity-40 shrink-0"
+                style={{ background: "rgba(167,139,250,0.15)", color: "#A78BFA", border: "1px solid rgba(167,139,250,0.3)", whiteSpace: "nowrap" }}>
+                {drafting ? "생성 중…" : "✦ AI 초안"}
+              </button>
+            </div>
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-3)" }}>설명</label>
             <textarea value={form.description} onChange={e => set("description", e.target.value)}
-              placeholder="프로젝트 설명 (선택)" rows={2} style={{ ...fieldStyle, resize: "none" }} />
+              placeholder="예: 팜 카트리지 압력-유량 예측 모델 개발 및 서비스화. 목표: 실측 대비 오차 5% 이내" rows={3} style={{ ...fieldStyle, resize: "none" }} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -112,7 +119,7 @@ export default function ProjectForm({ project, onClose, onSaved }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-3)" }}>시작일</label>
-              <input type="date" value={form.start_date} onChange={e => set("start_date", e.target.value)} style={fieldStyle} />
+              <input type="date" value={form.start_date} onChange={e => set("start_date", e.target.value)} style={fieldStyle} placeholder="시작일 (선택)" />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-3)" }}>마감일</label>

@@ -221,7 +221,7 @@ export default function DashboardPage() {
                   </div>
                   <span className="text-xs tabular-nums" style={{ color: m.color }}>{m.total}건</span>
                 </div>
-                <ProgressBar value={m.total > 0 ? (m.doing / Math.max(m.total, 1)) * 100 : 0} color={m.color} />
+                <ProgressBar value={m.total} max={Math.max(...memberStats.map((x: any) => x.total), 1)} color={m.color} />
               </div>
             ))}
           </div>
