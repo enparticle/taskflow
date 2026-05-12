@@ -57,7 +57,10 @@ ${BASE_RULES}
   "overall_risk": "high|medium|low"
 }
 
-level은 danger/warning/info 중 하나, overall_risk는 high/medium/low 중 하나.${isProject ? '\nproject_health는 good/at_risk/critical 중 하나 - 마감일, 진행률, 지연, blocked를 종합해서 판단하세요.' : ''}
+level은 danger/warning/info 중 하나, overall_risk는 high/medium/low 중 하나.${isProject ? '\nproject_health 판단 기준 (엄격하게 적용):
+- critical: 지연 1건 이상 OR blocked 1건 이상 OR (마감 14일 이내 & 진행률 50% 미만) OR 마감 초과
+- at_risk: 예상시간 미입력 업무 30% 이상 OR (마감 30일 이내 & 진행률 30% 미만) OR 할일/백로그가 전체의 60% 이상
+- good: 위 조건 모두 해당 없음' : ''}
 items는 최대 6개. 가장 중요한 구조적 문제부터 나열하세요.`;
 }
 
@@ -71,8 +74,11 @@ export async function POST(req: NextRequest) {
 
     const message = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 1024,
-      messages: [{ role: "user", content: prompt }],
+      max_tokens: 1500,
+      messages: [
+        { role: "user", content: prompt },
+      ],
+      system: "당신은 JSON만 반환합니다. 절대로 마크다운, 코드블록, 설명 텍스트를 포함하지 마세요. 응답은 반드시 { 로 시작하고 } 로 끝나야 합니다.",
     });
 
     const text = message.content[0].type === "text" ? message.content[0].text.trim() : "";
