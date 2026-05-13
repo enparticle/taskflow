@@ -6,11 +6,13 @@ import { getAuthUser } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 
 type Step = "input" | "analyzing" | "review" | "done";
+type View = "main" | "history";
 
 export default function MeetingNotePage() {
   const supabase = createClient();
   const router = useRouter();
 
+  const [view, setView] = useState<View>("main");
   const [step, setStep] = useState<Step>("input");
   const [inputMode, setInputMode] = useState<"text" | "file" | "record">("text");
   const [text, setText] = useState("");
@@ -27,6 +29,8 @@ export default function MeetingNotePage() {
   const [draftId, setDraftId] = useState<string | null>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [restored, setRestored] = useState(false);
+  const [history, setHistory] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const timerRef = useRef<any>(null);
   const saveTimerRef = useRef<any>(null);
@@ -40,13 +44,9 @@ export default function MeetingNotePage() {
       setMyUser(u);
       if (!u) return;
       const { data } = await supabase
-        .from("meeting_drafts")
-        .select("*")
-        .eq("user_id", u.userId)
-        .eq("status", "draft")
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .single();
+        .from("meeting_drafts").select("*")
+        .eq("user_id", u.userId).eq("status", "draft")
+        .order("updated_at", { ascending: false }).limit(1).single();
       if (data) {
         setDraftId(data.id);
         if (data.input_text) { setText(data.input_text); setRestored(true); }
@@ -57,32 +57,46 @@ export default function MeetingNotePage() {
     });
   }, []);
 
-  // 30초마다 자동 저장
-  useEffect(() => {
-    if (!text && !result) return;
-    clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(autoSave, 30000);
-    return () => clearTimeout(saveTimerRef.current);
-  }, [text, result, selectedProject]);
+  async function loadHistory() {
+    if (!myUser) return;
+    setHistoryLoading(true);
+    const { data } = await supabase.from("meeting_drafts").select("*, project:projects(name)")
+      .eq("user_id", myUser.userId)
+      .order("updated_at", { ascending: false }).limit(20);
+    setHistory(data ?? []);
+    setHistoryLoading(false);
+  }
 
-  const autoSave = useCallback(async () => {
-    if (!myUser || (!text && !result)) return;
+  useEffect(() => {
+    if (view === "history" && myUser) loadHistory();
+  }, [view, myUser]);
+
+  // 30초마다 자동 저장
+  const autoSave = useCallback(async (currentText: string, currentResult: any, currentProject: string, currentDraftId: string | null, user: any) => {
+    if (!user || (!currentText && !currentResult)) return;
     const payload = {
-      user_id: myUser.userId,
-      input_text: text || null,
-      result: result ?? null,
-      project_id: selectedProject || null,
+      user_id: user.userId,
+      input_text: currentText || null,
+      result: currentResult ?? null,
+      project_id: currentProject || null,
       status: "draft",
       updated_at: new Date().toISOString(),
     };
-    if (draftId) {
-      await supabase.from("meeting_drafts").update(payload).eq("id", draftId);
+    if (currentDraftId) {
+      await supabase.from("meeting_drafts").update(payload).eq("id", currentDraftId);
+      setLastSaved(new Date());
     } else {
       const { data } = await supabase.from("meeting_drafts").insert(payload).select().single();
-      if (data) setDraftId(data.id);
+      if (data) { setDraftId(data.id); setLastSaved(new Date()); }
     }
-    setLastSaved(new Date());
-  }, [myUser, text, result, selectedProject, draftId]);
+  }, []);
+
+  useEffect(() => {
+    if (!text && !result) return;
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => autoSave(text, result, selectedProject, draftId, myUser), 30000);
+    return () => clearTimeout(saveTimerRef.current);
+  }, [text, result, selectedProject, draftId, myUser]);
 
   async function completeDraft() {
     if (draftId) {
@@ -101,9 +115,10 @@ export default function MeetingNotePage() {
       const chunks: Blob[] = [];
       const mr = new MediaRecorder(stream);
       mr.ondataavailable = e => chunks.push(e.data);
-      mr.onstop = () => {
+      mr.onstop = async () => {
         const blob = new Blob(chunks, { type: "audio/webm" });
-        setFile(new File([blob], "recording.webm", { type: "audio/webm" }));
+        const f = new File([blob], `recording-${Date.now()}.webm`, { type: "audio/webm" });
+        setFile(f);
         stream.getTracks().forEach(t => t.stop());
       };
       mr.start();
@@ -111,15 +126,22 @@ export default function MeetingNotePage() {
       setRecording(true);
       setRecordTime(0);
       timerRef.current = setInterval(() => setRecordTime(t => t + 1), 1000);
-    } catch {
-      alert("마이크 접근 권한이 필요합니다");
-    }
+    } catch { alert("마이크 접근 권한이 필요합니다"); }
   }
 
   function stopRecording() {
     mediaRecorder?.stop();
     setRecording(false);
     clearInterval(timerRef.current);
+  }
+
+  async function uploadAudio(f: File, dId: string): Promise<string | null> {
+    try {
+      const path = `${myUser?.userId ?? "anon"}/${dId}/${f.name}`;
+      const { error } = await supabase.storage.from("meeting-recordings").upload(path, f, { upsert: true });
+      if (error) return null;
+      return path;
+    } catch { return null; }
   }
 
   async function transcribeFile(f: File): Promise<string> {
@@ -137,10 +159,30 @@ export default function MeetingNotePage() {
     setStep("analyzing");
     try {
       let finalText = text;
+      let audioPath: string | null = null;
+
+      // 오디오 파일이면 먼저 DB draft 생성 후 Storage 업로드
       if (inputMode !== "text" && file) {
         finalText = await transcribeFile(file);
         setText(finalText);
+
+        // draft 먼저 생성
+        if (!draftId && myUser) {
+          const { data: d } = await supabase.from("meeting_drafts").insert({
+            user_id: myUser.userId, input_text: finalText, status: "draft",
+            project_id: selectedProject || null,
+          }).select().single();
+          if (d) {
+            setDraftId(d.id);
+            audioPath = await uploadAudio(file, d.id);
+            await supabase.from("meeting_drafts").update({ audio_path: audioPath }).eq("id", d.id);
+          }
+        } else if (draftId) {
+          audioPath = await uploadAudio(file, draftId);
+          await supabase.from("meeting_drafts").update({ input_text: finalText, audio_path: audioPath }).eq("id", draftId);
+        }
       }
+
       if (!finalText.trim()) throw new Error("내용이 없습니다");
 
       const res = await fetch("/api/analyze-meeting", {
@@ -151,12 +193,20 @@ export default function MeetingNotePage() {
       const data = await res.json();
       if (data.error) throw new Error(data.error);
 
-      // 분석 결과에 selected 기본값 추가
-      const resultWithSelected = {
-        ...data,
-        tasks: (data.tasks ?? []).map((t: any) => ({ ...t, selected: true })),
-      };
+      const resultWithSelected = { ...data, tasks: (data.tasks ?? []).map((t: any) => ({ ...t, selected: true })) };
       setResult(resultWithSelected);
+
+      // 결과 즉시 저장
+      if (draftId) {
+        await supabase.from("meeting_drafts").update({ result: resultWithSelected, input_text: finalText }).eq("id", draftId);
+      } else if (myUser) {
+        const { data: d } = await supabase.from("meeting_drafts").insert({
+          user_id: myUser.userId, input_text: finalText, result: resultWithSelected,
+          project_id: selectedProject || null, status: "draft",
+        }).select().single();
+        if (d) setDraftId(d.id);
+      }
+      setLastSaved(new Date());
       setStep("review");
     } catch (e: any) {
       alert("분석 실패: " + e.message);
@@ -170,8 +220,7 @@ export default function MeetingNotePage() {
     for (const task of result.tasks ?? []) {
       if (!task.selected) continue;
       await supabase.from("tasks").insert({
-        title: task.title,
-        task_type: task.task_type ?? "other",
+        title: task.title, task_type: task.task_type ?? "other",
         priority: task.priority ?? "medium",
         status: task.is_blocked ? "blocked" : "todo",
         blocked_reason: task.is_blocked ? task.blocked_reason : null,
@@ -187,10 +236,7 @@ export default function MeetingNotePage() {
   }
 
   function toggleTask(i: number) {
-    setResult((r: any) => ({
-      ...r,
-      tasks: r.tasks.map((t: any, idx: number) => idx === i ? { ...t, selected: !t.selected } : t),
-    }));
+    setResult((r: any) => ({ ...r, tasks: r.tasks.map((t: any, idx: number) => idx === i ? { ...t, selected: !t.selected } : t) }));
   }
 
   function resetAll() {
@@ -199,22 +245,118 @@ export default function MeetingNotePage() {
     setDraftId(null); setRestored(false); setLastSaved(null);
   }
 
-  const fieldStyle = {
-    background: "#1E2435", border: "1px solid var(--border-2)", color: "#E8F4FF",
-    borderRadius: 8, padding: "10px 12px", fontSize: 13, width: "100%", outline: "none",
-    colorScheme: "dark" as const,
-  };
-  const PRIORITY_COLOR: Record<string, string> = { urgent: "#FF4D6A", high: "#F5A623", medium: "#2E86FF", low: "#4A7099" };
-  const PRIORITY_LABEL: Record<string, string> = { urgent: "긴급", high: "높음", medium: "보통", low: "낮음" };
+  function loadFromHistory(item: any) {
+    setDraftId(item.id);
+    if (item.input_text) setText(item.input_text);
+    if (item.project_id) setSelectedProject(item.project_id);
+    if (item.result) { setResult(item.result); setStep("review"); }
+    else setStep("input");
+    setLastSaved(new Date(item.updated_at));
+    setView("main");
+  }
 
+  async function deleteHistory(id: string) {
+    if (!confirm("삭제할까요?")) return;
+    // 오디오 파일도 삭제
+    const item = history.find(h => h.id === id);
+    if (item?.audio_path) {
+      await supabase.storage.from("meeting-recordings").remove([item.audio_path]);
+    }
+    await supabase.from("meeting_drafts").delete().eq("id", id);
+    setHistory(h => h.filter(x => x.id !== id));
+  }
+
+  async function downloadAudio(path: string, name: string) {
+    const { data } = await supabase.storage.from("meeting-recordings").download(path);
+    if (!data) return;
+    const url = URL.createObjectURL(data);
+    const a = document.createElement("a");
+    a.href = url; a.download = name; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const fieldStyle = { background: "#1E2435", border: "1px solid var(--border-2)", color: "#E8F4FF", borderRadius: 8, padding: "10px 12px", fontSize: 13, width: "100%", outline: "none", colorScheme: "dark" as const };
+  const PC: Record<string, string> = { urgent: "#FF4D6A", high: "#F5A623", medium: "#2E86FF", low: "#4A7099" };
+  const PL: Record<string, string> = { urgent: "긴급", high: "높음", medium: "보통", low: "낮음" };
+
+  // ─── 이전 내역 ───
+  if (view === "history") return (
+    <div className="max-w-3xl space-y-5">
+      <div className="flex items-center gap-3">
+        <button onClick={() => setView("main")} className="text-xs" style={{ color: "var(--text-3)" }}>← 뒤로</button>
+        <span style={{ color: "var(--border)" }}>|</span>
+        <h1 className="text-sm font-bold" style={{ color: "var(--text-1)" }}>회의록 이전 내역</h1>
+      </div>
+
+      {historyLoading ? (
+        <div className="text-center py-12"><p className="text-sm" style={{ color: "var(--text-3)" }}>로딩 중…</p></div>
+      ) : history.length === 0 ? (
+        <div className="rounded-2xl py-12 text-center" style={{ background: "var(--bg-2)", border: "1px dashed var(--border-2)" }}>
+          <p className="text-sm" style={{ color: "var(--text-3)" }}>저장된 회의록이 없습니다</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {history.map(item => {
+            const date = new Date(item.updated_at).toLocaleDateString("ko-KR", { month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" });
+            const taskCount = item.result?.tasks?.length ?? 0;
+            return (
+              <div key={item.id} className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                        style={{ background: item.status === "completed" ? "rgba(0,212,160,0.12)" : "rgba(167,139,250,0.12)", color: item.status === "completed" ? "#00D4A0" : "#A78BFA" }}>
+                        {item.status === "completed" ? "완료" : "임시저장"}
+                      </span>
+                      {item.project?.name && <span className="text-xs" style={{ color: "var(--text-3)" }}>{item.project.name}</span>}
+                      <span className="text-xs" style={{ color: "var(--text-3)" }}>{date}</span>
+                    </div>
+                    {item.result?.summary && (
+                      <p className="text-sm mb-1" style={{ color: "var(--text-1)" }}>{item.result.summary}</p>
+                    )}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {taskCount > 0 && <span className="text-xs" style={{ color: "var(--text-3)" }}>업무 {taskCount}건</span>}
+                      {item.result?.participants?.length > 0 && (
+                        <span className="text-xs" style={{ color: "var(--text-3)" }}>참석: {item.result.participants.join(", ")}</span>
+                      )}
+                      {item.audio_path && <span className="text-xs" style={{ color: "#7BA7C8" }}>🎙️ 녹음 있음</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {item.audio_path && (
+                      <button onClick={() => downloadAudio(item.audio_path, `meeting-${item.id}.webm`)}
+                        className="rounded-lg px-2 py-1.5 text-xs"
+                        style={{ background: "var(--bg-3)", color: "#7BA7C8", border: "1px solid var(--border)" }}>
+                        ↓ 오디오
+                      </button>
+                    )}
+                    <button onClick={() => loadFromHistory(item)}
+                      className="rounded-lg px-3 py-1.5 text-xs font-medium"
+                      style={{ background: "var(--bg-3)", color: "var(--text-2)", border: "1px solid var(--border)" }}>
+                      불러오기
+                    </button>
+                    <button onClick={() => deleteHistory(item.id)}
+                      className="rounded-lg px-2 py-1.5 text-xs"
+                      style={{ background: "rgba(255,77,106,0.08)", color: "#FF4D6A" }}>
+                      삭제
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  // ─── 완료 ───
   if (step === "done") return (
     <div className="max-w-lg mx-auto mt-20 text-center space-y-6">
       <div className="text-5xl">✅</div>
       <div>
         <p className="text-xl font-bold mb-2" style={{ color: "var(--text-1)" }}>업무가 등록됐습니다!</p>
-        <p className="text-sm" style={{ color: "var(--text-3)" }}>
-          선택한 업무 {result?.tasks?.filter((t: any) => t.selected).length}건이 등록됐습니다
-        </p>
+        <p className="text-sm" style={{ color: "var(--text-3)" }}>선택한 업무 {result?.tasks?.filter((t: any) => t.selected).length}건이 등록됐습니다</p>
       </div>
       <div className="flex gap-3 justify-center">
         <button onClick={() => router.push("/tasks")}
@@ -231,6 +373,7 @@ export default function MeetingNotePage() {
     </div>
   );
 
+  // ─── 분석 중 ───
   if (step === "analyzing") return (
     <div className="max-w-lg mx-auto mt-20 text-center space-y-4">
       <div className="inline-block w-8 h-8 rounded-full border-2 animate-spin"
@@ -242,6 +385,7 @@ export default function MeetingNotePage() {
     </div>
   );
 
+  // ─── 결과 검토 ───
   if (step === "review" && result) return (
     <div className="max-w-3xl space-y-5">
       <div className="flex items-center gap-3">
@@ -254,16 +398,14 @@ export default function MeetingNotePage() {
       <div className="rounded-2xl p-4" style={{ background: "rgba(167,139,250,0.08)", border: "1px solid rgba(167,139,250,0.2)" }}>
         <p className="text-xs font-semibold mb-1" style={{ color: "#A78BFA" }}>회의 요약</p>
         <p className="text-sm" style={{ color: "var(--text-1)" }}>{result.summary}</p>
-        {result.participants?.length > 0 && (
-          <p className="text-xs mt-2" style={{ color: "var(--text-3)" }}>참석자: {result.participants.join(", ")}</p>
-        )}
+        {result.participants?.length > 0 && <p className="text-xs mt-2" style={{ color: "var(--text-3)" }}>참석자: {result.participants.join(", ")}</p>}
       </div>
 
       {result.decisions?.length > 0 && (
         <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
           <p className="text-xs font-semibold mb-2" style={{ color: "var(--text-3)" }}>결정사항</p>
           {result.decisions.map((d: string, i: number) => (
-            <div key={i} className="flex items-start gap-2">
+            <div key={i} className="flex items-start gap-2 mb-1">
               <span style={{ color: "#00D4A0", fontSize: 12, marginTop: 2 }}>✓</span>
               <p className="text-sm" style={{ color: "var(--text-2)" }}>{d}</p>
             </div>
@@ -272,8 +414,7 @@ export default function MeetingNotePage() {
       )}
 
       <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        <div className="flex items-center justify-between px-4 py-3"
-          style={{ background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
+        <div className="flex items-center justify-between px-4 py-3" style={{ background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
           <p className="text-xs font-semibold" style={{ color: "var(--text-2)" }}>
             등록할 업무 ({result.tasks?.filter((t: any) => t.selected).length ?? 0}/{result.tasks?.length ?? 0})
           </p>
@@ -292,9 +433,7 @@ export default function MeetingNotePage() {
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-sm font-medium" style={{ color: "var(--text-1)" }}>{task.title}</p>
                 {task.is_blocked && <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: "rgba(255,77,106,0.12)", color: "#FF4D6A" }}>Blocked</span>}
-                <span className="text-xs font-semibold" style={{ color: PRIORITY_COLOR[task.priority] ?? "#4A7099" }}>
-                  {PRIORITY_LABEL[task.priority] ?? task.priority}
-                </span>
+                <span className="text-xs font-semibold" style={{ color: PC[task.priority] ?? "#4A7099" }}>{PL[task.priority] ?? task.priority}</span>
               </div>
               <div className="flex items-center gap-3 mt-1 flex-wrap">
                 {task.assignee_name && <span className="text-xs" style={{ color: "var(--text-3)" }}>담당: {task.assignee_name}</span>}
@@ -309,9 +448,7 @@ export default function MeetingNotePage() {
       {result.issues?.length > 0 && (
         <div className="rounded-2xl p-4" style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.2)" }}>
           <p className="text-xs font-semibold mb-2" style={{ color: "#F5A623" }}>⚠ 이슈</p>
-          {result.issues.map((issue: string, i: number) => (
-            <p key={i} className="text-sm" style={{ color: "var(--text-2)" }}>• {issue}</p>
-          ))}
+          {result.issues.map((issue: string, i: number) => <p key={i} className="text-sm" style={{ color: "var(--text-2)" }}>• {issue}</p>)}
         </div>
       )}
 
@@ -323,6 +460,7 @@ export default function MeetingNotePage() {
     </div>
   );
 
+  // ─── 입력 ───
   return (
     <div className="max-w-2xl space-y-5">
       <div className="flex items-center justify-between">
@@ -330,7 +468,14 @@ export default function MeetingNotePage() {
           <div className="w-1 h-5 rounded-full" style={{ background: "#F5A623" }} />
           <h1 className="text-xl font-bold" style={{ color: "var(--text-1)" }}>회의록 분석</h1>
         </div>
-        {lastSaved && <p className="text-xs" style={{ color: "var(--text-3)" }}>✓ {lastSaved.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 자동 저장됨</p>}
+        <div className="flex items-center gap-3">
+          {lastSaved && <p className="text-xs" style={{ color: "var(--text-3)" }}>✓ {lastSaved.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 자동 저장됨</p>}
+          <button onClick={() => setView("history")}
+            className="rounded-lg px-3 py-1.5 text-xs font-medium"
+            style={{ background: "var(--bg-2)", color: "var(--text-2)", border: "1px solid var(--border)" }}>
+            📂 이전 내역
+          </button>
+        </div>
       </div>
 
       {restored && text && (
@@ -348,11 +493,9 @@ export default function MeetingNotePage() {
         {[{ id: "text", label: "✍️ 텍스트 입력" }, { id: "file", label: "📁 파일 업로드" }, { id: "record", label: "🎙️ 녹음" }].map(m => (
           <button key={m.id} onClick={() => setInputMode(m.id as any)}
             className="flex-1 rounded-lg py-2 text-xs font-medium transition-all"
-            style={{
-              background: inputMode === m.id ? "var(--bg-4)" : "transparent",
-              color: inputMode === m.id ? "var(--text-1)" : "var(--text-3)",
-              border: inputMode === m.id ? "1px solid var(--border-2)" : "1px solid transparent",
-            }}>{m.label}</button>
+            style={{ background: inputMode === m.id ? "var(--bg-4)" : "transparent", color: inputMode === m.id ? "var(--text-1)" : "var(--text-3)", border: inputMode === m.id ? "1px solid var(--border-2)" : "1px solid transparent" }}>
+            {m.label}
+          </button>
         ))}
       </div>
 
@@ -425,7 +568,8 @@ export default function MeetingNotePage() {
             <div>
               <p className="text-2xl mb-2">✅</p>
               <p className="text-sm font-medium mb-1" style={{ color: "var(--text-1)" }}>녹음 완료 ({fmtTime(recordTime)})</p>
-              <button onClick={startRecording} className="text-xs mt-2" style={{ color: "var(--text-3)" }}>다시 녹음</button>
+              <p className="text-xs mb-3" style={{ color: "var(--text-3)" }}>분석 시작 시 Supabase Storage에 자동 저장됩니다</p>
+              <button onClick={startRecording} className="text-xs" style={{ color: "var(--text-3)" }}>다시 녹음</button>
             </div>
           )}
         </div>
