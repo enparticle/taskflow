@@ -12,7 +12,8 @@ const TOP_NAV = [
   { href: "/dashboard", label: "대시보드",  icon: "▦" },
   { href: "/tasks",     label: "전체 업무",  icon: "≡" },
   { href: "/kanban",    label: "칸반 보드",  icon: "⊞" },
-  { href: "/my-work",   label: "내 업무",    icon: "◎" },
+  { href: "/my-work",           label: "내 업무",          icon: "◎" },
+  { href: "/project-assistant", label: "AI 프로젝트 등록", icon: "✦" },
 ];
 
 const BOTTOM_NAV = [
