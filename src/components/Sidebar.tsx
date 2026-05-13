@@ -17,6 +17,7 @@ const TOP_NAV = [
 ];
 
 const BOTTOM_NAV = [
+  { href: "/meeting-note",  label: "회의록 분석",  icon: "📝" },
   { href: "/guide",         label: "사용 가이드",  icon: "📖" },
   { href: "/reports",       label: "리포트",       icon: "📊" },
   { href: "/report-export", label: "외부용 보고서", icon: "📋" },
