@@ -1,7 +1,8 @@
 // @ts-nocheck
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
+import { getAuthUser } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 
 type Step = "input" | "analyzing" | "review" | "done";
@@ -9,22 +10,24 @@ type Step = "input" | "analyzing" | "review" | "done";
 export default function MeetingNotePage() {
   const supabase = createClient();
   const router = useRouter();
+
   const [step, setStep] = useState<Step>("input");
   const [inputMode, setInputMode] = useState<"text" | "file" | "record">("text");
   const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [recording, setRecording] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
-  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
   const [transcribing, setTranscribing] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [projects, setProjects] = useState<any[]>([]);
   const [selectedProject, setSelectedProject] = useState("");
   const [applying, setApplying] = useState(false);
   const [recordTime, setRecordTime] = useState(0);
+  const [myUser, setMyUser] = useState<any>(null);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const [myUser, setMyUser] = useState<any>(null);
+  const [restored, setRestored] = useState(false);
+
   const timerRef = useRef<any>(null);
   const saveTimerRef = useRef<any>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -33,27 +36,24 @@ export default function MeetingNotePage() {
     supabase.from("projects").select("id, name").eq("status", "active")
       .then(({ data }) => setProjects(data ?? []));
 
-    // 유저 로드 + 최근 draft 복원
-    import("@/lib/auth").then(({ getAuthUser }) => {
-      getAuthUser().then(async u => {
-        setMyUser(u);
-        if (!u) return;
-        const { data } = await supabase
-          .from("meeting_drafts")
-          .select("*")
-          .eq("user_id", u.userId)
-          .eq("status", "draft")
-          .order("updated_at", { ascending: false })
-          .limit(1)
-          .single();
-        if (data) {
-          setDraftId(data.id);
-          if (data.input_text) setText(data.input_text);
-          if (data.project_id) setSelectedProject(data.project_id);
-          if (data.result) { setResult(data.result); setStep("review"); }
-          setLastSaved(new Date(data.updated_at));
-        }
-      });
+    getAuthUser().then(async u => {
+      setMyUser(u);
+      if (!u) return;
+      const { data } = await supabase
+        .from("meeting_drafts")
+        .select("*")
+        .eq("user_id", u.userId)
+        .eq("status", "draft")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .single();
+      if (data) {
+        setDraftId(data.id);
+        if (data.input_text) { setText(data.input_text); setRestored(true); }
+        if (data.project_id) setSelectedProject(data.project_id);
+        if (data.result) { setResult(data.result); setStep("review"); }
+        setLastSaved(new Date(data.updated_at));
+      }
     });
   }, []);
 
@@ -61,15 +61,15 @@ export default function MeetingNotePage() {
   useEffect(() => {
     if (!text && !result) return;
     clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => autoSave(), 30000);
+    saveTimerRef.current = setTimeout(autoSave, 30000);
     return () => clearTimeout(saveTimerRef.current);
   }, [text, result, selectedProject]);
 
-  async function autoSave() {
+  const autoSave = useCallback(async () => {
     if (!myUser || (!text && !result)) return;
     const payload = {
       user_id: myUser.userId,
-      input_text: text,
+      input_text: text || null,
       result: result ?? null,
       project_id: selectedProject || null,
       status: "draft",
@@ -82,25 +82,38 @@ export default function MeetingNotePage() {
       if (data) setDraftId(data.id);
     }
     setLastSaved(new Date());
+  }, [myUser, text, result, selectedProject, draftId]);
+
+  async function completeDraft() {
+    if (draftId) {
+      await supabase.from("meeting_drafts").update({ status: "completed" }).eq("id", draftId);
+      setDraftId(null);
+    }
   }
 
-  // 녹음
+  function fmtTime(s: number) {
+    return `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
+  }
+
   async function startRecording() {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const mr = new MediaRecorder(stream);
-    const chunks: Blob[] = [];
-    mr.ondataavailable = e => chunks.push(e.data);
-    mr.onstop = async () => {
-      const blob = new Blob(chunks, { type: "audio/webm" });
-      setFile(new File([blob], "recording.webm", { type: "audio/webm" }));
-      setAudioChunks(chunks);
-      stream.getTracks().forEach(t => t.stop());
-    };
-    mr.start();
-    setMediaRecorder(mr);
-    setRecording(true);
-    setRecordTime(0);
-    timerRef.current = setInterval(() => setRecordTime(t => t + 1), 1000);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const chunks: Blob[] = [];
+      const mr = new MediaRecorder(stream);
+      mr.ondataavailable = e => chunks.push(e.data);
+      mr.onstop = () => {
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        setFile(new File([blob], "recording.webm", { type: "audio/webm" }));
+        stream.getTracks().forEach(t => t.stop());
+      };
+      mr.start();
+      setMediaRecorder(mr);
+      setRecording(true);
+      setRecordTime(0);
+      timerRef.current = setInterval(() => setRecordTime(t => t + 1), 1000);
+    } catch {
+      alert("마이크 접근 권한이 필요합니다");
+    }
   }
 
   function stopRecording() {
@@ -109,11 +122,6 @@ export default function MeetingNotePage() {
     clearInterval(timerRef.current);
   }
 
-  function fmtTime(s: number) {
-    return `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
-  }
-
-  // 파일 → 텍스트 변환
   async function transcribeFile(f: File): Promise<string> {
     setTranscribing(true);
     const form = new FormData();
@@ -125,17 +133,14 @@ export default function MeetingNotePage() {
     return data.text;
   }
 
-  // 분석 시작
   async function analyze() {
     setStep("analyzing");
     try {
       let finalText = text;
-
       if (inputMode !== "text" && file) {
         finalText = await transcribeFile(file);
         setText(finalText);
       }
-
       if (!finalText.trim()) throw new Error("내용이 없습니다");
 
       const res = await fetch("/api/analyze-meeting", {
@@ -145,21 +150,23 @@ export default function MeetingNotePage() {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setResult(data);
+
+      // 분석 결과에 selected 기본값 추가
+      const resultWithSelected = {
+        ...data,
+        tasks: (data.tasks ?? []).map((t: any) => ({ ...t, selected: true })),
+      };
+      setResult(resultWithSelected);
       setStep("review");
-      // 분석 성공 시 임시저장 업데이트
-      try { localStorage.setItem("meeting_note_draft", JSON.stringify({ text: finalText, selectedProject, result: data })); } catch {}
     } catch (e: any) {
       alert("분석 실패: " + e.message);
       setStep("input");
     }
   }
 
-  // 업무 적용
   async function applyTasks() {
     if (!result) return;
     setApplying(true);
-
     for (const task of result.tasks ?? []) {
       if (!task.selected) continue;
       await supabase.from("tasks").insert({
@@ -174,18 +181,11 @@ export default function MeetingNotePage() {
         project_id: selectedProject || null,
       });
     }
-
+    await completeDraft();
     setStep("done");
     setApplying(false);
-    // 완료 시 draft 상태 변경
-    if (draftId) {
-      await supabase.from("meeting_drafts").update({ status: "completed" }).eq("id", draftId);
-      setDraftId(null);
-    }
-    try { localStorage.removeItem("meeting_note_draft"); } catch {}
   }
 
-  // 결과의 task 선택 토글
   function toggleTask(i: number) {
     setResult((r: any) => ({
       ...r,
@@ -193,12 +193,17 @@ export default function MeetingNotePage() {
     }));
   }
 
+  function resetAll() {
+    completeDraft();
+    setStep("input"); setResult(null); setText(""); setFile(null);
+    setDraftId(null); setRestored(false); setLastSaved(null);
+  }
+
   const fieldStyle = {
     background: "#1E2435", border: "1px solid var(--border-2)", color: "#E8F4FF",
     borderRadius: 8, padding: "10px 12px", fontSize: 13, width: "100%", outline: "none",
     colorScheme: "dark" as const,
   };
-
   const PRIORITY_COLOR: Record<string, string> = { urgent: "#FF4D6A", high: "#F5A623", medium: "#2E86FF", low: "#4A7099" };
   const PRIORITY_LABEL: Record<string, string> = { urgent: "긴급", high: "높음", medium: "보통", low: "낮음" };
 
@@ -217,11 +222,7 @@ export default function MeetingNotePage() {
           style={{ background: "linear-gradient(135deg, #00C2CC, #2E86FF)", color: "#fff" }}>
           업무 목록 보기 →
         </button>
-        <button onClick={async () => {
-          if (draftId) await supabase.from("meeting_drafts").update({ status: "completed" }).eq("id", draftId);
-          setStep("input"); setResult(null); setText(""); setFile(null); setDraftId(null);
-          try { localStorage.removeItem("meeting_note_draft"); } catch {};
-        }}
+        <button onClick={resetAll}
           className="rounded-xl px-6 py-3 text-sm"
           style={{ background: "var(--bg-3)", color: "var(--text-2)", border: "1px solid var(--border)" }}>
           새 회의록 분석
@@ -247,9 +248,9 @@ export default function MeetingNotePage() {
         <button onClick={() => setStep("input")} className="text-xs" style={{ color: "var(--text-3)" }}>← 다시 입력</button>
         <span style={{ color: "var(--border)" }}>|</span>
         <h1 className="text-sm font-bold" style={{ color: "var(--text-1)" }}>분석 결과 확인</h1>
+        {lastSaved && <p className="text-xs ml-auto" style={{ color: "var(--text-3)" }}>✓ {lastSaved.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 저장됨</p>}
       </div>
 
-      {/* 요약 */}
       <div className="rounded-2xl p-4" style={{ background: "rgba(167,139,250,0.08)", border: "1px solid rgba(167,139,250,0.2)" }}>
         <p className="text-xs font-semibold mb-1" style={{ color: "#A78BFA" }}>회의 요약</p>
         <p className="text-sm" style={{ color: "var(--text-1)" }}>{result.summary}</p>
@@ -258,71 +259,53 @@ export default function MeetingNotePage() {
         )}
       </div>
 
-      {/* 변환된 텍스트 확인 */}
-      {inputMode !== "text" && text && (
-        <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-          <p className="text-xs font-semibold mb-2" style={{ color: "var(--text-3)" }}>변환된 텍스트</p>
-          <p className="text-xs leading-relaxed" style={{ color: "var(--text-2)", maxHeight: 100, overflow: "auto" }}>{text}</p>
-        </div>
-      )}
-
-      {/* 결정사항 */}
       {result.decisions?.length > 0 && (
         <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
           <p className="text-xs font-semibold mb-2" style={{ color: "var(--text-3)" }}>결정사항</p>
-          <div className="space-y-1">
-            {result.decisions.map((d: string, i: number) => (
-              <div key={i} className="flex items-start gap-2">
-                <span style={{ color: "#00D4A0", fontSize: 12, marginTop: 2 }}>✓</span>
-                <p className="text-sm" style={{ color: "var(--text-2)" }}>{d}</p>
-              </div>
-            ))}
-          </div>
+          {result.decisions.map((d: string, i: number) => (
+            <div key={i} className="flex items-start gap-2">
+              <span style={{ color: "#00D4A0", fontSize: 12, marginTop: 2 }}>✓</span>
+              <p className="text-sm" style={{ color: "var(--text-2)" }}>{d}</p>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* 업무 목록 */}
       <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
         <div className="flex items-center justify-between px-4 py-3"
           style={{ background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
           <p className="text-xs font-semibold" style={{ color: "var(--text-2)" }}>
-            등록할 업무 선택 ({result.tasks?.filter((t: any) => t.selected).length ?? 0}/{result.tasks?.length ?? 0})
+            등록할 업무 ({result.tasks?.filter((t: any) => t.selected).length ?? 0}/{result.tasks?.length ?? 0})
           </p>
           <button onClick={() => setResult((r: any) => ({ ...r, tasks: r.tasks.map((t: any) => ({ ...t, selected: true })) }))}
             className="text-xs" style={{ color: "var(--cyan)" }}>모두 선택</button>
         </div>
-        <div className="divide-y" style={{ borderColor: "var(--border)" }}>
-          {(result.tasks ?? []).map((task: any, i: number) => (
-            <div key={i}
-              className="flex items-start gap-3 px-4 py-3 cursor-pointer transition-all"
-              style={{ background: task.selected ? "rgba(46,134,255,0.05)" : "var(--bg-2)" }}
-              onClick={() => toggleTask(i)}>
-              <div className="mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0"
-                style={{ background: task.selected ? "#2E86FF" : "var(--bg-3)", border: `1px solid ${task.selected ? "#2E86FF" : "var(--border-2)"}` }}>
-                {task.selected && <span style={{ color: "#fff", fontSize: 10 }}>✓</span>}
+        {(result.tasks ?? []).map((task: any, i: number) => (
+          <div key={i} className="flex items-start gap-3 px-4 py-3 cursor-pointer"
+            style={{ background: task.selected ? "rgba(46,134,255,0.05)" : "var(--bg-2)", borderBottom: "1px solid var(--border)" }}
+            onClick={() => toggleTask(i)}>
+            <div className="mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0"
+              style={{ background: task.selected ? "#2E86FF" : "var(--bg-3)", border: `1px solid ${task.selected ? "#2E86FF" : "var(--border-2)"}` }}>
+              {task.selected && <span style={{ color: "#fff", fontSize: 10 }}>✓</span>}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-medium" style={{ color: "var(--text-1)" }}>{task.title}</p>
+                {task.is_blocked && <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: "rgba(255,77,106,0.12)", color: "#FF4D6A" }}>Blocked</span>}
+                <span className="text-xs font-semibold" style={{ color: PRIORITY_COLOR[task.priority] ?? "#4A7099" }}>
+                  {PRIORITY_LABEL[task.priority] ?? task.priority}
+                </span>
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-medium" style={{ color: "var(--text-1)" }}>{task.title}</p>
-                  {task.is_blocked && (
-                    <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: "rgba(255,77,106,0.12)", color: "#FF4D6A" }}>Blocked</span>
-                  )}
-                  <span className="text-xs font-semibold" style={{ color: PRIORITY_COLOR[task.priority] ?? "#4A7099" }}>
-                    {PRIORITY_LABEL[task.priority]}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 mt-1">
-                  {task.assignee_name && <span className="text-xs" style={{ color: "var(--text-3)" }}>담당: {task.assignee_name}</span>}
-                  {task.due_date && <span className="text-xs" style={{ color: "var(--text-3)" }}>마감: {task.due_date}</span>}
-                  {task.is_blocked && task.blocked_reason && <span className="text-xs" style={{ color: "#FF4D6A" }}>{task.blocked_reason}</span>}
-                </div>
+              <div className="flex items-center gap-3 mt-1 flex-wrap">
+                {task.assignee_name && <span className="text-xs" style={{ color: "var(--text-3)" }}>담당: {task.assignee_name}</span>}
+                {task.due_date && <span className="text-xs" style={{ color: "var(--text-3)" }}>마감: {task.due_date}</span>}
+                {task.is_blocked && task.blocked_reason && <span className="text-xs" style={{ color: "#FF4D6A" }}>{task.blocked_reason}</span>}
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
 
-      {/* 이슈 */}
       {result.issues?.length > 0 && (
         <div className="rounded-2xl p-4" style={{ background: "rgba(245,166,35,0.06)", border: "1px solid rgba(245,166,35,0.2)" }}>
           <p className="text-xs font-semibold mb-2" style={{ color: "#F5A623" }}>⚠ 이슈</p>
@@ -332,8 +315,7 @@ export default function MeetingNotePage() {
         </div>
       )}
 
-      <button onClick={applyTasks}
-        disabled={applying || !result.tasks?.some((t: any) => t.selected)}
+      <button onClick={applyTasks} disabled={applying || !result.tasks?.some((t: any) => t.selected)}
         className="w-full rounded-xl py-3 text-sm font-semibold disabled:opacity-40"
         style={{ background: "linear-gradient(135deg, #00C2CC, #2E86FF)", color: "#fff" }}>
         {applying ? "등록 중…" : `선택한 업무 ${result.tasks?.filter((t: any) => t.selected).length ?? 0}건 등록하기`}
@@ -341,66 +323,39 @@ export default function MeetingNotePage() {
     </div>
   );
 
-  // 임시저장 복원 여부 확인
-  const [restored, setRestored] = useState(false);
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("meeting_note_draft");
-      if (saved) { const d = JSON.parse(saved); if (d.text || d.result) setRestored(true); }
-    } catch {}
-  }, []);
-
-  // 입력 화면
   return (
     <div className="max-w-2xl space-y-5">
-      <div className="flex items-center gap-2">
-        <div className="w-1 h-5 rounded-full" style={{ background: "#F5A623" }} />
-        <h1 className="text-xl font-bold" style={{ color: "var(--text-1)" }}>회의록 분석</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-1 h-5 rounded-full" style={{ background: "#F5A623" }} />
+          <h1 className="text-xl font-bold" style={{ color: "var(--text-1)" }}>회의록 분석</h1>
+        </div>
+        {lastSaved && <p className="text-xs" style={{ color: "var(--text-3)" }}>✓ {lastSaved.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 자동 저장됨</p>}
       </div>
 
-      {/* 복원 알림 */}
-      {(restored || draftId) && step === "input" && text && (
+      {restored && text && (
         <div className="rounded-xl px-4 py-3 flex items-center justify-between"
           style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.2)" }}>
           <div>
             <p className="text-xs" style={{ color: "#F5A623" }}>📋 이전에 작성하던 내용이 복원됐습니다</p>
             {lastSaved && <p className="text-xs mt-0.5" style={{ color: "var(--text-3)" }}>마지막 저장: {lastSaved.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}</p>}
           </div>
-          <button onClick={async () => {
-            if (draftId) await supabase.from("meeting_drafts").update({ status: "completed" }).eq("id", draftId);
-            setText(""); setResult(null); setRestored(false); setDraftId(null);
-            try { localStorage.removeItem("meeting_note_draft"); } catch {}
-          }} className="text-xs ml-4" style={{ color: "var(--text-3)" }}>초기화</button>
+          <button onClick={resetAll} className="text-xs ml-4" style={{ color: "var(--text-3)" }}>초기화</button>
         </div>
       )}
 
-      {/* 자동 저장 상태 */}
-      {lastSaved && step !== "done" && (
-        <p className="text-xs text-right" style={{ color: "var(--text-3)", marginTop: -8 }}>
-          ✓ {lastSaved.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 자동 저장됨
-        </p>
-      )}
-
-      {/* 입력 방식 선택 */}
       <div className="flex gap-2 p-1 rounded-xl" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-        {[
-          { id: "text", label: "✍️ 텍스트 입력" },
-          { id: "file", label: "📁 파일 업로드" },
-          { id: "record", label: "🎙️ 녹음" },
-        ].map(m => (
+        {[{ id: "text", label: "✍️ 텍스트 입력" }, { id: "file", label: "📁 파일 업로드" }, { id: "record", label: "🎙️ 녹음" }].map(m => (
           <button key={m.id} onClick={() => setInputMode(m.id as any)}
             className="flex-1 rounded-lg py-2 text-xs font-medium transition-all"
             style={{
               background: inputMode === m.id ? "var(--bg-4)" : "transparent",
               color: inputMode === m.id ? "var(--text-1)" : "var(--text-3)",
               border: inputMode === m.id ? "1px solid var(--border-2)" : "1px solid transparent",
-            }}>
-            {m.label}
-          </button>
+            }}>{m.label}</button>
         ))}
       </div>
 
-      {/* 프로젝트 선택 */}
       <div>
         <label className="text-xs mb-1 block" style={{ color: "var(--text-3)" }}>어떤 프로젝트의 회의인가요?</label>
         <select value={selectedProject} onChange={e => setSelectedProject(e.target.value)} style={fieldStyle}>
@@ -409,27 +364,20 @@ export default function MeetingNotePage() {
         </select>
       </div>
 
-      {/* 텍스트 입력 */}
       {inputMode === "text" && (
-        <div>
-          <label className="text-xs mb-1 block" style={{ color: "var(--text-3)" }}>회의록을 붙여넣거나 직접 입력해주세요</label>
-          <textarea value={text} onChange={e => setText(e.target.value)}
-            placeholder={"예시:\n일시: 2026-05-13\n참석자: 김성훈, 진태우\n\n안건 1. 팜 카트리지 2차 테스트\n- 담당: 고우성, 5/20까지\n\n액션아이템\n- 보고서 작성 / 김성훈 / 5/15"}
-            rows={10} className="w-full rounded-xl px-4 py-3 text-sm resize-none focus:outline-none"
-            style={{ background: "var(--bg-2)", border: "1px solid var(--border-2)", color: "var(--text-1)" }} />
-        </div>
+        <textarea value={text} onChange={e => setText(e.target.value)}
+          placeholder={"회의록을 붙여넣거나 직접 입력해주세요\n\n예시:\n일시: 2026-05-13\n참석자: 김성훈, 진태우\n\n액션아이템\n- 보고서 작성 / 김성훈 / 5/15\n- 2차 테스트 / 고우성 / 5/20"}
+          rows={10} className="w-full rounded-xl px-4 py-3 text-sm resize-none focus:outline-none"
+          style={{ background: "var(--bg-2)", border: "1px solid var(--border-2)", color: "var(--text-1)" }} />
       )}
 
-      {/* 파일 업로드 */}
       {inputMode === "file" && (
         <div>
           <input ref={fileRef} type="file" accept="audio/*,.mp3,.mp4,.wav,.m4a,.webm"
             onChange={e => setFile(e.target.files?.[0] ?? null)} className="hidden" />
-          <div className="rounded-xl p-8 text-center cursor-pointer transition-all"
+          <div className="rounded-xl p-8 text-center cursor-pointer"
             style={{ background: "var(--bg-2)", border: "2px dashed var(--border-2)" }}
-            onClick={() => fileRef.current?.click()}
-            onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "var(--cyan)"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border-2)"; }}>
+            onClick={() => fileRef.current?.click()}>
             {file ? (
               <div>
                 <p className="text-sm font-medium mb-1" style={{ color: "var(--text-1)" }}>🎵 {file.name}</p>
@@ -446,7 +394,6 @@ export default function MeetingNotePage() {
         </div>
       )}
 
-      {/* 녹음 */}
       {inputMode === "record" && (
         <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
           {!recording && !file && (
@@ -478,9 +425,7 @@ export default function MeetingNotePage() {
             <div>
               <p className="text-2xl mb-2">✅</p>
               <p className="text-sm font-medium mb-1" style={{ color: "var(--text-1)" }}>녹음 완료 ({fmtTime(recordTime)})</p>
-              <button onClick={startRecording} className="text-xs mt-2" style={{ color: "var(--text-3)" }}>
-                다시 녹음
-              </button>
+              <button onClick={startRecording} className="text-xs mt-2" style={{ color: "var(--text-3)" }}>다시 녹음</button>
             </div>
           )}
         </div>
