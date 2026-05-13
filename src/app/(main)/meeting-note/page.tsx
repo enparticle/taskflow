@@ -22,13 +22,67 @@ export default function MeetingNotePage() {
   const [selectedProject, setSelectedProject] = useState("");
   const [applying, setApplying] = useState(false);
   const [recordTime, setRecordTime] = useState(0);
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [myUser, setMyUser] = useState<any>(null);
   const timerRef = useRef<any>(null);
+  const saveTimerRef = useRef<any>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     supabase.from("projects").select("id, name").eq("status", "active")
       .then(({ data }) => setProjects(data ?? []));
+
+    // 유저 로드 + 최근 draft 복원
+    import("@/lib/auth").then(({ getAuthUser }) => {
+      getAuthUser().then(async u => {
+        setMyUser(u);
+        if (!u) return;
+        const { data } = await supabase
+          .from("meeting_drafts")
+          .select("*")
+          .eq("user_id", u.userId)
+          .eq("status", "draft")
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .single();
+        if (data) {
+          setDraftId(data.id);
+          if (data.input_text) setText(data.input_text);
+          if (data.project_id) setSelectedProject(data.project_id);
+          if (data.result) { setResult(data.result); setStep("review"); }
+          setLastSaved(new Date(data.updated_at));
+        }
+      });
+    });
   }, []);
+
+  // 30초마다 자동 저장
+  useEffect(() => {
+    if (!text && !result) return;
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => autoSave(), 30000);
+    return () => clearTimeout(saveTimerRef.current);
+  }, [text, result, selectedProject]);
+
+  async function autoSave() {
+    if (!myUser || (!text && !result)) return;
+    const payload = {
+      user_id: myUser.userId,
+      input_text: text,
+      result: result ?? null,
+      project_id: selectedProject || null,
+      status: "draft",
+      updated_at: new Date().toISOString(),
+    };
+    if (draftId) {
+      await supabase.from("meeting_drafts").update(payload).eq("id", draftId);
+    } else {
+      const { data } = await supabase.from("meeting_drafts").insert(payload).select().single();
+      if (data) setDraftId(data.id);
+    }
+    setLastSaved(new Date());
+  }
 
   // 녹음
   async function startRecording() {
@@ -93,6 +147,8 @@ export default function MeetingNotePage() {
       if (data.error) throw new Error(data.error);
       setResult(data);
       setStep("review");
+      // 분석 성공 시 임시저장 업데이트
+      try { localStorage.setItem("meeting_note_draft", JSON.stringify({ text: finalText, selectedProject, result: data })); } catch {}
     } catch (e: any) {
       alert("분석 실패: " + e.message);
       setStep("input");
@@ -121,6 +177,12 @@ export default function MeetingNotePage() {
 
     setStep("done");
     setApplying(false);
+    // 완료 시 draft 상태 변경
+    if (draftId) {
+      await supabase.from("meeting_drafts").update({ status: "completed" }).eq("id", draftId);
+      setDraftId(null);
+    }
+    try { localStorage.removeItem("meeting_note_draft"); } catch {}
   }
 
   // 결과의 task 선택 토글
@@ -155,7 +217,11 @@ export default function MeetingNotePage() {
           style={{ background: "linear-gradient(135deg, #00C2CC, #2E86FF)", color: "#fff" }}>
           업무 목록 보기 →
         </button>
-        <button onClick={() => { setStep("input"); setResult(null); setText(""); setFile(null); }}
+        <button onClick={async () => {
+          if (draftId) await supabase.from("meeting_drafts").update({ status: "completed" }).eq("id", draftId);
+          setStep("input"); setResult(null); setText(""); setFile(null); setDraftId(null);
+          try { localStorage.removeItem("meeting_note_draft"); } catch {};
+        }}
           className="rounded-xl px-6 py-3 text-sm"
           style={{ background: "var(--bg-3)", color: "var(--text-2)", border: "1px solid var(--border)" }}>
           새 회의록 분석
@@ -275,6 +341,15 @@ export default function MeetingNotePage() {
     </div>
   );
 
+  // 임시저장 복원 여부 확인
+  const [restored, setRestored] = useState(false);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("meeting_note_draft");
+      if (saved) { const d = JSON.parse(saved); if (d.text || d.result) setRestored(true); }
+    } catch {}
+  }, []);
+
   // 입력 화면
   return (
     <div className="max-w-2xl space-y-5">
@@ -282,6 +357,29 @@ export default function MeetingNotePage() {
         <div className="w-1 h-5 rounded-full" style={{ background: "#F5A623" }} />
         <h1 className="text-xl font-bold" style={{ color: "var(--text-1)" }}>회의록 분석</h1>
       </div>
+
+      {/* 복원 알림 */}
+      {(restored || draftId) && step === "input" && text && (
+        <div className="rounded-xl px-4 py-3 flex items-center justify-between"
+          style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.2)" }}>
+          <div>
+            <p className="text-xs" style={{ color: "#F5A623" }}>📋 이전에 작성하던 내용이 복원됐습니다</p>
+            {lastSaved && <p className="text-xs mt-0.5" style={{ color: "var(--text-3)" }}>마지막 저장: {lastSaved.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}</p>}
+          </div>
+          <button onClick={async () => {
+            if (draftId) await supabase.from("meeting_drafts").update({ status: "completed" }).eq("id", draftId);
+            setText(""); setResult(null); setRestored(false); setDraftId(null);
+            try { localStorage.removeItem("meeting_note_draft"); } catch {}
+          }} className="text-xs ml-4" style={{ color: "var(--text-3)" }}>초기화</button>
+        </div>
+      )}
+
+      {/* 자동 저장 상태 */}
+      {lastSaved && step !== "done" && (
+        <p className="text-xs text-right" style={{ color: "var(--text-3)", marginTop: -8 }}>
+          ✓ {lastSaved.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 자동 저장됨
+        </p>
+      )}
 
       {/* 입력 방식 선택 */}
       <div className="flex gap-2 p-1 rounded-xl" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
