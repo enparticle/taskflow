@@ -36,6 +36,23 @@ export default function ProjectForm({ project, onClose, onSaved }: Props) {
   }, []);
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
+  const [drafting, setDrafting] = useState(false);
+
+  async function aiDraft() {
+    if (!form.name.trim()) return;
+    setDrafting(true);
+    try {
+      const res = await fetch("/api/project-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: form.name }),
+      });
+      const data = await res.json();
+      if (data.description) set("description", data.description);
+      if (data.end_date) set("end_date", data.end_date);
+    } catch {}
+    setDrafting(false);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
