@@ -98,7 +98,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
     loadTask();
   }
 
-  const isMeeting = true; // temp: (task as any)?.task_type === "meeting" || (task as any)?.task_type === "회의";
+  const isMeeting = (task as any)?.task_type === "meeting";
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const panelRef = useRef<HTMLDivElement>(null);
   const assigneeRef = useRef<HTMLDivElement>(null);
