@@ -11,7 +11,7 @@ const ROLE_COLOR: Record<string, string> = {
 };
 
 const ROLE_LABEL: Record<string, string> = {
-  admin: "관리자", leader: "리더", member: "멤버",
+  admin: "관리자", leader: "리더", reviewer: "리뷰어", member: "멤버", viewer: "뷰어",
 };
 
 export default function TeamPage() {

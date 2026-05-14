@@ -105,7 +105,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
 
   useEffect(() => {
     loadTask();
-    supabase.from("users").select("*").eq("is_active", true).then(({ data }) => { if (data) setAllUsers(data as User[]); });
+    supabase.from("users").select("*").eq("is_active", true).neq("role", "viewer").then(({ data }) => { if (data) setAllUsers(data as User[]); });
     supabase.from("projects").select("*").eq("status", "active").then(({ data }) => { if (data) setProjects(data as Project[]); });
   }, [taskId]);
 

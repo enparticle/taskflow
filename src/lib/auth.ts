@@ -5,7 +5,7 @@ export interface AuthUser {
   authId: string;
   userId: string;
   name: string;
-  role: "admin" | "leader" | "member";
+  role: "admin" | "leader" | "reviewer" | "member" | "viewer";
   email: string;
 }
 

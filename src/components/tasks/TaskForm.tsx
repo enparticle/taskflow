@@ -47,7 +47,7 @@ export default function TaskForm({ onClose, onCreated, defaultProjectId }: Props
   });
 
   useEffect(() => {
-    supabase.from("users").select("*").eq("is_active", true).then(({ data }) => { if (data) setUsers(data); });
+    supabase.from("users").select("*").eq("is_active", true).neq("role", "viewer").then(({ data }) => { if (data) setUsers(data); });
     supabase.from("projects").select("*").eq("status", "active").then(({ data }) => { if (data) setProjects(data); });
   }, []);
 

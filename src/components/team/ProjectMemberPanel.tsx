@@ -107,6 +107,7 @@ export default function ProjectMemberPanel({ projectId }: Props) {
             style={{ background: "var(--bg-4)", border: "1px solid var(--border-2)", color: "var(--text-1)" }}>
             <option value="leader">리더</option>
             <option value="member">멤버</option>
+            <option value="viewer">뷰어</option>
             <option value="reviewer">리뷰어</option>
           </select>
           <button onClick={addMember} disabled={!selectedUser}

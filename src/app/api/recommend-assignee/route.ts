@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     const { title, task_type, priority, projectId } = await req.json();
 
     const { data: users } = await supabase
-      .from("users").select("id, name, role, level").eq("is_active", true);
+      .from("users").select("id, name, role, level").eq("is_active", true).neq("role", "viewer");
 
     const { data: tasks } = await supabase
       .from("tasks").select("assignee_id, assignee_ids, status, task_type")

@@ -32,7 +32,7 @@ export default function TaskComments({ taskId }: { taskId: string }) {
         setMyUser(u);
       }
     });
-    supabase.from("users").select("id, name").eq("is_active", true).then(({ data }) => {
+    supabase.from("users").select("id, name, role").eq("is_active", true).neq("role", "viewer").then(({ data }) => {
       setAllUsers(data ?? []);
     });
   }, [taskId]);

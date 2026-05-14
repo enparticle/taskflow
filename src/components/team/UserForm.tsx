@@ -99,6 +99,7 @@ export default function UserForm({ user, onClose, onSaved }: Props) {
                 { value: "member",  label: "멤버",   color: "#2E86FF" },
                 { value: "leader",  label: "리더",   color: "#00C2CC" },
                 { value: "admin",   label: "관리자", color: "#A78BFA" },
+                { value: "viewer",  label: "뷰어",   color: "#52525b" },
               ].map(r => (
                 <button key={r.value} type="button" onClick={() => set("role", r.value)}
                   className="rounded-lg py-2 text-xs font-semibold transition-all"
