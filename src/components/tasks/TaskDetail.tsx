@@ -64,6 +64,9 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
   const [showAssigneeMenu, setShowAssigneeMenu] = useState(false);
   const [canDelete, setCanDelete] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
+  const [meetingNote, setMeetingNote] = useState<any>(null);
+  const [meetingNotes, setMeetingNotes] = useState<any[]>([]);
+  const [showNotePicker, setShowNotePicker] = useState(false);
   async function loadMeetingNotes() {
     const { data } = await supabase.from("meeting_drafts")
       .select("id, result, input_text, audio_path, updated_at, project_id")
