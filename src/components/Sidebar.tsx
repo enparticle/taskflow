@@ -47,7 +47,7 @@ export default function Sidebar() {
     const active = pathname === href || pathname.startsWith(href + "/");
     return (
       <Link href={href}
-        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium transition-all"
+        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all"
         style={{
           background: active ? "var(--bg-4)" : "transparent",
           color: active ? "var(--text-1)" : "var(--text-2)",
@@ -62,7 +62,7 @@ export default function Sidebar() {
   function GroupLabel({ label }: { label: string }) {
     return (
       <p className="px-3 pt-3 pb-1 text-xs font-semibold uppercase tracking-wider"
-        style={{ color: "var(--text-2)", fontSize: 10, letterSpacing: "0.08em" }}>
+        style={{ color: "var(--text-2)", fontSize: 11, letterSpacing: "0.06em" }}>
         {label}
       </p>
     );
@@ -116,7 +116,7 @@ export default function Sidebar() {
             const hColor = HEALTH_COLOR[p.health] ?? "#52525b";
             return (
               <Link key={p.id} href={`/projects/${p.id}`}
-                className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs transition-all"
+                className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-all"
                 style={{
                   background: active ? "var(--bg-4)" : "transparent",
                   color: active ? "var(--text-1)" : "var(--text-2)",
@@ -147,7 +147,7 @@ export default function Sidebar() {
           {/* 더보기 (설정, 가이드, 반복업무) */}
           <div className="mt-2">
             <button onClick={() => setShowMore(!showMore)}
-              className="w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs transition-all"
+              className="w-full flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-all"
               style={{ color: "var(--text-2)", background: showMore ? "var(--bg-3)" : "transparent" }}
               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-3)"; }}
               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = showMore ? "var(--bg-3)" : "transparent"; }}>
@@ -170,7 +170,7 @@ export default function Sidebar() {
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
               {linkedName && (
-                <p className="text-xs font-medium truncate" style={{ color: "var(--text-2)" }}>{linkedName}</p>
+                <p className="text-sm font-medium truncate" style={{ color: "var(--text-2)" }}>{linkedName}</p>
               )}
               <div className="flex items-center gap-1.5 mt-0.5">
                 <div className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--green)" }} />
