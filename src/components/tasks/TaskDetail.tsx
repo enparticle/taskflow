@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import TaskComments from "@/components/tasks/TaskComments";
 import TaskReviews from "@/components/tasks/TaskReviews";
 import TaskDependencies from "@/components/tasks/TaskDependencies";
+import MeetingPoll from "@/components/tasks/MeetingPoll";
 import { createClient } from "@/lib/supabase";
 import type { Task, User, Project } from "@/types/database";
 type TaskStatus = string;
@@ -282,6 +283,14 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
               style={{ background: "rgba(0,212,160,0.15)", color: "#00D4A0", border: "1px solid rgba(0,212,160,0.3)" }}>
               ✓ 미팅 완료 처리
             </button>
+          )}
+
+          {/* 미팅 일정 투표 */}
+          {isMeeting && (
+            <div className="rounded-xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
+              <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-3)" }}>🗳️ 일정 투표</p>
+              <MeetingPoll taskId={taskId} />
+            </div>
           )}
 
           {/* 회의록 연결 - 미팅 업무일 때만 */}

@@ -122,17 +122,30 @@ export default function TaskComments({ taskId }: { taskId: string }) {
   }
 
   // 댓글 텍스트에서 멘션 하이라이트
-  function renderContent(text: string) {
+  function renderContent(text: string, commentId?: string) {
     const parts = text.split(/(@\S+)/g);
-    return parts.map((part, i) =>
-      part.startsWith("@") ? (
+    return parts.map((part, i) => {
+      if (!part.startsWith("@")) return <span key={i}>{part}</span>;
+      const name = part.slice(1);
+      // 같은 이름의 멘션이 있는 댓글 찾아서 스크롤
+      const handleClick = () => {
+        const els = document.querySelectorAll("[data-comment-author]");
+        for (const el of Array.from(els)) {
+          if ((el as HTMLElement).dataset.commentAuthor === name && el.getAttribute("data-comment-id") !== commentId) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            (el as HTMLElement).style.background = "rgba(0,194,204,0.15)";
+            setTimeout(() => { (el as HTMLElement).style.background = ""; }, 1500);
+            break;
+          }
+        }
+      };
+      return (
         <span key={i} className="font-semibold cursor-pointer hover:underline"
           style={{ color: "var(--cyan)" }}
-          title={part + " 님에게 멘션"}>{part}</span>
-      ) : (
-        <span key={i}>{part}</span>
-      )
-    );
+          onClick={handleClick}
+          title={name + " 님 멘션 — 클릭하면 해당 댓글로 이동"}>{part}</span>
+      );
+    });
   }
 
   return (
@@ -147,7 +160,9 @@ export default function TaskComments({ taskId }: { taskId: string }) {
               {c.user?.name?.[0] ?? "?"}
             </div>
             <div className="flex-1 rounded-xl px-3 py-2 group"
-              style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
+              style={{ background: "var(--bg-3)", border: "1px solid var(--border)", transition: "background 0.3s" }}
+              data-comment-id={c.id}
+              data-comment-author={c.user?.name}>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs font-semibold" style={{ color: "var(--text-1)" }}>{c.user?.name ?? "알 수 없음"}</span>
                 <span className="text-xs" style={{ color: "var(--text-3)" }}>{fmtTime(c.created_at)}</span>
@@ -157,7 +172,7 @@ export default function TaskComments({ taskId }: { taskId: string }) {
                     style={{ color: "var(--red)" }}>삭제</button>
                 )}
               </div>
-              <p className="text-xs" style={{ color: "var(--text-2)", whiteSpace: "pre-wrap" }}>{renderContent(c.content)}</p>
+              <p className="text-xs" style={{ color: "var(--text-2)", whiteSpace: "pre-wrap" }}>{renderContent(c.content, c.id)}</p>
             </div>
           </div>
         ))}
