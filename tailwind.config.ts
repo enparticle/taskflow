@@ -3,6 +3,14 @@ const config: Config = {
   content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
   theme: {
     extend: {
+      fontSize: {
+        'xs':  ['13px', { lineHeight: '1.6' }],
+        'sm':  ['15px', { lineHeight: '1.65' }],
+        'base':['16px', { lineHeight: '1.7' }],
+        'lg':  ['18px', { lineHeight: '1.7' }],
+        'xl':  ['20px', { lineHeight: '1.6' }],
+        '2xl': ['24px', { lineHeight: '1.4' }],
+      },
       colors: {
         bg:      "var(--bg)",
         "bg-2":  "var(--bg-2)",
