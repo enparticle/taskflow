@@ -126,7 +126,9 @@ export default function TaskComments({ taskId }: { taskId: string }) {
     const parts = text.split(/(@\S+)/g);
     return parts.map((part, i) =>
       part.startsWith("@") ? (
-        <span key={i} className="font-semibold" style={{ color: "var(--cyan)" }}>{part}</span>
+        <span key={i} className="font-semibold cursor-pointer hover:underline"
+          style={{ color: "var(--cyan)" }}
+          title={part + " 님에게 멘션"}>{part}</span>
       ) : (
         <span key={i}>{part}</span>
       )
@@ -155,7 +157,7 @@ export default function TaskComments({ taskId }: { taskId: string }) {
                     style={{ color: "var(--red)" }}>삭제</button>
                 )}
               </div>
-              <p className="text-xs" style={{ color: "var(--text-2)" }}>{renderContent(c.content)}</p>
+              <p className="text-xs" style={{ color: "var(--text-2)", whiteSpace: "pre-wrap" }}>{renderContent(c.content)}</p>
             </div>
           </div>
         ))}

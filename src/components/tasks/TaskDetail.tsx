@@ -545,17 +545,57 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
           {/* 타임라인 */}
           <div className="rounded-xl p-4" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
             <p className="text-xs font-medium mb-3" style={{ color: "var(--text-3)" }}>타임라인</p>
-            <div className="grid grid-cols-3 gap-3 text-center">
-              {[
-                { label: "생성", value: fmtDT((task as any).created_at) },
-                { label: "시작", value: fmtDT((task as any).started_at) },
-                { label: "완료", value: fmtDT((task as any).completed_at) },
-              ].map(({ label, value }) => (
-                <div key={label}>
-                  <p className="text-xs mb-1" style={{ color: "var(--text-3)" }}>{label}</p>
-                  <p className="text-xs font-medium" style={{ color: "var(--text-2)" }}>{value}</p>
-                </div>
-              ))}
+            <div className={`grid gap-3 text-center ${isMeeting ? "grid-cols-2" : "grid-cols-3"}`}>
+              {isMeeting ? (
+                <>
+                  <div>
+                    <p className="text-xs mb-1" style={{ color: "var(--text-3)" }}>생성</p>
+                    <p className="text-xs font-medium" style={{ color: "var(--text-2)" }}>{fmtDT((task as any).created_at)}</p>
+                  </div>
+                  <div style={{ borderLeft: "1px solid var(--border)", paddingLeft: 12 }}>
+                    <p className="text-xs mb-1" style={{ color: "var(--cyan)" }}>📅 미팅 일시</p>
+                    {(task as any).due_date ? (
+                      <>
+                        <p className="text-xs font-semibold" style={{ color: "var(--text-1)" }}>
+                          {new Date((task as any).due_date).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}
+                        </p>
+                        {canEdit ? (
+                          <input type="datetime-local" defaultValue={(task as any).due_date?.slice(0, 16)}
+                            onChange={e => update("due_date", e.target.value)}
+                            className="text-xs mt-1 rounded px-1 py-0.5 w-full focus:outline-none"
+                            style={{ background: "var(--bg-2)", border: "1px solid var(--border-2)", color: "var(--text-2)", colorScheme: "dark" }} />
+                        ) : (
+                          <p className="text-xs" style={{ color: "var(--text-3)" }}>
+                            {new Date((task as any).due_date).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      canEdit ? (
+                        <input type="datetime-local"
+                          onChange={e => update("due_date", e.target.value)}
+                          className="text-xs mt-1 rounded px-1 py-0.5 w-full focus:outline-none"
+                          style={{ background: "var(--bg-2)", border: "1px solid var(--border-2)", color: "var(--text-2)", colorScheme: "dark" }} />
+                      ) : (
+                        <p className="text-xs" style={{ color: "var(--text-3)" }}>미정</p>
+                      )
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {[
+                    { label: "생성", value: fmtDT((task as any).created_at) },
+                    { label: "시작", value: fmtDT((task as any).started_at) },
+                    { label: "완료", value: fmtDT((task as any).completed_at) },
+                  ].map(({ label, value }) => (
+                    <div key={label}>
+                      <p className="text-xs mb-1" style={{ color: "var(--text-3)" }}>{label}</p>
+                      <p className="text-xs font-medium" style={{ color: "var(--text-2)" }}>{value}</p>
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
           </div>
 
