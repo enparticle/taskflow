@@ -94,7 +94,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
     loadTask();
   }
 
-  const isMeeting = (task as any)?.task_type === "meeting";
+  const isMeeting = (task as any)?.task_type === "meeting" || (task as any)?.task_type === "회의";
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const panelRef = useRef<HTMLDivElement>(null);
   const assigneeRef = useRef<HTMLDivElement>(null);
@@ -286,13 +286,11 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
             <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-medium" style={{ color: "var(--text-3)" }}>📝 회의록 연결</p>
-                {canEdit && (
-                  <button onClick={() => setShowNotePicker(!showNotePicker)}
-                    className="text-xs px-2 py-1 rounded-lg"
-                    style={{ background: "var(--bg-4)", color: "var(--cyan)", border: "1px solid var(--border-2)" }}>
-                    {meetingNote ? "변경" : "+ 연결"}
-                  </button>
-                )}
+                <button onClick={() => setShowNotePicker(!showNotePicker)}
+                  className="text-xs px-2 py-1 rounded-lg"
+                  style={{ background: "var(--bg-4)", color: "var(--cyan)", border: "1px solid var(--border-2)" }}>
+                  {meetingNote ? "변경" : "+ 연결"}
+                </button>
               </div>
 
               {meetingNote ? (
@@ -316,9 +314,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
                         if (w) { w.document.write(`<pre style="font-family:sans-serif;padding:20px;white-space:pre-wrap">${meetingNote.input_text}</pre>`); }
                       }} className="text-xs" style={{ color: "var(--text-3)" }}>📄 텍스트 보기</button>
                     )}
-                    {canEdit && (
-                      <button onClick={() => linkMeetingNote(null)} className="text-xs" style={{ color: "#FF4D6A" }}>연결 해제</button>
-                    )}
+                    <button onClick={() => linkMeetingNote(null)} className="text-xs" style={{ color: "#FF4D6A" }}>연결 해제</button>
                   </div>
                 </div>
               ) : (
