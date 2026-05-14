@@ -4,40 +4,34 @@
 @tailwind utilities;
 
 :root {
-  --bg:        #0D1B2E;
-  --bg-2:      #112240;
-  --bg-3:      #152A4A;
-  --bg-4:      #1A3258;
-  --border:    #1E3A5F;
-  --border-2:  #2A5080;
-  --text-1:    #E8F4FF;
-  --text-2:    #7BA7C8;
-  --text-3:    #4A7099;
-  --cyan:      #00C2CC;
-  --cyan-bg:   rgba(0,194,204,0.10);
-  --blue:      #2E86FF;
-  --blue-bg:   rgba(46,134,255,0.10);
-  --amber:     #F5A623;
-  --amber-bg:  rgba(245,166,35,0.10);
-  --red:       #FF4D6A;
-  --red-bg:    rgba(255,77,106,0.10);
-  --green:     #00D4A0;
-  --green-bg:  rgba(0,212,160,0.10);
-  --purple:    #A78BFA;
-  --purple-bg: rgba(167,139,250,0.10);
-  --green-bg:  rgba(0,212,160,0.10);
+  /* C — 뉴트럴 모던 (Shadcn/Radix 스타일) */
+  --bg:        #09090b;
+  --bg-2:      #18181b;
+  --bg-3:      #1c1c1f;
+  --bg-4:      #27272a;
+  --border:    #27272a;
+  --border-2:  #3f3f46;
+  --text-1:    #f4f4f5;
+  --text-2:    #a1a1aa;
+  --text-3:    #52525b;
+  --cyan:      #22d3ee;
+  --cyan-bg:   rgba(34,211,238,0.08);
+  --blue:      #60a5fa;
+  --blue-bg:   rgba(96,165,250,0.08);
+  --amber:     #fbbf24;
+  --amber-bg:  rgba(251,191,36,0.08);
+  --red:       #f87171;
+  --red-bg:    rgba(248,113,113,0.08);
+  --green:     #34d399;
+  --green-bg:  rgba(52,211,153,0.08);
+  --purple:    #a78bfa;
+  --purple-bg: rgba(167,139,250,0.08);
 }
 
 * { box-sizing: border-box; }
 
-select {
-  color-scheme: dark;
-}
-
-select option {
-  background: #1E2435;
-  color: #E8F4FF;
-}
+select { color-scheme: dark; }
+select option { background: #27272a; color: #f4f4f5; }
 
 body {
   background: var(--bg);
@@ -55,14 +49,8 @@ body {
 
 .card {
   background: var(--bg-2);
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-radius: 12px;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s;
 }
-.card:hover {
-  border-color: var(--border-2);
-  box-shadow: 0 0 0 1px var(--border-2), 0 4px 24px rgba(0,0,0,0.3);
-}
-
-.glow-cyan { box-shadow: 0 0 12px rgba(0,194,204,0.15); }
-.glow-blue { box-shadow: 0 0 12px rgba(46,134,255,0.15); }
+.card:hover { border-color: var(--border-2); }

@@ -8,26 +8,8 @@ import SearchModal from "@/components/SearchModal";
 import TaskDetail from "@/components/tasks/TaskDetail";
 import { createClient } from "@/lib/supabase";
 
-const TOP_NAV = [
-  { href: "/dashboard", label: "대시보드",  icon: "▦" },
-  { href: "/tasks",     label: "전체 업무",  icon: "≡" },
-  { href: "/kanban",    label: "칸반 보드",  icon: "⊞" },
-  { href: "/my-work",           label: "내 업무",          icon: "◎" },
-  { href: "/project-assistant", label: "AI 프로젝트 등록", icon: "✦" },
-];
-
-const BOTTOM_NAV = [
-  { href: "/meeting-note",  label: "회의록 분석",  icon: "📝" },
-  { href: "/guide",         label: "사용 가이드",  icon: "📖" },
-  { href: "/reports",       label: "리포트",       icon: "📊" },
-  { href: "/report-export", label: "외부용 보고서", icon: "📋" },
-  { href: "/recurring",     label: "반복 업무",    icon: "🔄" },
-  { href: "/team",          label: "팀 현황",      icon: "◈" },
-  { href: "/settings",      label: "설정",         icon: "⚙" },
-];
-
 const HEALTH_COLOR: Record<string, string> = {
-  good: "#00D4A0", at_risk: "#F5A623", critical: "#FF4D6A",
+  good: "#34d399", at_risk: "#fbbf24", critical: "#f87171",
 };
 
 export default function Sidebar() {
@@ -39,8 +21,8 @@ export default function Sidebar() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [openDetail, setOpenDetail] = useState<string | null>(null);
-
   const [linkedName, setLinkedName] = useState<string>("");
+  const [showMore, setShowMore] = useState(false);
 
   useEffect(() => {
     supabase.from("projects").select("id, name, health").eq("status", "active")
@@ -62,124 +44,159 @@ export default function Sidebar() {
   }
 
   function NavLink({ href, label, icon }: { href: string; label: string; icon: string }) {
-    const active = pathname === href;
+    const active = pathname === href || pathname.startsWith(href + "/");
     return (
       <Link href={href}
-        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all"
+        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium transition-all"
         style={{
-          background: active ? "var(--blue-bg)" : "transparent",
-          color: active ? "var(--cyan)" : "var(--text-2)",
+          background: active ? "var(--bg-4)" : "transparent",
+          color: active ? "var(--text-1)" : "var(--text-3)",
           borderLeft: active ? "2px solid var(--cyan)" : "2px solid transparent",
         }}>
-        <span className="text-sm w-4 text-center">{icon}</span>
+        <span className="w-4 text-center shrink-0" style={{ fontSize: 13 }}>{icon}</span>
         {label}
       </Link>
     );
   }
 
+  function GroupLabel({ label }: { label: string }) {
+    return (
+      <p className="px-3 pt-3 pb-1 text-xs font-semibold uppercase tracking-wider"
+        style={{ color: "var(--text-3)", fontSize: 10, letterSpacing: "0.08em" }}>
+        {label}
+      </p>
+    );
+  }
+
   return (
     <>
-    <aside className="flex w-56 shrink-0 flex-col"
-      style={{ background: "var(--bg-2)", borderRight: "1px solid var(--border)" }}>
+      <aside className="flex w-52 shrink-0 flex-col"
+        style={{ background: "var(--bg-2)", borderRight: "0.5px solid var(--border)" }}>
 
-      {/* 로고 */}
-      <div className="flex h-14 items-center gap-2 px-4"
-        style={{ borderBottom: "1px solid var(--border)" }}>
-        <div className="w-2 h-2 rounded-full shrink-0"
-          style={{ background: "var(--cyan)", boxShadow: "0 0 8px var(--cyan)" }} />
-        <span className="text-sm font-bold tracking-widest uppercase flex-1" style={{ color: "var(--text-1)" }}>
-          Task<span style={{ color: "var(--cyan)" }}>Flow</span>
-        </span>
-        <button onClick={() => setShowSearch(true)}
-          className="w-6 h-6 flex items-center justify-center rounded-lg transition-all"
-          style={{ color: "var(--text-3)" }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--text-1)"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--text-3)"; }}>
-          🔍
-        </button>
-        <NotificationBell onTaskClick={id => setOpenDetail(id)} />
-      </div>
+        {/* 로고 */}
+        <div className="flex h-13 items-center gap-2 px-4 py-3"
+          style={{ borderBottom: "0.5px solid var(--border)" }}>
+          <div className="w-1.5 h-1.5 rounded-full shrink-0"
+            style={{ background: "var(--cyan)" }} />
+          <span className="text-sm font-semibold tracking-widest uppercase flex-1" style={{ color: "var(--text-1)" }}>
+            Task<span style={{ color: "var(--cyan)" }}>Flow</span>
+          </span>
+          <button onClick={() => setShowSearch(true)}
+            className="w-6 h-6 flex items-center justify-center rounded-md transition-all"
+            style={{ color: "var(--text-3)" }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--text-1)"; (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-4)"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--text-3)"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+            aria-label="검색">
+            🔍
+          </button>
+          <NotificationBell onTaskClick={id => setOpenDetail(id)} />
+        </div>
 
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
-        {TOP_NAV.map(n => <NavLink key={n.href} {...n} />)}
+        <nav className="flex-1 overflow-y-auto px-2 py-2">
 
-        {/* 프로젝트 섹션 */}
-        <div className="pt-3 pb-1">
+          {/* 업무 그룹 */}
+          <GroupLabel label="업무" />
+          <NavLink href="/dashboard" label="대시보드" icon="▦" />
+          <NavLink href="/my-work" label="내 업무" icon="◎" />
+          <NavLink href="/kanban" label="칸반 보드" icon="⊞" />
+
+          {/* 프로젝트 그룹 */}
+          <GroupLabel label="프로젝트" />
           <div className="flex items-center justify-between px-3 mb-1">
-            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-3)" }}>
-              프로젝트
-            </span>
+            <span style={{ fontSize: 10, color: "var(--text-3)" }} />
             <Link href="/projects" className="text-xs transition-colors"
-              style={{ color: "var(--text-3)" }}
+              style={{ color: "var(--text-3)", fontSize: 10 }}
               onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--cyan)"; }}
               onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-3)"; }}>
-              전체
+              전체 →
             </Link>
           </div>
           {projects.map(p => {
             const active = pathname === `/projects/${p.id}`;
-            const hColor = HEALTH_COLOR[p.health] ?? "#7BA7C8";
+            const hColor = HEALTH_COLOR[p.health] ?? "#52525b";
             return (
               <Link key={p.id} href={`/projects/${p.id}`}
-                className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-all"
+                className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs transition-all"
                 style={{
-                  background: active ? "var(--blue-bg)" : "transparent",
-                  color: active ? "var(--text-1)" : "var(--text-2)",
+                  background: active ? "var(--bg-4)" : "transparent",
+                  color: active ? "var(--text-1)" : "var(--text-3)",
                   borderLeft: active ? "2px solid var(--cyan)" : "2px solid transparent",
-                  fontWeight: active ? 600 : 400,
                 }}>
-                <div className="w-1.5 h-1.5 rounded-full shrink-0"
-                  style={{ background: hColor, boxShadow: active ? `0 0 6px ${hColor}` : "none" }} />
-                <span className="truncate text-xs">{p.name}</span>
+                <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: hColor }} />
+                <span className="truncate">{p.name}</span>
               </Link>
             );
           })}
           {projects.length === 0 && (
             <p className="px-3 py-1 text-xs" style={{ color: "var(--text-3)" }}>프로젝트 없음</p>
           )}
-        </div>
 
-        <div className="pt-1">
-          {BOTTOM_NAV.map(n => {
-            if (n.href === "/report-export" && userRole !== null && userRole !== "admin") return null;
-            return <NavLink key={n.href} {...n} />;
-          })}
-        </div>
-      </nav>
+          {/* AI 그룹 */}
+          <GroupLabel label="AI" />
+          <NavLink href="/project-assistant" label="프로젝트 등록" icon="✦" />
+          <NavLink href="/meeting-note" label="회의록 분석" icon="📝" />
 
-      {/* 하단 - 유저 정보 + 로그아웃 */}
-      <div className="px-4 py-3 space-y-2" style={{ borderTop: "1px solid var(--border)" }}>
-        {linkedName && (
-          <p className="text-xs font-medium truncate" style={{ color: "var(--text-2)" }}>{linkedName}</p>
-        )}
-        {userEmail && (
-          <p className="text-xs truncate" style={{ color: "var(--text-3)" }}>{userEmail}</p>
-        )}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <div className="w-1.5 h-1.5 rounded-full"
-              style={{ background: "var(--green)", boxShadow: "0 0 6px var(--green)" }} />
-            <p className="text-xs" style={{ color: "var(--text-3)" }}>v0.1</p>
+          {/* 분석 그룹 */}
+          <GroupLabel label="분석" />
+          <NavLink href="/reports" label="리포트" icon="📊" />
+          <NavLink href="/team" label="팀 현황" icon="◈" />
+          {userRole === "admin" && (
+            <NavLink href="/report-export" label="외부용 보고서" icon="📋" />
+          )}
+
+          {/* 더보기 (설정, 가이드, 반복업무) */}
+          <div className="mt-2">
+            <button onClick={() => setShowMore(!showMore)}
+              className="w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs transition-all"
+              style={{ color: "var(--text-3)", background: showMore ? "var(--bg-3)" : "transparent" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-3)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = showMore ? "var(--bg-3)" : "transparent"; }}>
+              <span>더보기</span>
+              <span style={{ fontSize: 10 }}>{showMore ? "▲" : "▼"}</span>
+            </button>
+            {showMore && (
+              <div className="mt-0.5">
+                <NavLink href="/settings" label="설정" icon="⚙" />
+                <NavLink href="/guide" label="사용 가이드" icon="📖" />
+                <NavLink href="/recurring" label="반복 업무" icon="🔄" />
+              </div>
+            )}
           </div>
-          <button onClick={handleLogout}
-            className="text-xs px-2.5 py-1 rounded-lg transition-all"
-            style={{ background: "var(--bg-3)", color: "var(--text-3)", border: "1px solid var(--border)" }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--red)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--red)33"; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--text-3)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border)"; }}>
-            로그아웃
-          </button>
+
+        </nav>
+
+        {/* 하단 유저 정보 */}
+        <div className="px-3 py-3" style={{ borderTop: "0.5px solid var(--border)" }}>
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              {linkedName && (
+                <p className="text-xs font-medium truncate" style={{ color: "var(--text-2)" }}>{linkedName}</p>
+              )}
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <div className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--green)" }} />
+                <p className="text-xs" style={{ color: "var(--text-3)" }}>v1.2</p>
+              </div>
+            </div>
+            <button onClick={handleLogout}
+              className="text-xs px-2 py-1 rounded-md transition-all ml-2 shrink-0"
+              style={{ background: "var(--bg-3)", color: "var(--text-3)", border: "0.5px solid var(--border-2)" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--red)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--text-3)"; }}>
+              로그아웃
+            </button>
+          </div>
         </div>
-      </div>
-    </aside>
-    {showSearch && (
-      <SearchModal
-        onClose={() => setShowSearch(false)}
-        onTaskClick={id => { setShowSearch(false); setOpenDetail(id); }}
-      />
-    )}
-    {openDetail && (
-      <TaskDetail taskId={openDetail} onClose={() => setOpenDetail(null)} onRefresh={() => setOpenDetail(null)} />
-    )}
+      </aside>
+
+      {showSearch && (
+        <SearchModal
+          onClose={() => setShowSearch(false)}
+          onTaskClick={id => { setShowSearch(false); setOpenDetail(id); }}
+        />
+      )}
+      {openDetail && (
+        <TaskDetail taskId={openDetail} onClose={() => setOpenDetail(null)} onRefresh={() => setOpenDetail(null)} />
+      )}
     </>
   );
 }
