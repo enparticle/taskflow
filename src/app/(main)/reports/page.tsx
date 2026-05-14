@@ -77,7 +77,7 @@ export default function ReportsPage() {
     if (since) q = q.gte("created_at", since.toISOString());
 
     const { data: tasks } = await q;
-    const { data: users } = await supabase.from("users").select("id, name").eq("is_active", true);
+    const { data: users } = await supabase.from("users").select("id, name, role").eq("is_active", true).neq("role", "viewer");
     const { data: events } = await supabase.from("task_events").select("*")
       .eq("to_status", "blocked").order("changed_at");
 

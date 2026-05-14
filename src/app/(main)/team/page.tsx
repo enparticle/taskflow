@@ -2,6 +2,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
+import { getAuthUser } from "@/lib/auth";
 import UserForm from "@/components/team/UserForm";
 
 const ROLE_COLOR: Record<string, string> = {
@@ -24,10 +25,9 @@ export default function TeamPage() {
 
   const load = useCallback(async () => {
     // 현재 로그인 유저가 관리자인지 확인
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: me } = await supabase.from("users").select("role").eq("auth_id", user.id).single();
-      setIsAdmin(me?.role === "admin");
+    const authUser = await getAuthUser();
+    if (authUser) {
+      setIsAdmin(authUser.role === "admin" || authUser.role === "leader");
     }
 
     const { data: users } = await supabase.from("users").select("*").order("created_at");
