@@ -70,7 +70,7 @@ export default function Sidebar() {
 
   return (
     <>
-      <aside className="flex w-52 shrink-0 flex-col"
+      <aside className="flex w-60 shrink-0 flex-col"
         style={{ background: "var(--bg-2)", borderRight: "0.5px solid var(--border)" }}>
 
         {/* 로고 */}
