@@ -64,6 +64,36 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
   const [showAssigneeMenu, setShowAssigneeMenu] = useState(false);
   const [canDelete, setCanDelete] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
+  async function loadMeetingNotes() {
+    const { data } = await supabase.from("meeting_drafts")
+      .select("id, result, input_text, audio_path, updated_at, project_id")
+      .order("updated_at", { ascending: false }).limit(20);
+    setMeetingNotes(data ?? []);
+  }
+
+  useEffect(() => {
+    if (!task) return;
+    const noteId = (task as any).meeting_note_id;
+    if (noteId) {
+      supabase.from("meeting_drafts").select("*").eq("id", noteId).single()
+        .then(({ data }) => setMeetingNote(data));
+    } else {
+      setMeetingNote(null);
+    }
+  }, [task]);
+
+  async function linkMeetingNote(noteId: string | null) {
+    await supabase.from("tasks").update({ meeting_note_id: noteId }).eq("id", (task as any).id);
+    if (noteId) {
+      const note = meetingNotes.find(n => n.id === noteId);
+      setMeetingNote(note ?? null);
+    } else {
+      setMeetingNote(null);
+    }
+    setShowNotePicker(false);
+    loadTask();
+  }
+
   const isMeeting = (task as any)?.task_type === "meeting";
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -249,6 +279,77 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
               style={{ background: "rgba(0,212,160,0.15)", color: "#00D4A0", border: "1px solid rgba(0,212,160,0.3)" }}>
               ✓ 미팅 완료 처리
             </button>
+          )}
+
+          {/* 회의록 연결 - 미팅 업무일 때만 */}
+          {isMeeting && (
+            <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium" style={{ color: "var(--text-3)" }}>📝 회의록 연결</p>
+                {canEdit && (
+                  <button onClick={() => setShowNotePicker(!showNotePicker)}
+                    className="text-xs px-2 py-1 rounded-lg"
+                    style={{ background: "var(--bg-4)", color: "var(--cyan)", border: "1px solid var(--border-2)" }}>
+                    {meetingNote ? "변경" : "+ 연결"}
+                  </button>
+                )}
+              </div>
+
+              {meetingNote ? (
+                <div className="rounded-lg p-2.5" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: "var(--text-1)" }}>
+                    {meetingNote.result?.summary ?? "회의록"}
+                  </p>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-xs" style={{ color: "var(--text-3)" }}>
+                      {new Date(meetingNote.updated_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
+                    </span>
+                    {meetingNote.audio_path && (
+                      <button onClick={async () => {
+                        const { data } = await supabase.storage.from("meeting-recordings").download(meetingNote.audio_path);
+                        if (data) { const url = URL.createObjectURL(data); window.open(url); }
+                      }} className="text-xs" style={{ color: "#7BA7C8" }}>🎙️ 녹음 듣기</button>
+                    )}
+                    {meetingNote.input_text && (
+                      <button onClick={() => {
+                        const w = window.open("", "_blank");
+                        if (w) { w.document.write(`<pre style="font-family:sans-serif;padding:20px;white-space:pre-wrap">${meetingNote.input_text}</pre>`); }
+                      }} className="text-xs" style={{ color: "var(--text-3)" }}>📄 텍스트 보기</button>
+                    )}
+                    {canEdit && (
+                      <button onClick={() => linkMeetingNote(null)} className="text-xs" style={{ color: "#FF4D6A" }}>연결 해제</button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs" style={{ color: "var(--text-3)" }}>연결된 회의록이 없습니다</p>
+              )}
+
+              {/* 회의록 선택 피커 */}
+              {showNotePicker && (
+                <div className="mt-2 rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-2)", maxHeight: 200, overflowY: "auto" }}>
+                  {meetingNotes.length === 0 ? (
+                    <p className="text-xs p-3" style={{ color: "var(--text-3)" }}>저장된 회의록이 없습니다</p>
+                  ) : meetingNotes.map(n => (
+                    <button key={n.id} onClick={() => linkMeetingNote(n.id)}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 text-left"
+                      style={{ background: "var(--bg-2)", borderBottom: "1px solid var(--border)" }}
+                      onMouseEnter={e => { (e.currentTarget as any).style.background = "var(--bg-3)"; }}
+                      onMouseLeave={e => { (e.currentTarget as any).style.background = "var(--bg-2)"; }}>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs truncate" style={{ color: "var(--text-1)" }}>
+                          {n.result?.summary ?? n.input_text?.slice(0, 40) ?? "회의록"}
+                        </p>
+                        <p className="text-xs mt-0.5" style={{ color: "var(--text-3)" }}>
+                          {new Date(n.updated_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          {n.audio_path && " · 🎙️ 녹음 있음"}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
           {/* 상태 */}
