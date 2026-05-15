@@ -20,7 +20,7 @@ export default function MeetingPoll({ taskId }: { taskId: string }) {
 
   async function loadPoll() {
     const { data } = await supabase.from("meeting_polls")
-      .select("*").eq("task_id", taskId).single();
+      .select("*").eq("task_id", taskId).maybeSingle();
     setPoll(data ?? null);
     setLoading(false);
   }
