@@ -3,34 +3,60 @@
 export async function calcAndUpdateHealth(supabase: any, projectId: string): Promise<string> {
   const now = new Date();
 
-  const [{ data: tasks }, { data: project }, { data: allTasks }] = await Promise.all([
-    supabase.from("tasks").select("id, status, due_date")
-      .eq("project_id", projectId).not("status", "eq", "done"),
-    supabase.from("projects").select("end_date").eq("id", projectId).single(),
-    supabase.from("tasks").select("status").eq("project_id", projectId),
-  ]);
+  const { data: project } = await supabase
+    .from("projects").select("start_date, end_date, health").eq("id", projectId).single();
 
-  const t = tasks ?? [];
-  const overdue = t.filter((x: any) => x.due_date && new Date(x.due_date) < now).length;
-  const blocked = t.filter((x: any) => x.status === "blocked").length;
+  // 중단 상태는 자동 변경 안 함
+  if (project?.health === "suspended") return "suspended";
 
-  const daysLeft = project?.end_date
-    ? Math.ceil((new Date(project.end_date).getTime() - now.getTime()) / 86400000)
-    : 999;
+  const { data: allTasks } = await supabase
+    .from("tasks").select("id, status, due_date").eq("project_id", projectId);
 
-  const total = (allTasks ?? []).length;
-  const done = (allTasks ?? []).filter((x: any) => x.status === "done").length;
-  const rate = total > 0 ? Math.round((done / total) * 100) : 0;
+  const tasks = allTasks ?? [];
+  const total = tasks.length;
+  const done = tasks.filter((t: any) => t.status === "done").length;
+  const blocked = tasks.filter((t: any) => t.status === "blocked").length;
+  const overdue = tasks.filter((t: any) =>
+    t.due_date && new Date(t.due_date) < now && t.status !== "done"
+  ).length;
 
-  // 판단 기준
-  // critical: 지연 3건↑ OR 마감 7일 이내 & 진행률 50% 미만 OR Blocked 3건↑
-  // at_risk:  지연 1건↑ OR Blocked 1건↑ OR 마감 14일 이내 & 진행률 30% 미만
-  // good:     그 외
+  // 마감일 초과 체크
+  const isDeadlineOver = project?.end_date && new Date(project.end_date) < now;
+
+  // 번다운 기반 괴리율 계산
+  let divergence = 0;
+  if (project?.start_date && project?.end_date && total > 0) {
+    const startDate = new Date(project.start_date);
+    const endDate = new Date(project.end_date);
+    const totalDays = (endDate.getTime() - startDate.getTime()) / 86400000;
+    const elapsedDays = Math.max(0, (now.getTime() - startDate.getTime()) / 86400000);
+    const progress = Math.min(elapsedDays / totalDays, 1);
+
+    const idealRemaining = total * (1 - progress);  // 이상적 잔여
+    const actualRemaining = total - done;             // 실제 잔여
+    divergence = ((actualRemaining - idealRemaining) / total) * 100;
+  }
+
+  // 상태 판단
   let health = "good";
-  if (overdue >= 3 || (daysLeft <= 7 && rate < 50 && total > 0) || blocked >= 3) {
+
+  if (
+    isDeadlineOver ||
+    divergence > 35 ||
+    blocked >= 5
+  ) {
     health = "critical";
-  } else if (overdue >= 1 || blocked >= 1 || (daysLeft <= 14 && rate < 30 && total > 0)) {
+  } else if (
+    divergence > 20 ||
+    overdue >= 5 ||
+    blocked >= 3
+  ) {
     health = "at_risk";
+  } else if (
+    divergence > 10 ||
+    overdue >= 3
+  ) {
+    health = "reviewing";
   }
 
   await supabase.from("projects").update({ health }).eq("id", projectId);
@@ -39,8 +65,9 @@ export async function calcAndUpdateHealth(supabase: any, projectId: string): Pro
 
 export async function calcAllProjectsHealth(supabase: any) {
   const { data: projects } = await supabase
-    .from("projects").select("id").eq("status", "active");
+    .from("projects").select("id, health").eq("status", "active");
   for (const p of projects ?? []) {
+    if (p.health === "suspended") continue;
     await calcAndUpdateHealth(supabase, p.id);
   }
 }

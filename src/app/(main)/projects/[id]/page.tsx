@@ -19,14 +19,14 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
   backlog: { label: "백로그",  color: "#4A7099", bg: "rgba(74,112,153,0.15)" },
   todo:    { label: "할 일",   color: "#7BA7C8", bg: "rgba(123,167,200,0.12)" },
   doing:   { label: "진행 중", color: "#2E86FF", bg: "rgba(46,134,255,0.15)" },
-  blocked: { label: "Blocked", color: "#FF4D6A", bg: "rgba(255,77,106,0.15)" },
-  review:  { label: "리뷰",    color: "#F5A623", bg: "rgba(245,166,35,0.15)" },
-  done:    { label: "완료",    color: "#00D4A0", bg: "rgba(0,212,160,0.15)" },
+  blocked: { label: "Blocked", color: "#f87171", bg: "rgba(255,77,106,0.15)" },
+  review:  { label: "리뷰",    color: "#fbbf24", bg: "rgba(245,166,35,0.15)" },
+  done:    { label: "완료",    color: "#34d399", bg: "rgba(0,212,160,0.15)" },
 };
 const HEALTH_CONFIG: Record<string, { label: string; color: string }> = {
-  good: { label: "정상", color: "#00D4A0" },
-  at_risk: { label: "주의", color: "#F5A623" },
-  critical: { label: "위험", color: "#FF4D6A" },
+  good: { label: "정상", color: "#34d399" },
+  at_risk: { label: "주의", color: "#fbbf24" },
+  critical: { label: "위험", color: "#f87171" },
 };
 const STATUS_LIST = ["backlog","todo","doing","blocked","review","done"];
 
@@ -162,8 +162,8 @@ export default function ProjectDetailPage() {
           {[
             { label: "전체",    value: total,   color: "#7BA7C8" },
             { label: "진행 중", value: doing,   color: "#2E86FF" },
-            { label: "Blocked", value: blocked, color: "#FF4D6A" },
-            { label: "완료",    value: done,    color: "#00D4A0" },
+            { label: "Blocked", value: blocked, color: "#f87171" },
+            { label: "완료",    value: done,    color: "#34d399" },
           ].map(s => (
             <div key={s.label} className="rounded-xl p-3 text-center"
               style={{ background: `${s.color}10`, border: `1px solid ${s.color}22` }}>
@@ -290,7 +290,7 @@ export default function ProjectDetailPage() {
             const MS_STATUS: Record<string, { color: string; label: string }> = {
               planned:     { color: "#7BA7C8", label: "계획" },
               in_progress: { color: "#2E86FF", label: "진행 중" },
-              completed:   { color: "#00D4A0", label: "완료" },
+              completed:   { color: "#34d399", label: "완료" },
               cancelled:   { color: "#4A7099", label: "취소" },
             };
             const cfg = MS_STATUS[m.status] ?? MS_STATUS.planned;
@@ -418,7 +418,7 @@ export default function ProjectDetailPage() {
                   setShowBlockedModal(false); setPendingDrop(null); setBlockedReason(""); dragTask.current = null;
                 }
               }} disabled={!blockedReason.trim()} className="flex-1 rounded-xl py-2 text-sm font-semibold disabled:opacity-30"
-                style={{ background: "#FF4D6A", color: "#fff" }}>확인</button>
+                style={{ background: "#f87171", color: "#fff" }}>확인</button>
               <button onClick={() => { setShowBlockedModal(false); setPendingDrop(null); setBlockedReason(""); dragTask.current = null; }}
                 className="flex-1 rounded-xl py-2 text-sm" style={{ background: "var(--bg-3)", color: "var(--text-2)" }}>취소</button>
             </div>

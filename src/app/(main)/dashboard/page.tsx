@@ -143,7 +143,8 @@ export default function DashboardPage() {
   const completionRate = stats.completionRate ?? 0;
   const STATUS_COLOR: Record<string, string> = { backlog: "#4A7099", todo: "#7BA7C8", doing: "#2E86FF", blocked: "#FF4D6A", review: "#F5A623", done: "#00D4A0" };
   const STATUS_LABEL: Record<string, string> = { backlog: "백로그", todo: "할 일", doing: "진행 중", blocked: "Blocked", review: "리뷰", done: "완료" };
-  const HEALTH_COLOR: Record<string, string> = { good: "#00D4A0", at_risk: "#F5A623", critical: "#FF4D6A" };
+  const HEALTH_COLOR: Record<string, string> = { good: "#34d399", reviewing: "#60a5fa", at_risk: "#fbbf24", critical: "#f87171", suspended: "#71717a" };
+const HEALTH_LABEL_MAP: Record<string, string> = { good: "정상", reviewing: "검토 필요", at_risk: "주의", critical: "위험", suspended: "중단" };
 
   return (
     <div className="space-y-4 max-w-6xl">

@@ -15,10 +15,13 @@ const BASE_RULES = `
 - 수치 그대로 반복 금지`;
 
 const PROJECT_HEALTH_CRITERIA = `
-project_health 판단 기준 (엄격하게 적용):
-- critical: 지연 1건 이상 OR blocked 1건 이상 OR (마감 14일 이내 & 진행률 50% 미만) OR 마감 초과
-- at_risk: 예상시간 미입력 업무 30% 이상 OR (마감 30일 이내 & 진행률 30% 미만) OR 할일/백로그가 전체의 60% 이상
-- good: 위 조건 모두 해당 없음`;
+project_health 판단 기준 (번다운 차트 기반):
+- critical(위험): 마감 초과 OR 번다운 괴리율 35% 초과 OR Blocked 5건 이상
+- at_risk(주의): 번다운 괴리율 20~35% OR 지연 5건 이상 OR Blocked 3건 이상  
+- reviewing(검토 필요): 번다운 괴리율 10~20% OR 지연 3건 이하
+- good(정상): 괴리율 10% 이내, 전반적으로 양호
+- suspended(중단): 외부 요인으로 일시 중단 (명확한 중단 사유가 있을 때만)
+괴리율 = (실제 잔여 업무 - 이상적 잔여 업무) / 전체 업무 × 100`;
 
 function buildPrompt(snapshot: any): string {
   const context = snapshot.context ?? "";
@@ -36,7 +39,7 @@ function buildPrompt(snapshot: any): string {
     focusDesc = "업무 분배, 우선순위 설정, 진행 흐름의 문제를 진단";
   }
 
-  const projectHealthField = isProject ? '\n  "project_health": "good|at_risk|critical",' : "";
+  const projectHealthField = isProject ? '\n  "project_health": "good|reviewing|at_risk|critical|suspended",' : "";
   const projectHealthNote = isProject ? PROJECT_HEALTH_CRITERIA : "";
 
   return `당신은 ${roleDesc}입니다. 아래 데이터를 보고 ${focusDesc}해주세요.

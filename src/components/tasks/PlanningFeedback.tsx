@@ -4,15 +4,15 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase";
 
 const LEVEL_CONFIG = {
-  danger:  { color: "#FF4D6A", bg: "rgba(255,77,106,0.08)",  border: "rgba(255,77,106,0.2)",  icon: "⊘" },
-  warning: { color: "#F5A623", bg: "rgba(245,166,35,0.08)",  border: "rgba(245,166,35,0.2)",  icon: "⚠" },
+  danger:  { color: "#f87171", bg: "rgba(255,77,106,0.08)",  border: "rgba(255,77,106,0.2)",  icon: "⊘" },
+  warning: { color: "#fbbf24", bg: "rgba(245,166,35,0.08)",  border: "rgba(245,166,35,0.2)",  icon: "⚠" },
   info:    { color: "#7BA7C8", bg: "rgba(123,167,200,0.08)", border: "rgba(123,167,200,0.2)", icon: "ℹ" },
 };
 
 const RISK_CONFIG = {
-  high:   { label: "높음", color: "#FF4D6A" },
-  medium: { label: "보통", color: "#F5A623" },
-  low:    { label: "낮음", color: "#00D4A0" },
+  high:   { label: "높음", color: "#f87171" },
+  medium: { label: "보통", color: "#fbbf24" },
+  low:    { label: "낮음", color: "#34d399" },
 };
 
 interface Props {
@@ -242,8 +242,8 @@ export default function PlanningFeedback({ mode, projectId, projectName, filterS
                     border: `1px solid ${result.project_health === "good" ? "rgba(0,212,160,0.2)" : result.project_health === "at_risk" ? "rgba(245,166,35,0.2)" : "rgba(255,77,106,0.2)"}`,
                   }}>
                   <span style={{ fontSize: 12 }}>{result.project_health === "good" ? "🟢" : result.project_health === "at_risk" ? "🟡" : "🔴"}</span>
-                  <p className="text-xs font-medium" style={{ color: result.project_health === "good" ? "#00D4A0" : result.project_health === "at_risk" ? "#F5A623" : "#FF4D6A" }}>
-                    AI가 프로젝트 상태를 <strong>{result.project_health === "good" ? "정상" : result.project_health === "at_risk" ? "주의" : "위험"}</strong>으로 업데이트했습니다
+                  <p className="text-xs font-medium" style={{ color: result.project_health === "good" ? "#34d399" : result.project_health === "at_risk" ? "#fbbf24" : "#f87171" }}>
+                    AI가 프로젝트 상태를 <strong>{result.project_health === "good" ? "정상" : result.project_health === "reviewing" ? "검토 필요" : result.project_health === "at_risk" ? "주의" : result.project_health === "suspended" ? "중단" : "위험"}</strong>으로 업데이트했습니다
                   </p>
                 </div>
               )}

@@ -5,9 +5,11 @@ import { createClient } from "@/lib/supabase";
 import { getAuthUser } from "@/lib/auth";
 
 const HEALTH_LABEL: Record<string, { label: string; color: string }> = {
-  good:    { label: "정상", color: "#00D4A0" },
-  at_risk: { label: "주의", color: "#F5A623" },
-  critical:{ label: "위험", color: "#FF4D6A" },
+  good:      { label: "정상",     color: "#34d399" },
+  reviewing: { label: "검토 필요", color: "#60a5fa" },
+  at_risk:   { label: "주의",     color: "#fbbf24" },
+  critical:  { label: "위험",     color: "#f87171" },
+  suspended: { label: "중단",     color: "#71717a" },
 };
 
 export default function ReportExportPage() {
@@ -20,7 +22,7 @@ export default function ReportExportPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getAuthUser().then(u => setIsAdmin(u?.role === "admin"));
+    getAuthUser().then(u => setIsAdmin(u?.role === "admin" || u?.role === "leader"));
     loadReports();
     loadProjects();
   }, []);

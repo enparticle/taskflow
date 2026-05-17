@@ -7,9 +7,11 @@ import ProjectForm from "@/components/projects/ProjectForm";
 import { getAuthUser } from "@/lib/auth";
 
 const HEALTH = {
-  good:     { label: "정상", color: "#00D4A0", bg: "rgba(0,212,160,0.10)" },
-  at_risk:  { label: "주의", color: "#F5A623", bg: "rgba(245,166,35,0.10)" },
-  critical: { label: "위험", color: "#FF4D6A", bg: "rgba(255,77,106,0.10)" },
+  good:      { label: "정상",     color: "#34d399", bg: "rgba(52,211,153,0.10)" },
+  reviewing: { label: "검토 필요", color: "#60a5fa", bg: "rgba(96,165,250,0.10)" },
+  at_risk:   { label: "주의",     color: "#fbbf24", bg: "rgba(251,191,36,0.10)" },
+  critical:  { label: "위험",     color: "#f87171", bg: "rgba(248,113,113,0.10)" },
+  suspended: { label: "중단",     color: "#71717a", bg: "rgba(113,113,122,0.10)" },
 };
 
 export default function ProjectsPage() {
