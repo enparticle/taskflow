@@ -112,29 +112,74 @@ export default function MeetingNotePage() {
   async function startRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const chunks: Blob[] = [];
-      const mr = new MediaRecorder(stream);
-      mr.ondataavailable = e => chunks.push(e.data);
-      mr.onstop = () => {
-        const blob = new Blob(chunks, { type: "audio/webm" });
-        const f = new File([blob], `recording-${Date.now()}.webm`, { type: "audio/webm" });
-        setFile(f);
-        stream.getTracks().forEach(t => t.stop());
-        // 자동 다운로드
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `meeting-${new Date().toISOString().slice(0,16).replace("T","-")}.webm`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      const SEGMENT_MS = 10 * 60 * 1000; // 10분
+      let segmentChunks: Blob[] = [];
+      let allTexts: string[] = [];
+      let segmentIndex = 0;
+
+      const startSegment = () => {
+        const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
+        segmentChunks = [];
+
+        mr.ondataavailable = e => { if (e.data.size > 0) segmentChunks.push(e.data); };
+        mr.onstop = async () => {
+          const blob = new Blob(segmentChunks, { type: "audio/webm" });
+          const f = new File([blob], `segment-${segmentIndex}.webm`, { type: "audio/webm" });
+          segmentIndex++;
+
+          // 자동 다운로드 (백업용)
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `meeting-part${segmentIndex}-${new Date().toISOString().slice(0,16).replace("T","-")}.webm`;
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+          // Whisper 변환
+          try {
+            const form = new FormData();
+            form.append("file", f);
+            form.append("model", "whisper-1");
+            form.append("language", "ko");
+            const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}` },
+              body: form,
+            });
+            if (res.ok) {
+              const data = await res.json();
+              allTexts.push(data.text);
+              setText(allTexts.join(" "));
+            }
+          } catch {}
+        };
+
+        mr.start();
+        setMediaRecorder(mr);
+
+        // 10분마다 자동 분할
+        setTimeout(() => {
+          if (mr.state === "recording") {
+            mr.stop();
+            startSegment(); // 다음 세그먼트 시작
+          }
+        }, SEGMENT_MS);
       };
-      mr.start();
-      setMediaRecorder(mr);
+
+      startSegment();
       setRecording(true);
       setRecordTime(0);
       timerRef.current = setInterval(() => setRecordTime(t => t + 1), 1000);
-    } catch { alert("마이크 접근 권한이 필요합니다"); }
+    } catch {
+      alert("마이크 접근 권한이 필요합니다");
+    }
   }
+
+function stopRecording() {
+  mediaRecorder?.stop();
+  setRecording(false);
+  clearInterval(timerRef.current);
+}
 
   function stopRecording() {
     mediaRecorder?.stop();
