@@ -14,49 +14,51 @@ export async function calcAndUpdateHealth(supabase: any, projectId: string): Pro
 
   const tasks = allTasks ?? [];
   const total = tasks.length;
+
+  if (total === 0) {
+    await supabase.from("projects").update({ health: "good" }).eq("id", projectId);
+    return "good";
+  }
+
   const done = tasks.filter((t: any) => t.status === "done").length;
   const blocked = tasks.filter((t: any) => t.status === "blocked").length;
   const overdue = tasks.filter((t: any) =>
     t.due_date && new Date(t.due_date) < now && t.status !== "done"
   ).length;
 
-  // 마감일 초과 체크
-  const isDeadlineOver = project?.end_date && new Date(project.end_date) < now;
+  const hasDateRange = project?.start_date && project?.end_date;
+  const isDeadlineOver = hasDateRange && new Date(project.end_date) < now;
 
-  // 번다운 기반 괴리율 계산
-  let divergence = 0;
-  if (project?.start_date && project?.end_date && total > 0) {
+  let health = "good";
+
+  if (hasDateRange) {
+    // 시작일/마감일 있는 경우 → 번다운 괴리율 기반
     const startDate = new Date(project.start_date);
     const endDate = new Date(project.end_date);
-    const totalDays = (endDate.getTime() - startDate.getTime()) / 86400000;
+    const totalDays = Math.max((endDate.getTime() - startDate.getTime()) / 86400000, 1);
     const elapsedDays = Math.max(0, (now.getTime() - startDate.getTime()) / 86400000);
     const progress = Math.min(elapsedDays / totalDays, 1);
 
-    const idealRemaining = total * (1 - progress);  // 이상적 잔여
-    const actualRemaining = total - done;             // 실제 잔여
-    divergence = ((actualRemaining - idealRemaining) / total) * 100;
-  }
+    const idealRemaining = total * (1 - progress);
+    const actualRemaining = total - done;
+    const divergence = ((actualRemaining - idealRemaining) / total) * 100;
 
-  // 상태 판단
-  let health = "good";
-
-  if (
-    isDeadlineOver ||
-    divergence > 35 ||
-    blocked >= 5
-  ) {
-    health = "critical";
-  } else if (
-    divergence > 20 ||
-    overdue >= 5 ||
-    blocked >= 3
-  ) {
-    health = "at_risk";
-  } else if (
-    divergence > 10 ||
-    overdue >= 3
-  ) {
-    health = "reviewing";
+    if (isDeadlineOver || divergence > 35 || blocked >= 5) {
+      health = "critical";
+    } else if (divergence > 20 || blocked >= 3) {
+      health = "at_risk";
+    } else if (divergence > 10 || blocked >= 2) {
+      health = "reviewing";
+    }
+  } else {
+    // 시작일/마감일 없는 경우 → 보수적 기준 (건수 높게)
+    if (isDeadlineOver || blocked >= 7) {
+      health = "critical";
+    } else if (overdue >= 10 || blocked >= 5) {
+      health = "at_risk";
+    } else if (overdue >= 7 || blocked >= 3) {
+      health = "reviewing";
+    }
   }
 
   await supabase.from("projects").update({ health }).eq("id", projectId);
