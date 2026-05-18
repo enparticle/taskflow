@@ -147,11 +147,13 @@ export default function ProjectForm({ project, onClose, onSaved }: Props) {
           {project && (
             <div>
               <label className="mb-2 block text-xs font-medium" style={{ color: "var(--text-3)" }}>프로젝트 상태</label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-5 gap-2">
                 {[
-                  { value: "good",     label: "정상", color: "#00D4A0" },
-                  { value: "at_risk",  label: "주의", color: "#F5A623" },
-                  { value: "critical", label: "위험", color: "#FF4D6A" },
+                  { value: "good",      label: "🟢 정상",     color: "#34d399" },
+                  { value: "reviewing", label: "🔵 검토 필요", color: "#60a5fa" },
+                  { value: "at_risk",   label: "🟡 주의",     color: "#fbbf24" },
+                  { value: "critical",  label: "🔴 위험",     color: "#f87171" },
+                  { value: "suspended", label: "⚫ 중단",     color: "#71717a" },
                 ].map(h => (
                   <button key={h.value} type="button" onClick={() => set("health", h.value)}
                     className="rounded-lg py-2 text-xs font-semibold transition-all"
