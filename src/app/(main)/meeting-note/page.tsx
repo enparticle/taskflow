@@ -154,26 +154,54 @@ export default function MeetingNotePage() {
   async function transcribeFile(f: File): Promise<string> {
     setTranscribing(true);
     try {
-      const form = new FormData();
-      form.append("file", f);
-      form.append("model", "whisper-1");
-      form.append("language", "ko");
+      const CHUNK_SIZE = 24 * 1024 * 1024; // 24MB
+      const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
 
-      const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
-        },
-        body: form,
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error?.message ?? "변환 실패");
+      // 파일이 24MB 이하면 바로 전송
+      if (f.size <= CHUNK_SIZE) {
+        const form = new FormData();
+        form.append("file", f);
+        form.append("model", "whisper-1");
+        form.append("language", "ko");
+        const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}` },
+          body: form,
+        });
+        if (!res.ok) { const err = await res.json(); throw new Error(err.error?.message); }
+        const data = await res.json();
+        return data.text;
       }
 
-      const data = await res.json();
-      return data.text;
+      // 24MB 초과 시 분할 전송
+      const totalChunks = Math.ceil(f.size / CHUNK_SIZE);
+      const texts: string[] = [];
+
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, f.size);
+        const chunk = f.slice(start, end);
+        const chunkFile = new File([chunk], `chunk-${i}.webm`, { type: f.type });
+
+        const form = new FormData();
+        form.append("file", chunkFile);
+        form.append("model", "whisper-1");
+        form.append("language", "ko");
+
+        // 진행 상황 표시
+        setText(prev => prev ? prev : `변환 중... (${i + 1}/${totalChunks})`);
+
+        const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}` },
+          body: form,
+        });
+        if (!res.ok) { const err = await res.json(); throw new Error(err.error?.message); }
+        const data = await res.json();
+        texts.push(data.text);
+      }
+
+      return texts.join(" ");
     } finally {
       setTranscribing(false);
     }
