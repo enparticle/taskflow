@@ -115,11 +115,18 @@ export default function MeetingNotePage() {
       const chunks: Blob[] = [];
       const mr = new MediaRecorder(stream);
       mr.ondataavailable = e => chunks.push(e.data);
-      mr.onstop = async () => {
+      mr.onstop = () => {
         const blob = new Blob(chunks, { type: "audio/webm" });
         const f = new File([blob], `recording-${Date.now()}.webm`, { type: "audio/webm" });
         setFile(f);
         stream.getTracks().forEach(t => t.stop());
+        // 자동 다운로드
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `meeting-${new Date().toISOString().slice(0,16).replace("T","-")}.webm`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
       };
       mr.start();
       setMediaRecorder(mr);
@@ -146,13 +153,30 @@ export default function MeetingNotePage() {
 
   async function transcribeFile(f: File): Promise<string> {
     setTranscribing(true);
-    const form = new FormData();
-    form.append("file", f);
-    const res = await fetch("/api/transcribe", { method: "POST", body: form });
-    const data = await res.json();
-    setTranscribing(false);
-    if (data.error) throw new Error(data.error);
-    return data.text;
+    try {
+      const form = new FormData();
+      form.append("file", f);
+      form.append("model", "whisper-1");
+      form.append("language", "ko");
+
+      const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
+        },
+        body: form,
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error?.message ?? "변환 실패");
+      }
+
+      const data = await res.json();
+      return data.text;
+    } finally {
+      setTranscribing(false);
+    }
   }
 
   async function analyze() {
