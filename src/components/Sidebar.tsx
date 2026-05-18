@@ -97,8 +97,14 @@ export default function Sidebar() {
           {/* 업무 그룹 */}
           <GroupLabel label="업무" />
           <NavLink href="/dashboard" label="대시보드" icon="▦" />
-          <NavLink href="/my-work" label="내 업무" icon="◎" />
-          <NavLink href="/kanban" label="칸반 보드" icon="⊞" />
+          <NavLink href="/tasks" label="업무" icon="◎" />
+          <div className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium opacity-40 cursor-not-allowed"
+            style={{ color: "var(--text-3)", borderLeft: "2px solid transparent" }}
+            title="준비 중">
+            <span className="w-4 text-center shrink-0" style={{ fontSize: 13 }}>⊞</span>
+            칸반 보드
+            <span className="ml-auto text-xs" style={{ fontSize: 10, color: "var(--text-3)" }}>준비 중</span>
+          </div>
 
           {/* 프로젝트 그룹 */}
           <GroupLabel label="프로젝트" />

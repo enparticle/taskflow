@@ -39,7 +39,7 @@ function ProgressBar({ value, color }: { value: number; color: string }) {
   );
 }
 
-type Tab = "overview" | "milestones" | "tasks" | "grouped" | "kanban" | "members";
+type Tab = "overview" | "tasks" | "members";
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -247,21 +247,10 @@ export default function ProjectDetailPage() {
       )}
 
       {/* 계획 (마일스톤) */}
-      {tab === "milestones" && (
-        <div className="rounded-2xl p-5" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-1 h-4 rounded-full" style={{ background: "var(--cyan)" }} />
-            <p className="text-xs font-semibold" style={{ color: "var(--text-2)" }}>프로젝트 계획</p>
-          </div>
-          <MilestonePanel projectId={id} />
-        </div>
-      )}
-
-      {/* 업무 목록 */}
       {tab === "tasks" && <TaskList tasks={tasks} onRefresh={load} />}
 
       {/* 계획별 업무 */}
-      {tab === "grouped" && (
+      {false && (
         <div className="space-y-4">
           {/* 미분류 업무 */}
           {(() => {
@@ -329,7 +318,7 @@ export default function ProjectDetailPage() {
       )}
 
       {/* 칸반 */}
-      {tab === "kanban" && (
+      {false && (
         <div className="flex gap-3 overflow-x-auto pb-4" style={{ scrollbarWidth: "thin" }}>
           {STATUS_LIST.map(status => {
             const cfg = STATUS_CONFIG[status];

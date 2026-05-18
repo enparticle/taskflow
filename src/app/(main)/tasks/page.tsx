@@ -31,7 +31,10 @@ export default function TasksPage() {
     if (filter !== "all") q = q.eq("status", filter);
     const { data } = await loadTasksWithAssignees(q);
     const ORDER: Record<string, number> = { doing: 0, todo: 1, review: 2, blocked: 3, backlog: 4, done: 5 };
-    const sorted = (data ?? []).sort((a: any, b: any) => {
+    const filtered = myOnly && myUserId
+      ? (data ?? []).filter((t: any) => t.assignee_id === myUserId || (t.assignee_ids ?? []).includes(myUserId))
+      : (data ?? []);
+    const sorted = filtered.sort((a: any, b: any) => {
       const oa = ORDER[a.status] ?? 9;
       const ob = ORDER[b.status] ?? 9;
       if (oa !== ob) return oa - ob;
@@ -41,9 +44,16 @@ export default function TasksPage() {
       return 0;
     });
     setTasks(sorted);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    import("@/lib/auth").then(({ getAuthUser }) => {
+      getAuthUser().then(u => { if (u) setMyUserId(u.userId); });
+    });
+  }, []);
 
   return (
     <div className="space-y-5 max-w-5xl">
