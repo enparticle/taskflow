@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 const BASE_RULES = `
 분석 기준 (반드시 이 순서로 사고하세요):
@@ -29,7 +30,23 @@ project_health 판단 기준 (snapshot의 burndown_divergence_pct 참고):
 - at_risk(주의): Blocked 5건 이상 OR 지연 10건 이상
 - critical(위험): Blocked 7건 이상
 
-공통: suspended(중단)는 현재 health가 suspended일 때만 반환. 분석 내용은 자유롭게 작성하되 project_health 값은 위 기준을 따르세요.`;
+공통: suspended(중단)는 현재 health가 suspended일 때만 반환.`;
+
+const SUGGESTION_RULES = `
+AI 추천 사항 (suggestions):
+분석 결과 구체적인 변경이 필요하면 suggestions 배열에 추가하세요.
+사용자가 승인하면 자동으로 적용됩니다.
+
+추천 가능한 항목:
+- assignee: 담당자 재배분 (task_id + suggested_value: "사용자 이름")
+- deadline: 마감일 조정 (task_id + suggested_value: "YYYY-MM-DD")
+- priority: 우선순위 변경 (task_id + suggested_value: "urgent|high|medium|low")
+- status: 상태 변경 (task_id + suggested_value: "todo|doing|review|blocked|done|backlog")
+
+추천 조건:
+- 명확한 근거가 있을 때만 추천 (불명확하면 suggestions 비워두기)
+- 담당자 추천 시 반드시 snapshot의 team 데이터에 있는 사람만 추천
+- 마감일은 현실적인 날짜로 추천`;
 
 function buildPrompt(snapshot: any): string {
   const context = snapshot.context ?? "";
@@ -48,13 +65,14 @@ function buildPrompt(snapshot: any): string {
   }
 
   const projectHealthField = isProject ? '\n  "project_health": "good|reviewing|at_risk|critical|suspended",' : "";
-  const projectHealthNote = isProject ? PROJECT_HEALTH_CRITERIA : "";
 
   return `당신은 ${roleDesc}입니다. 아래 데이터를 보고 ${focusDesc}해주세요.
 
 현황 데이터:
 ${JSON.stringify(snapshot)}
 ${BASE_RULES}
+${isProject ? PROJECT_HEALTH_CRITERIA : ""}
+${SUGGESTION_RULES}
 
 아래 JSON 형식으로만 응답하세요. 마크다운이나 코드블록 없이 순수 JSON만:
 {${projectHealthField}
@@ -67,11 +85,22 @@ ${BASE_RULES}
       "action": "이번 주 실행 가능한 구체적 조치 (70자이내)"
     }
   ],
-  "overall_risk": "high|medium|low"
+  "overall_risk": "high|medium|low",
+  "suggestions": [
+    {
+      "type": "assignee|deadline|priority|status",
+      "task_id": "업무 ID (snapshot의 tasks에서)",
+      "task_title": "업무명",
+      "field": "assignee_id|due_date|priority|status",
+      "current_value": "현재 값",
+      "suggested_value": "추천 값",
+      "reason": "추천 이유 (50자이내)"
+    }
+  ]
 }
 
-level은 danger/warning/info 중 하나, overall_risk는 high/medium/low 중 하나.
-items는 최대 6개. 가장 중요한 구조적 문제부터 나열하세요.${projectHealthNote}`;
+level은 danger/warning/info, overall_risk는 high/medium/low.
+items는 최대 6개. suggestions는 근거가 명확할 때만, 최대 5개.`;
 }
 
 export async function POST(req: NextRequest) {
@@ -106,7 +135,31 @@ export async function POST(req: NextRequest) {
         summary: "데이터 분석 완료",
         items: [{ level: "info", title: "분석 결과", detail: text.slice(0, 100), action: "TaskFlow에서 상세 확인" }],
         overall_risk: "medium",
+        suggestions: [],
       };
+    }
+
+    // suggestions를 DB에 저장
+    if (result.suggestions?.length > 0 && snapshot.project_id) {
+      try {
+        const supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        );
+        for (const s of result.suggestions) {
+          if (!s.task_id || !s.type) continue;
+          await supabase.from("ai_suggestions").insert({
+            project_id: snapshot.project_id,
+            task_id: s.task_id,
+            type: s.type,
+            field: s.field,
+            current_value: s.current_value ? String(s.current_value) : null,
+            suggested_value: String(s.suggested_value),
+            reason: s.reason,
+            status: "pending",
+          });
+        }
+      } catch {}
     }
 
     return NextResponse.json(result);

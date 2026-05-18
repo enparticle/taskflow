@@ -110,10 +110,28 @@ export default function PlanningFeedback({ mode, projectId, projectName, filterS
           if (!blockedSince[e.task_id]) blockedSince[e.task_id] = Math.floor((now.getTime()-new Date(e.changed_at).getTime())/86400000);
         });
 
+        // 번다운 괴리율 직접 계산
+        let burndownDivergence = null;
+        if (project?.start_date && project?.end_date) {
+          const startD = new Date(project.start_date);
+          const endD = new Date(project.end_date);
+          const totalDays = Math.max((endD.getTime() - startD.getTime()) / 86400000, 1);
+          const elapsedDays = Math.max(0, (now.getTime() - startD.getTime()) / 86400000);
+          const prog = Math.min(elapsedDays / totalDays, 1);
+          const totalT = (tasks??[]).length;
+          const doneT = (tasks??[]).filter(t=>t.status==="done").length;
+          const idealRemaining = totalT * (1 - prog);
+          const actualRemaining = totalT - doneT;
+          burndownDivergence = totalT > 0 ? Math.round(((actualRemaining - idealRemaining) / totalT) * 100) : 0;
+        }
+
         snapshot = {
           context: `프로젝트: ${projectName ?? project?.name}`,
+          project_id: projectId,
           date: now.toLocaleDateString("ko-KR"),
           project: { name:project?.name, health:project?.health, start:project?.start_date, end:project?.end_date, description:project?.description },
+          burndown_divergence_pct: burndownDivergence,
+          burndown_note: burndownDivergence !== null ? `번다운 괴리율 ${burndownDivergence}% (양수=지연, 음수=초과달성)` : "시작일/마감일 미설정으로 괴리율 계산 불가",
           total_tasks: (tasks??[]).length,
           status_breakdown: ["backlog","todo","doing","blocked","review"].map(s=>({status:s,count:(tasks??[]).filter(t=>t.status===s).length})),
           completion_rate: `${Math.round(((tasks??[]).filter(t=>t.status==="done").length/Math.max((tasks??[]).length,1))*100)}%`,
