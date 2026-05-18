@@ -382,9 +382,11 @@ export default function GuidePage() {
           <Card color="#F5A623" title="프로젝트 상태는 자동으로 계산됩니다">
             <div className="space-y-2">
               {[
-                { status: "🟢 정상", desc: "지연 없음 + Blocked 없음 + 마감 여유 있음" },
-                { status: "🟡 주의", desc: "지연 1건 이상 OR Blocked 1건 이상 OR 마감 14일 이내 & 진행률 50% 미만" },
-                { status: "🔴 위험", desc: "지연 3건 이상 OR Blocked 3건 이상 OR 마감 7일 이내 & 진행률 30% 미만 OR 마감 초과" },
+                { status: "🟢 정상",     desc: "번다운 괴리율 10% 이내, 지연·Blocked 거의 없음" },
+                { status: "🔵 검토 필요", desc: "번다운 괴리율 10~20% OR 지연 3건 이하" },
+                { status: "🟡 주의",     desc: "번다운 괴리율 20~35% OR 지연 5건↑ OR Blocked 3건↑" },
+                { status: "🔴 위험",     desc: "번다운 괴리율 35% 초과 OR 마감 초과 OR Blocked 5건↑" },
+                { status: "⚫ 중단",     desc: "외부 요인으로 일시 중단. 프로젝트 수정에서 수동으로만 설정 가능" },
               ].map((item, i) => (
                 <div key={i} className="flex items-start gap-3">
                   <span className="text-xs font-semibold shrink-0 mt-0.5">{item.status}</span>
@@ -392,7 +394,11 @@ export default function GuidePage() {
                 </div>
               ))}
             </div>
-            <p className="text-xs mt-3" style={{ color: "var(--text-3)" }}>대시보드·프로젝트 페이지 접속 시 자동 재계산. AI 피드백 실행 시에도 업데이트됩니다.</p>
+            <p className="text-xs mt-2" style={{ color: "var(--text-3)" }}>
+              번다운 괴리율 = (실제 잔여 업무 - 이상적 잔여 업무) / 전체 업무 × 100<br/>
+              시작일·마감일이 설정된 프로젝트만 괴리율 계산. 미설정 시 지연·Blocked 건수만으로 판단합니다.
+            </p>
+            <p className="text-xs mt-1" style={{ color: "var(--text-3)" }}>대시보드·프로젝트 페이지 접속 시 자동 재계산. AI 피드백 실행 시에도 업데이트됩니다.</p>
           </Card>
         </Section>
 
