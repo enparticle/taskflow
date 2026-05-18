@@ -399,6 +399,14 @@ export default function GuidePage() {
               시작일·마감일이 설정된 프로젝트만 괴리율 계산. 미설정 시 지연·Blocked 건수만으로 판단합니다.
             </p>
             <p className="text-xs mt-1" style={{ color: "var(--text-3)" }}>대시보드·프로젝트 페이지 접속 시 자동 재계산. AI 피드백 실행 시에도 업데이트됩니다.</p>
+            <div className="rounded-xl px-3 py-2.5 mt-2" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.2)" }}>
+              <p className="text-xs font-semibold mb-1" style={{ color: "#fbbf24" }}>⚠ AI 피드백과 프로젝트 상태</p>
+              <p className="text-xs" style={{ color: "var(--text-2)" }}>
+                프로젝트 상세에서 AI 피드백을 실행하면 Claude가 데이터를 분석해서 프로젝트 상태를 자동으로 업데이트합니다.
+                AI는 번다운 괴리율·Blocked 건수 등 수치 기준을 따르지만, <strong>주관적 판단이 개입될 수 있습니다.</strong>
+                상태가 실제와 다르다고 느껴지면 프로젝트 수정에서 직접 변경할 수 있습니다.
+              </p>
+            </div>
           </Card>
         </Section>
 
