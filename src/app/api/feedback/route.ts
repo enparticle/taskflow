@@ -15,13 +15,21 @@ const BASE_RULES = `
 - 수치 그대로 반복 금지`;
 
 const PROJECT_HEALTH_CRITERIA = `
-project_health 판단 기준 (번다운 차트 기반):
-- critical(위험): 마감 초과 OR 번다운 괴리율 35% 초과 OR Blocked 5건 이상
-- at_risk(주의): 번다운 괴리율 20~35% OR 지연 5건 이상 OR Blocked 3건 이상  
-- reviewing(검토 필요): 번다운 괴리율 10~20% OR 지연 3건 이하
-- good(정상): 괴리율 10% 이내, 전반적으로 양호
-- suspended(중단): 외부 요인으로 일시 중단 (명확한 중단 사유가 있을 때만)
-괴리율 = (실제 잔여 업무 - 이상적 잔여 업무) / 전체 업무 × 100`;
+project_health 판단 기준 (snapshot의 burndown_divergence_pct 참고):
+
+[시작일/마감일 있는 경우 - 번다운 괴리율 기준]
+- good(정상): 괴리율 10% 이내, Blocked 2건 미만
+- reviewing(검토 필요): 괴리율 10~20% OR Blocked 2건 이상
+- at_risk(주의): 괴리율 20~35% OR Blocked 3건 이상
+- critical(위험): 마감 초과 OR 괴리율 35% 초과 OR Blocked 5건 이상
+
+[시작일/마감일 없는 경우 - 보수적 기준]
+- good(정상): Blocked 3건 미만, 지연 7건 미만이면 기본 정상
+- reviewing(검토 필요): Blocked 3건 이상 OR 지연 7건 이상
+- at_risk(주의): Blocked 5건 이상 OR 지연 10건 이상
+- critical(위험): Blocked 7건 이상
+
+공통: suspended(중단)는 현재 health가 suspended일 때만 반환. 분석 내용은 자유롭게 작성하되 project_health 값은 위 기준을 따르세요.`;
 
 function buildPrompt(snapshot: any): string {
   const context = snapshot.context ?? "";
