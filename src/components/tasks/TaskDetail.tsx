@@ -117,6 +117,12 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
     const { data } = await supabase.from("tasks")
       .select("*, assignee_ids, assignee:users!tasks_assignee_id_fkey(*), project:projects(*), reviewer:users!tasks_reviewer_id_fkey(*)")
       .eq("id", taskId).single();
+
+    // 변경 이력 로드
+    const { data: events } = await supabase.from("task_events")
+      .select("*").eq("task_id", taskId)
+      .order("changed_at", { ascending: false }).limit(10);
+    if (data) (data as any).events = events ?? [];
     setTask(data);
     setAssigneeIds((data as any)?.assignee_ids ?? ((data as any)?.assignee_id ? [(data as any).assignee_id] : []));
 
@@ -152,7 +158,26 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
   }
 
   async function update(field: string, value: any) {
+    const prev = (task as any)?.[field];
     await supabase.from("tasks").update({ [field]: value }).eq("id", taskId);
+
+    // task_type 변경 이벤트 기록
+    if (field === "task_type" && prev !== value) {
+      await supabase.from("task_events").insert({
+        task_id: taskId,
+        event_type: "type_change",
+        metadata: { from: prev, to: value },
+      });
+    }
+    // assignee 변경 이벤트 기록
+    if (field === "assignee_id" && prev !== value) {
+      await supabase.from("task_events").insert({
+        task_id: taskId,
+        event_type: "assignee_change",
+        metadata: { from: prev, to: value },
+      });
+    }
+
     await loadTask(); setEditing(null);
   }
 
@@ -551,6 +576,27 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
             </div>
             )}
           </div>
+
+          {/* 변경 이력 */}
+          {(task as any)?.events?.length > 0 && (
+            <div className="rounded-xl p-4" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
+              <p className="text-xs font-medium mb-3" style={{ color: "var(--text-3)" }}>변경 이력</p>
+              <div className="space-y-2">
+                {((task as any)?.events ?? []).slice(0, 5).map((e: any, i: number) => (
+                  <div key={i} className="flex items-start gap-2 text-xs">
+                    <span style={{ color: "var(--text-3)", whiteSpace: "nowrap" }}>
+                      {new Date(e.changed_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                    <span style={{ color: "var(--text-2)" }}>
+                      {e.event_type === "type_change" && `유형 변경: ${e.metadata?.from} → ${e.metadata?.to}`}
+                      {e.event_type === "status_change" && `상태 변경: ${e.from_status} → ${e.to_status}`}
+                      {e.event_type === "assignee_change" && "담당자 변경"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* 타임라인 */}
           <div className="rounded-xl p-4" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
