@@ -8,12 +8,12 @@ import TaskDetail from "@/components/tasks/TaskDetail";
 import TaskForm from "@/components/tasks/TaskForm";
 
 const STATUS_FILTERS = [
-  { value: "all",     label: "?�체" },
-  { value: "todo",    label: "???? },
-  { value: "doing",   label: "진행 �? },
+  { value: "all",     label: "전체" },
+  { value: "todo",    label: "할 일" },
+  { value: "doing",   label: "진행 중" },
   { value: "blocked", label: "Blocked" },
   { value: "review",  label: "리뷰" },
-  { value: "done",    label: "?�료" },
+  { value: "done",    label: "완료" },
 ];
 
 export default function TasksPage() {
@@ -60,25 +60,25 @@ export default function TasksPage() {
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2">
             <div className="w-1 h-5 rounded-full" style={{ background: "var(--cyan)" }} />
-            <h1 className="text-xl font-bold" style={{ color: "var(--text-1)" }}>?�무</h1>
+            <h1 className="text-xl font-bold" style={{ color: "var(--text-1)" }}>업무</h1>
           </div>
           <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
             <button onClick={() => setMyOnly(false)}
               className="rounded-lg px-3 py-1 text-xs font-medium transition-all"
               style={{ background: !myOnly ? "var(--bg-4)" : "transparent", color: !myOnly ? "var(--text-1)" : "var(--text-3)", border: !myOnly ? "1px solid var(--border-2)" : "1px solid transparent" }}>
-              ?�체
+              전체
             </button>
             <button onClick={() => setMyOnly(true)}
               className="rounded-lg px-3 py-1 text-xs font-medium transition-all"
               style={{ background: myOnly ? "var(--bg-4)" : "transparent", color: myOnly ? "var(--text-1)" : "var(--text-3)", border: myOnly ? "1px solid var(--border-2)" : "1px solid transparent" }}>
-              ???�무
+              내 업무
             </button>
           </div>
         </div>
         <button onClick={() => setOpen(true)}
           className="rounded-xl px-4 py-2 text-sm font-semibold"
           style={{ background: "linear-gradient(135deg, var(--cyan), #2E86FF)", color: "#fff" }}>
-          + ???�무
+          + 새 업무
         </button>
       </div>
 
@@ -104,4 +104,3 @@ export default function TasksPage() {
     </div>
   );
 }
-
