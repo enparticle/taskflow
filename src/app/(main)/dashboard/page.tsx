@@ -24,13 +24,6 @@ function MiniProgress({ value, color }: { value: number; color: string }) {
   );
 }
 
-height={h} style={{ overflow: "visible" }}>
-      <line x1={0} y1={h} x2={w} y2={0} stroke="var(--border-2)" strokeWidth={1} strokeDasharray="3,3" />
-      <line x1={0} y1={h} x2={actualX} y2={h - (actualPct / 100) * h} stroke="#60a5fa" strokeWidth={2} />
-      <circle cx={actualX} cy={h - (actualPct / 100) * h} r={3} fill="#60a5fa" />
-    </svg>
-  );
-}
 
 export default function DashboardPage() {
   const supabase = createClient();
