@@ -14,6 +14,8 @@ export default function TaskComments({ taskId }: { taskId: string }) {
   const [mentionList, setMentionList] = useState<any[]>([]);
   const [mentionIndex, setMentionIndex] = useState(0);
   const [showMention, setShowMention] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -40,12 +42,9 @@ export default function TaskComments({ taskId }: { taskId: string }) {
   function handleInput(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value;
     setContent(val);
-
-    // @ 감지
     const cursor = e.target.selectionStart ?? val.length;
     const textBefore = val.slice(0, cursor);
     const atMatch = textBefore.match(/@(\w*)$/);
-
     if (atMatch) {
       const q = atMatch[1].toLowerCase();
       setMentionQuery(q);
@@ -76,39 +75,28 @@ export default function TaskComments({ taskId }: { taskId: string }) {
       if (e.key === "Escape") { setShowMention(false); return; }
     }
     if (e.key === "Enter" && !e.shiftKey && !showMention) { e.preventDefault(); submit(); }
-    // Shift+Enter는 줄바꿈 (기본 동작 허용)
   }
 
   async function submit() {
     if (!content.trim()) return;
     setLoading(true);
-
     await supabase.from("task_comments").insert({
-      task_id: taskId,
-      user_id: myUser?.id ?? null,
-      content: content.trim(),
+      task_id: taskId, user_id: myUser?.id ?? null, content: content.trim(),
     });
-
-    // 멘션된 구성원에게 알림 발송
     const mentions = content.match(/@([^\s]+)/g) ?? [];
     for (const m of mentions) {
       const name = m.slice(1);
       const mentioned = allUsers.find(u => u.name === name);
       if (mentioned && mentioned.id !== myUser?.id) {
         await supabase.from("notifications").insert({
-          user_id: mentioned.id,
-          type: "mention",
-          title: `${myUser?.name ?? "누군가"}님이 댓글에서 멘션했습니다`,
-          body: content.trim().slice(0, 60),
-          task_id: taskId,
+          user_id: mentioned.id, type: "mention",
+          title: `${myUser?.name ?? "누군가"}이(가) 댓글에서 멘션했습니다`,
+          body: content.trim().slice(0, 60), task_id: taskId,
         });
       }
     }
-
-    setContent("");
-    setShowMention(false);
-    await load();
-    setLoading(false);
+    setContent(""); setShowMention(false);
+    await load(); setLoading(false);
   }
 
   async function deleteComment(id: string) {
@@ -117,17 +105,25 @@ export default function TaskComments({ taskId }: { taskId: string }) {
     await load();
   }
 
+  async function saveEdit(id: string) {
+    if (!editContent.trim()) return;
+    await supabase.from("task_comments").update({
+      content: editContent.trim(),
+      updated_at: new Date().toISOString(),
+    }).eq("id", id);
+    setEditingId(null); setEditContent("");
+    await load();
+  }
+
   function fmtTime(d: string) {
     return new Date(d).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   }
 
-  // 댓글 텍스트에서 멘션 하이라이트
   function renderContent(text: string, commentId?: string) {
     const parts = text.split(/(@\S+)/g);
     return parts.map((part, i) => {
       if (!part.startsWith("@")) return <span key={i}>{part}</span>;
       const name = part.slice(1);
-      // 같은 이름의 멘션이 있는 댓글 찾아서 스크롤
       const handleClick = () => {
         const els = document.querySelectorAll("[data-comment-author]");
         for (const el of Array.from(els)) {
@@ -141,8 +137,7 @@ export default function TaskComments({ taskId }: { taskId: string }) {
       };
       return (
         <span key={i} className="font-semibold cursor-pointer hover:underline"
-          style={{ color: "var(--cyan)" }}
-          onClick={handleClick}
+          style={{ color: "var(--cyan)" }} onClick={handleClick}
           title={name + " 님 멘션 — 클릭하면 해당 댓글로 이동"}>{part}</span>
       );
     });
@@ -166,13 +161,44 @@ export default function TaskComments({ taskId }: { taskId: string }) {
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs font-semibold" style={{ color: "var(--text-1)" }}>{c.user?.name ?? "알 수 없음"}</span>
                 <span className="text-xs" style={{ color: "var(--text-3)" }}>{fmtTime(c.created_at)}</span>
+                {c.updated_at && c.updated_at !== c.created_at && (
+                  <span className="text-xs" style={{ color: "var(--text-3)" }}>(수정됨)</span>
+                )}
                 {(myUser?.id === c.user_id || myUser?.role === "admin") && (
-                  <button onClick={() => deleteComment(c.id)}
-                    className="ml-auto text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                    style={{ color: "var(--red)" }}>삭제</button>
+                  <div className="ml-auto flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {myUser?.id === c.user_id && (
+                      <button onClick={() => { setEditingId(c.id); setEditContent(c.content); }}
+                        className="text-xs" style={{ color: "var(--cyan)" }}>수정</button>
+                    )}
+                    <button onClick={() => deleteComment(c.id)}
+                      className="text-xs" style={{ color: "var(--red)" }}>삭제</button>
+                  </div>
                 )}
               </div>
-              <p className="text-xs" style={{ color: "var(--text-2)", whiteSpace: "pre-wrap" }}>{renderContent(c.content, c.id)}</p>
+
+              {/* 수정 모드 */}
+              {editingId === c.id ? (
+                <div className="space-y-1.5">
+                  <textarea value={editContent} onChange={e => setEditContent(e.target.value)}
+                    rows={2} autoFocus
+                    className="w-full rounded-lg px-2.5 py-1.5 text-xs resize-none focus:outline-none"
+                    style={{ background: "var(--bg-4)", border: "1px solid var(--border-2)", color: "var(--text-1)" }}
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveEdit(c.id); }
+                      if (e.key === "Escape") { setEditingId(null); setEditContent(""); }
+                    }} />
+                  <div className="flex gap-1.5">
+                    <button onClick={() => saveEdit(c.id)} disabled={!editContent.trim()}
+                      className="rounded-lg px-2.5 py-1 text-xs font-semibold disabled:opacity-40"
+                      style={{ background: "var(--cyan-bg)", color: "var(--cyan)" }}>저장</button>
+                    <button onClick={() => { setEditingId(null); setEditContent(""); }}
+                      className="rounded-lg px-2.5 py-1 text-xs"
+                      style={{ background: "var(--bg-4)", color: "var(--text-3)" }}>취소</button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs" style={{ color: "var(--text-2)", whiteSpace: "pre-wrap" }}>{renderContent(c.content, c.id)}</p>
+              )}
             </div>
           </div>
         ))}
@@ -198,7 +224,6 @@ export default function TaskComments({ taskId }: { taskId: string }) {
           </button>
         </div>
 
-        {/* 멘션 자동완성 */}
         {showMention && (
           <div className="absolute bottom-10 left-0 w-48 rounded-xl overflow-hidden shadow-2xl z-10"
             style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)" }}>

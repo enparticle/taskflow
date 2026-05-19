@@ -21,13 +21,13 @@ const STATUS: Record<TaskStatus, { label: string; color: string; bg: string }> =
   backlog: { label: "백로그",  color: "#4A7099", bg: "rgba(74,112,153,0.15)" },
   todo:    { label: "할 일",   color: "#7BA7C8", bg: "rgba(123,167,200,0.12)" },
   doing:   { label: "진행 중", color: "#2E86FF", bg: "rgba(46,134,255,0.15)" },
-  blocked: { label: "Blocked", color: "#FF4D6A", bg: "rgba(255,77,106,0.15)" },
-  review:  { label: "리뷰",    color: "#F5A623", bg: "rgba(245,166,35,0.15)" },
-  done:    { label: "완료",    color: "#00D4A0", bg: "rgba(0,212,160,0.15)" },
+  blocked: { label: "Blocked", color: "#f87171", bg: "rgba(248,113,113,0.15)" },
+  review:  { label: "리뷰",    color: "#fbbf24", bg: "rgba(251,191,36,0.15)" },
+  done:    { label: "완료",    color: "#34d399", bg: "rgba(52,211,153,0.15)" },
 };
 const PRIORITY: Record<string, { label: string; color: string }> = {
   low: { label: "낮음", color: "#4A7099" }, medium: { label: "보통", color: "#7BA7C8" },
-  high: { label: "높음", color: "#F5A623" }, urgent: { label: "긴급", color: "#FF4D6A" },
+  high: { label: "높음", color: "#fbbf24" }, urgent: { label: "긴급", color: "#f87171" },
 };
 const DIFFICULTY: Record<string, string> = { low: "낮음", medium: "보통", high: "높음", very_high: "매우 높음" };
 const TYPE_LABEL: Record<string, string> = {
@@ -36,7 +36,14 @@ const TYPE_LABEL: Record<string, string> = {
   research: "리서치", customer: "고객 대응", other: "기타",
 };
 const STATUS_LIST = ["backlog","todo","doing","blocked","review","done"] as TaskStatus[];
-const ASSIGNEE_COLORS = ["#00C2CC","#2E86FF","#F5A623","#00D4A0","#A78BFA","#FF4D6A"];
+
+function getUserColor(userId: string): string {
+  const COLORS = ["#60a5fa","#34d399","#fbbf24","#f87171","#a78bfa","#fb923c","#22d3ee","#e879f9","#4ade80","#f43f5e","#818cf8","#2dd4bf"];
+  if (!userId) return COLORS[0];
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) { hash = ((hash << 5) - hash) + userId.charCodeAt(i); hash |= 0; }
+  return COLORS[Math.abs(hash) % COLORS.length];
+}
 
 function fmt(d: string | null) {
   if (!d) return "-";
@@ -65,9 +72,14 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
   const [showAssigneeMenu, setShowAssigneeMenu] = useState(false);
   const [canDelete, setCanDelete] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
+  const [myUser, setMyUser] = useState<any>(null);
   const [meetingNote, setMeetingNote] = useState<any>(null);
   const [meetingNotes, setMeetingNotes] = useState<any[]>([]);
   const [showNotePicker, setShowNotePicker] = useState(false);
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const assigneeRef = useRef<HTMLDivElement>(null);
+
   async function loadMeetingNotes() {
     const { data } = await supabase.from("meeting_drafts")
       .select("id, result, input_text, audio_path, updated_at, project_id")
@@ -81,27 +93,17 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
     if (noteId) {
       supabase.from("meeting_drafts").select("*").eq("id", noteId).single()
         .then(({ data }) => setMeetingNote(data));
-    } else {
-      setMeetingNote(null);
-    }
+    } else { setMeetingNote(null); }
   }, [task]);
 
   async function linkMeetingNote(noteId: string | null) {
     await supabase.from("tasks").update({ meeting_note_id: noteId }).eq("id", (task as any).id);
-    if (noteId) {
-      const note = meetingNotes.find(n => n.id === noteId);
-      setMeetingNote(note ?? null);
-    } else {
-      setMeetingNote(null);
-    }
-    setShowNotePicker(false);
-    loadTask();
+    if (noteId) { const note = meetingNotes.find(n => n.id === noteId); setMeetingNote(note ?? null); }
+    else { setMeetingNote(null); }
+    setShowNotePicker(false); loadTask();
   }
 
   const isMeeting = (task as any)?.task_type === "meeting";
-  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const assigneeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadTask();
@@ -110,50 +112,39 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
     supabase.from("projects").select("*").eq("status", "active").then(({ data }) => { if (data) setProjects(data as Project[]); });
   }, [taskId]);
 
-
-
   async function loadTask() {
     setLoading(true);
     const { data } = await supabase.from("tasks")
-      .select("*, assignee_ids, assignee:users!tasks_assignee_id_fkey(*), project:projects(*), reviewer:users!tasks_reviewer_id_fkey(*)")
+      .select("*, assignee_ids, assignee:users!tasks_assignee_id_fkey(*), project:projects(*), reviewer:users!tasks_reviewer_id_fkey(*), last_updated_user:users!tasks_last_updated_by_fkey(name)")
       .eq("id", taskId).single();
 
-    // 변경 이력 로드
-    const { data: events } = await supabase.from("task_events")
-      .select("*").eq("task_id", taskId)
-      .order("changed_at", { ascending: false }).limit(10);
-    if (data) (data as any).events = events ?? [];
-    setTask(data);
-    setAssigneeIds((data as any)?.assignee_ids ?? ((data as any)?.assignee_id ? [(data as any).assignee_id] : []));
-
-    // 프로젝트의 마일스톤 로드
     if ((data as any)?.project_id) {
       const { data: ms } = await supabase.from("milestones").select("*")
         .eq("project_id", (data as any).project_id).neq("status", "cancelled").order("sort_order");
       setMilestones(ms ?? []);
     }
-    const { data: evs } = await supabase.from("task_events").select("*")
-      .eq("task_id", taskId).order("changed_at", { ascending: false }).limit(10);
+
+    // 변경 이력 - 수정자 이름 포함
+    const { data: evs } = await supabase.from("task_events")
+      .select("*, changed_by_user:users!task_events_changed_by_fkey(name)")
+      .eq("task_id", taskId)
+      .order("changed_at", { ascending: false }).limit(10);
     setEvents(evs ?? []);
 
-    // 권한 확인
+    setTask(data);
+    setAssigneeIds((data as any)?.assignee_ids ?? ((data as any)?.assignee_id ? [(data as any).assignee_id] : []));
+
     const authUser = await getAuthUser();
-    if (authUser && data) {
-      const projRole = (data as any).project_id
+    if (authUser) {
+      setMyUser(authUser);
+      const projRole = (data as any)?.project_id
         ? await getProjectRole((data as any).project_id, authUser.userId)
         : null;
-      const assigneeIds = (data as any).assignee_ids ?? [];
-      const isAssignee = assigneeIds.includes(authUser.userId) || (data as any).assignee_id === authUser.userId;
+      const ids = (data as any)?.assignee_ids ?? [];
+      const isAssignee = ids.includes(authUser.userId) || (data as any)?.assignee_id === authUser.userId;
       setCanDelete(canDeleteTask(authUser.role, projRole));
-      // edit: admin, project leader/reviewer, 또는 담당자
-      setCanEdit(
-        authUser.role === "admin" ||
-        projRole === "leader" ||
-        projRole === "reviewer" ||
-        isAssignee
-      );
+      setCanEdit(authUser.role === "admin" || projRole === "leader" || projRole === "reviewer" || isAssignee);
     }
-
     setLoading(false);
   }
 
@@ -161,31 +152,26 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
     const prev = (task as any)?.[field];
     await supabase.from("tasks").update({ [field]: value, last_updated_by: myUser?.userId ?? null }).eq("id", taskId);
 
-    // task_type 변경 이벤트 기록
     if (field === "task_type" && prev !== value) {
       await supabase.from("task_events").insert({
-        task_id: taskId,
-        event_type: "type_change",
+        task_id: taskId, event_type: "type_change",
+        changed_by: myUser?.userId ?? null,
         metadata: { from: prev, to: value },
       });
     }
-    // assignee 변경 이벤트 기록
     if (field === "assignee_id" && prev !== value) {
       await supabase.from("task_events").insert({
-        task_id: taskId,
-        event_type: "assignee_change",
+        task_id: taskId, event_type: "assignee_change",
+        changed_by: myUser?.userId ?? null,
         metadata: { from: prev, to: value },
       });
     }
-
     await loadTask(); setEditing(null);
   }
 
   async function updateAssignees(ids: string[]) {
-    await supabase.from("tasks").update({ assignee_ids: ids, assignee_id: ids[0] || null }).eq("id", taskId);
+    await supabase.from("tasks").update({ assignee_ids: ids, assignee_id: ids[0] || null, last_updated_by: myUser?.userId ?? null }).eq("id", taskId);
     setAssigneeIds(ids);
-    // onRefresh 호출 제거 - 담당자 변경은 패널 내부 state만 업데이트
-    // 패널 닫힐 때 부모가 refresh하므로 onClose 시 반영됨
   }
 
   function toggleAssignee(userId: string) {
@@ -199,7 +185,16 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
     await supabase.from("tasks").update({
       status: newStatus,
       blocked_reason: newStatus === "blocked" ? (reason ?? null) : null,
+      last_updated_by: myUser?.userId ?? null,
     }).eq("id", taskId);
+
+    await supabase.from("task_events").insert({
+      task_id: taskId, event_type: "status_change",
+      from_status: task?.status, to_status: newStatus,
+      changed_by: myUser?.userId ?? null,
+      reason: newStatus === "blocked" ? reason : null,
+    });
+
     await loadTask();
     setShowStatusMenu(false); setShowBlockedInput(false); setBlockedReason("");
   }
@@ -215,10 +210,16 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
     );
   }
 
-  const s = STATUS[task.status];
-  const p = PRIORITY[task.priority];
+  const s = STATUS[task.status] ?? { label: task.status, color: "#7BA7C8", bg: "rgba(123,167,200,0.12)" };
+  const p = PRIORITY[task.priority] ?? { label: task.priority, color: "#7BA7C8" };
   const isOverdue = task.due_date && task.status !== "done" && new Date(task.due_date) < new Date();
   const selectedUsers = allUsers.filter(u => assigneeIds.includes(u.id));
+
+  const EVENT_LABEL: Record<string, (ev: any) => string> = {
+    status_change: ev => `상태: ${STATUS[ev.from_status]?.label ?? ev.from_status} → ${STATUS[ev.to_status]?.label ?? ev.to_status}`,
+    type_change: ev => `유형: ${TYPE_LABEL[ev.metadata?.from] ?? ev.metadata?.from} → ${TYPE_LABEL[ev.metadata?.to] ?? ev.metadata?.to}`,
+    assignee_change: ev => "담당자 변경",
+  };
 
   const panel = (
     <div className="fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(0,0,0,0.5)" }}
@@ -234,7 +235,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
           <div className="flex items-center gap-2">
             <span className="text-xs px-2.5 py-1 rounded-md font-semibold" style={{ background: s.bg, color: s.color }}>{s.label}</span>
             <span className="text-xs px-2 py-0.5 rounded-md" style={{ background: "var(--bg-3)", color: "var(--text-3)" }}>
-              {TYPE_LABEL[task.task_type]}
+              {TYPE_LABEL[task.task_type] ?? task.task_type}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -243,9 +244,8 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
                 if (!confirm("이 업무를 삭제할까요?")) return;
                 await supabase.from("tasks").delete().eq("id", taskId);
                 onRefresh();
-              }}
-                className="text-xs px-3 py-1.5 rounded-lg transition-all"
-                style={{ background: "var(--red-bg)", color: "var(--red)", border: "1px solid var(--red)22" }}>
+              }} className="text-xs px-3 py-1.5 rounded-lg transition-all"
+                style={{ background: "rgba(248,113,113,0.08)", color: "#f87171", border: "1px solid rgba(248,113,113,0.2)" }}>
                 삭제
               </button>
             )}
@@ -276,6 +276,12 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
                 {canEdit && <span className="text-xs ml-1" style={{ color: "var(--text-3)" }}>✎</span>}
               </h2>
             )}
+            {/* 최종 수정자 표시 */}
+            {(task as any).last_updated_user?.name && (
+              <p className="text-xs mt-1" style={{ color: "var(--text-3)" }}>
+                최종 수정: <span style={{ color: "var(--text-2)" }}>{(task as any).last_updated_user.name}</span>
+              </p>
+            )}
           </div>
 
           {/* 설명 */}
@@ -297,7 +303,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
               <p className={`text-sm rounded-lg px-3 py-2 ${canEdit ? "cursor-pointer hover:opacity-80" : ""}`}
                 style={{ color: task.description ? "var(--text-2)" : "var(--text-3)", background: "var(--bg-3)", border: "1px solid var(--border)" }}
                 onClick={() => { if (canEdit) { setEditing("description"); setEditVal((task as any).description ?? ""); } }}>
-                {(task as any).description || (canEdit ? "설명 없음 — 클릭해서 추가" : "설명 없음")}
+                {(task as any).description || (canEdit ? "설명 없음 — 클릭해서 입력" : "설명 없음")}
               </p>
             )}
           </div>
@@ -306,7 +312,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
           {isMeeting && task.status !== "done" && canEdit && (
             <button onClick={() => changeStatus("done" as any)}
               className="w-full rounded-xl py-2.5 text-xs font-semibold transition-all"
-              style={{ background: "rgba(0,212,160,0.15)", color: "#00D4A0", border: "1px solid rgba(0,212,160,0.3)" }}>
+              style={{ background: "rgba(52,211,153,0.15)", color: "#34d399", border: "1px solid rgba(52,211,153,0.3)" }}>
               ✓ 미팅 완료 처리
             </button>
           )}
@@ -319,7 +325,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
             </div>
           )}
 
-          {/* 회의록 연결 - 미팅 업무일 때만 */}
+          {/* 회의록 연결 */}
           {isMeeting && (
             <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
               <div className="flex items-center justify-between mb-2">
@@ -330,7 +336,6 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
                   {meetingNote ? "변경" : "+ 연결"}
                 </button>
               </div>
-
               {meetingNote ? (
                 <div className="rounded-lg p-2.5" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
                   <p className="text-xs font-medium mb-1" style={{ color: "var(--text-1)" }}>
@@ -352,14 +357,12 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
                         if (w) { w.document.write(`<pre style="font-family:sans-serif;padding:20px;white-space:pre-wrap">${meetingNote.input_text}</pre>`); }
                       }} className="text-xs" style={{ color: "var(--text-3)" }}>📄 텍스트 보기</button>
                     )}
-                    <button onClick={() => linkMeetingNote(null)} className="text-xs" style={{ color: "#FF4D6A" }}>연결 해제</button>
+                    <button onClick={() => linkMeetingNote(null)} className="text-xs" style={{ color: "#f87171" }}>연결 해제</button>
                   </div>
                 </div>
               ) : (
                 <p className="text-xs" style={{ color: "var(--text-3)" }}>연결된 회의록이 없습니다</p>
               )}
-
-              {/* 회의록 선택 피커 */}
               {showNotePicker && (
                 <div className="mt-2 rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-2)", maxHeight: 200, overflowY: "auto" }}>
                   {meetingNotes.length === 0 ? (
@@ -416,13 +419,13 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
                     style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)" }}>
                     <p className="mb-2 text-xs font-semibold" style={{ color: "var(--text-1)" }}>Blocked 사유 *</p>
                     <textarea value={blockedReason} onChange={e => setBlockedReason(e.target.value)}
-                      placeholder="왜 막혔는지 입력하세요" rows={2} autoFocus
+                      placeholder="왜 막혔는지 입력해주세요" rows={2} autoFocus
                       className="w-full rounded-lg px-2.5 py-1.5 text-xs resize-none focus:outline-none"
                       style={{ background: "var(--bg-4)", border: "1px solid var(--border-2)", color: "var(--text-1)" }} />
                     <div className="mt-2 flex gap-2">
                       <button onClick={() => changeStatus("blocked", blockedReason)} disabled={!blockedReason.trim()}
                         className="flex-1 rounded-lg py-1.5 text-xs font-semibold disabled:opacity-30"
-                        style={{ background: "#FF4D6A", color: "#fff" }}>확인</button>
+                        style={{ background: "#f87171", color: "#fff" }}>확인</button>
                       <button onClick={() => { setShowBlockedInput(false); setShowStatusMenu(false); }}
                         className="flex-1 rounded-lg py-1.5 text-xs"
                         style={{ background: "var(--bg-4)", color: "var(--text-2)" }}>취소</button>
@@ -436,13 +439,13 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
             )}
             {(task as any).blocked_reason && (
               <p className="mt-2 text-xs px-3 py-2 rounded-lg"
-                style={{ background: "var(--red-bg)", color: "var(--red)", border: "1px solid #FF4D6A22" }}>
+                style={{ background: "rgba(248,113,113,0.08)", color: "#f87171", border: "1px solid rgba(248,113,113,0.2)" }}>
                 사유: {(task as any).blocked_reason}
               </p>
             )}
           </div>
 
-          {/* 담당자 다중 선택 */}
+          {/* 담당자 선택 */}
           <div ref={assigneeRef}>
             <p className="text-xs font-medium mb-1.5" style={{ color: "var(--text-3)" }}>담당자</p>
             <button type="button"
@@ -453,14 +456,17 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
                 <span style={{ color: "var(--text-3)", fontSize: 12 }}>담당자 선택</span>
               ) : (
                 <div className="flex flex-wrap gap-1.5 flex-1">
-                  {selectedUsers.map((u, i) => (
-                    <span key={u.id} className="flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold"
-                      style={{ background: `${ASSIGNEE_COLORS[i % ASSIGNEE_COLORS.length]}20`, color: ASSIGNEE_COLORS[i % ASSIGNEE_COLORS.length], border: `1px solid ${ASSIGNEE_COLORS[i % ASSIGNEE_COLORS.length]}33` }}>
-                      {u.name}
-                      <span onClick={e => { e.stopPropagation(); toggleAssignee(u.id); }}
-                        className="cursor-pointer hover:opacity-60 ml-0.5" style={{ fontSize: 10 }}>✕</span>
-                    </span>
-                  ))}
+                  {selectedUsers.map(u => {
+                    const color = getUserColor(u.id);
+                    return (
+                      <span key={u.id} className="flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold"
+                        style={{ background: `${color}20`, color, border: `1px solid ${color}33` }}>
+                        {u.name}
+                        <span onClick={e => { e.stopPropagation(); toggleAssignee(u.id); }}
+                          className="cursor-pointer hover:opacity-60 ml-0.5" style={{ fontSize: 10 }}>✕</span>
+                      </span>
+                    );
+                  })}
                 </div>
               )}
               <span style={{ color: "var(--text-3)", marginLeft: "auto", fontSize: 10 }}>▾</span>
@@ -469,9 +475,9 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
             {showAssigneeMenu && (
               <div className="mt-1 rounded-xl overflow-hidden shadow-2xl"
                 style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)" }}>
-                {allUsers.map((u, i) => {
+                {allUsers.map(u => {
                   const selected = assigneeIds.includes(u.id);
-                  const color = ASSIGNEE_COLORS[i % ASSIGNEE_COLORS.length];
+                  const color = getUserColor(u.id);
                   return (
                     <button key={u.id} type="button"
                       onClick={e => { e.stopPropagation(); toggleAssignee(u.id); }}
@@ -495,7 +501,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
             )}
           </div>
 
-          {/* 메타 그리드 */}
+          {/* 세부 필드 */}
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
               <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>프로젝트</p>
@@ -514,7 +520,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
             </div>
             {milestones.length > 0 && (
               <div className="rounded-xl p-3 col-span-2" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
-                <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>계획 (마일스톤)</p>
+                <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>마일스톤</p>
                 <select value={(task as any).milestone_id ?? ""} onChange={e => update("milestone_id", e.target.value || null)}
                   className="w-full text-xs focus:outline-none" style={{ background: "transparent", color: "#E8F4FF", border: "none", colorScheme: "dark" }}>
                   <option value="">미분류</option>
@@ -539,7 +545,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
               <input type="date" value={(task as any).due_date ? (task as any).due_date.split("T")[0] : ""}
                 onChange={e => update("due_date", e.target.value || null)}
                 className="w-full text-xs focus:outline-none"
-                style={{ background: "transparent", color: isOverdue ? "var(--red)" : "var(--text-1)", border: "none" }} />
+                style={{ background: "transparent", color: isOverdue ? "#f87171" : "var(--text-1)", border: "none", colorScheme: "dark" }} />
             </div>
             <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
               <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>예상 시간</p>
@@ -558,45 +564,24 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
               )}
             </div>
             {!isMeeting && (
-            <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
-              <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>실제 소요 시간</p>
-              {editing === "actual_hours" ? (
-                <input autoFocus type="number" value={editVal} onChange={e => setEditVal(e.target.value)}
-                  onBlur={() => update("actual_hours", editVal ? Number(editVal) : null)}
-                  onKeyDown={e => { if (e.key === "Enter") update("actual_hours", editVal ? Number(editVal) : null); }}
-                  min="0.5" step="0.5" className="w-full text-xs focus:outline-none"
-                  style={{ background: "transparent", color: "#E8F4FF", border: "none", colorScheme: "dark" }} />
-              ) : (
-                <p className="text-xs cursor-pointer"
-                  style={{ color: (task as any).actual_hours ? "var(--text-1)" : "var(--text-3)" }}
-                  onClick={() => { setEditing("actual_hours"); setEditVal(String((task as any).actual_hours ?? "")); }}>
-                  {(task as any).actual_hours ? `${(task as any).actual_hours}시간` : "미정 — 클릭해서 입력"}
-                </p>
-              )}
-            </div>
+              <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
+                <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>실제 소요 시간</p>
+                {editing === "actual_hours" ? (
+                  <input autoFocus type="number" value={editVal} onChange={e => setEditVal(e.target.value)}
+                    onBlur={() => update("actual_hours", editVal ? Number(editVal) : null)}
+                    onKeyDown={e => { if (e.key === "Enter") update("actual_hours", editVal ? Number(editVal) : null); }}
+                    min="0.5" step="0.5" className="w-full text-xs focus:outline-none"
+                    style={{ background: "transparent", color: "#E8F4FF", border: "none", colorScheme: "dark" }} />
+                ) : (
+                  <p className="text-xs cursor-pointer"
+                    style={{ color: (task as any).actual_hours ? "var(--text-1)" : "var(--text-3)" }}
+                    onClick={() => { setEditing("actual_hours"); setEditVal(String((task as any).actual_hours ?? "")); }}>
+                    {(task as any).actual_hours ? `${(task as any).actual_hours}시간` : "미정 — 클릭해서 입력"}
+                  </p>
+                )}
+              </div>
             )}
           </div>
-
-          {/* 변경 이력 */}
-          {(task as any)?.events?.length > 0 && (
-            <div className="rounded-xl p-4" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
-              <p className="text-xs font-medium mb-3" style={{ color: "var(--text-3)" }}>변경 이력</p>
-              <div className="space-y-2">
-                {((task as any)?.events ?? []).slice(0, 5).map((e: any, i: number) => (
-                  <div key={i} className="flex items-start gap-2 text-xs">
-                    <span style={{ color: "var(--text-3)", whiteSpace: "nowrap" }}>
-                      {new Date(e.changed_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                    <span style={{ color: "var(--text-2)" }}>
-                      {e.event_type === "type_change" && `유형 변경: ${e.metadata?.from} → ${e.metadata?.to}`}
-                      {e.event_type === "status_change" && `상태 변경: ${e.from_status} → ${e.to_status}`}
-                      {e.event_type === "assignee_change" && "담당자 변경"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* 타임라인 */}
           <div className="rounded-xl p-4" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
@@ -628,8 +613,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
                       </>
                     ) : (
                       canEdit ? (
-                        <input type="datetime-local"
-                          onChange={e => update("due_date", e.target.value)}
+                        <input type="datetime-local" onChange={e => update("due_date", e.target.value)}
                           className="text-xs mt-1 rounded px-1 py-0.5 w-full focus:outline-none"
                           style={{ background: "var(--bg-2)", border: "1px solid var(--border-2)", color: "var(--text-2)", colorScheme: "dark" }} />
                       ) : (
@@ -655,10 +639,37 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
             </div>
           </div>
 
-          {/* 리뷰 (리뷰 상태일 때만) */}
+          {/* 변경 이력 */}
+          {events.length > 0 && (
+            <div className="rounded-xl p-4" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
+              <p className="text-xs font-medium mb-3" style={{ color: "var(--text-3)" }}>변경 이력</p>
+              <div className="space-y-2">
+                {events.map((ev, i) => (
+                  <div key={ev.id ?? i} className="flex items-start gap-2 text-xs">
+                    <div className="w-1.5 h-1.5 rounded-full shrink-0 mt-1"
+                      style={{ background: ev.to_status ? STATUS[ev.to_status]?.color : "var(--text-3)" }} />
+                    <div className="flex-1 min-w-0">
+                      <p style={{ color: "var(--text-2)" }}>
+                        {EVENT_LABEL[ev.event_type]?.(ev) ?? ev.event_type}
+                        {ev.reason && <span style={{ color: "var(--text-3)" }}> — {ev.reason}</span>}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {ev.changed_by_user?.name && (
+                          <span className="font-medium" style={{ color: "var(--cyan)" }}>{ev.changed_by_user.name}</span>
+                        )}
+                        <span style={{ color: "var(--text-3)" }}>{fmtDT(ev.changed_at)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 리뷰 */}
           {task.status === "review" && assigneeIds.length > 0 && (
             <div>
-              <p className="text-xs font-medium mb-2" style={{ color: "var(--text-3)" }}>리뷰어 검토</p>
+              <p className="text-xs font-medium mb-2" style={{ color: "var(--text-3)" }}>리뷰어 현황</p>
               <TaskReviews taskId={taskId} assigneeIds={assigneeIds} />
             </div>
           )}
@@ -673,29 +684,6 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
           <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
             <TaskComments taskId={taskId} />
           </div>
-
-          {/* 변경 이력 */}
-          {events.length > 0 && (
-            <div>
-              <p className="text-xs font-medium mb-2" style={{ color: "var(--text-3)" }}>변경 이력</p>
-              <div className="space-y-1.5">
-                {events.map(ev => (
-                  <div key={ev.id} className="flex items-center gap-3 rounded-lg px-3 py-2"
-                    style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
-                    <div className="w-1.5 h-1.5 rounded-full shrink-0"
-                      style={{ background: ev.to_status ? STATUS[ev.to_status as TaskStatus]?.color : "var(--text-3)" }} />
-                    <p className="flex-1 text-xs" style={{ color: "var(--text-2)" }}>
-                      {ev.from_status && ev.to_status
-                        ? `${STATUS[ev.from_status as TaskStatus]?.label} → ${STATUS[ev.to_status as TaskStatus]?.label}`
-                        : ev.event_type}
-                      {ev.reason && <span style={{ color: "var(--text-3)" }}> · {ev.reason}</span>}
-                    </p>
-                    <p className="text-xs shrink-0" style={{ color: "var(--text-3)" }}>{fmtDT(ev.changed_at)}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
