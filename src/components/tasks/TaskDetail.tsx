@@ -159,7 +159,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
 
   async function update(field: string, value: any) {
     const prev = (task as any)?.[field];
-    await supabase.from("tasks").update({ [field]: value }).eq("id", taskId);
+    await supabase.from("tasks").update({ [field]: value, last_updated_by: myUser?.userId ?? null }).eq("id", taskId);
 
     // task_type 변경 이벤트 기록
     if (field === "task_type" && prev !== value) {

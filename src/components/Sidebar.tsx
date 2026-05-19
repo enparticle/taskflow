@@ -98,6 +98,7 @@ export default function Sidebar() {
           <GroupLabel label="업무" />
           <NavLink href="/dashboard" label="대시보드" icon="▦" />
           <NavLink href="/tasks" label="업무" icon="◎" />
+          <NavLink href="/tree" label="업무 트리" icon="🌳" />
           {/* 칸반 보드 - 비활성화 (활성화하려면 아래 주석 해제)
           <NavLink href="/kanban" label="칸반 보드" icon="⊞" />
           */}
