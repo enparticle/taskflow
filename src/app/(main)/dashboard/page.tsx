@@ -72,14 +72,15 @@ export default function DashboardPage() {
     // 프로젝트 health 자동 계산
     calcAllProjectsHealth(supabase).catch(() => {});
 
+    const isAdmin = me?.role === "admin";
     const isAdminOrLeader = me?.role === "admin" || me?.role === "leader";
     const isViewer = me?.role === "viewer";
 
-    // 프로젝트 로드
+    // 프로젝트 로드 - Admin만 전체, 나머지는 내가 속한 프로젝트만
     let projQuery = supabase.from("projects").select("*, milestones(id, title, status, due_date), tasks(id, status)").eq("status", "active").order("created_at");
 
-    if (!isAdminOrLeader && !isViewer) {
-      // member/reviewer는 내가 속한 프로젝트만
+    if (!isAdmin && !isViewer) {
+      // leader/member/reviewer는 내가 속한 프로젝트만
       const { data: myProjs } = await supabase.from("project_members").select("project_id").eq("user_id", me?.id);
       const ids = (myProjs ?? []).map((p: any) => p.project_id);
       if (ids.length > 0) projQuery = projQuery.in("id", ids);
@@ -124,6 +125,7 @@ export default function DashboardPage() {
     </div>
   );
 
+  const isAdmin = myUser?.role === "admin";
   const isAdminOrLeader = myUser?.role === "admin" || myUser?.role === "leader";
   const isViewer = myUser?.role === "viewer";
 
