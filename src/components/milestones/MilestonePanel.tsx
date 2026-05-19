@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
@@ -26,7 +25,7 @@ export default function MilestonePanel({ projectId }: Props) {
   const [form, setForm] = useState({ title: "", description: "", start_date: "", due_date: "", status: "planned" });
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from("milestones").select("*, task_count:tasks(count)")
+    const { data } = await supabase.from("milestones").select("*")
       .eq("project_id", projectId).order("sort_order").order("due_date");
     setMilestones(data ?? []);
   }, [projectId]);

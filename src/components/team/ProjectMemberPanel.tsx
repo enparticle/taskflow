@@ -1,12 +1,11 @@
-// @ts-nocheck
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
 
-const ROLE_CONFIG: Record<string, { label: string; color: string; icon: string; desc: string }> = {
-  leader:   { label: "리더",   color: "#00C2CC", icon: "◆", desc: "프로젝트 수정, 업무 전체 관리" },
-  reviewer: { label: "리뷰어", color: "#F5A623", icon: "◈", desc: "업무 검토 및 완료 처리" },
-  member:   { label: "멤버",   color: "#2E86FF", icon: "◎", desc: "담당 업무 처리" },
+const ROLE_CONFIG: Record<string, { label: string; color: string }> = {
+  leader:   { label: "리더",   color: "#00C2CC" },
+  member:   { label: "멤버",   color: "#2E86FF" },
+  reviewer: { label: "리뷰어", color: "#F5A623" },
 };
 
 interface Props { projectId: string; }
@@ -69,21 +68,13 @@ export default function ProjectMemberPanel({ projectId }: Props) {
               <p className="text-xs font-semibold" style={{ color: "var(--text-1)" }}>{m.user?.name}</p>
               <p className="text-xs" style={{ color: "var(--text-3)" }}>{m.user?.level ?? m.user?.role}</p>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="text-right">
-                <p className="text-xs font-semibold" style={{ color: cfg.color }}>
-                  {cfg.icon} {cfg.label}
-                </p>
-                <p className="text-xs" style={{ color: "var(--text-3)", fontSize: 10 }}>{cfg.desc}</p>
-              </div>
-              <select value={m.role} onChange={e => updateRole(m.id, e.target.value)}
-                className="text-xs rounded-lg px-2 py-1 focus:outline-none transition-all"
-                style={{ background: `${cfg.color}18`, color: cfg.color, border: `1px solid ${cfg.color}33`, colorScheme: "dark" }}>
-                <option value="leader">리더</option>
-                <option value="reviewer">리뷰어</option>
-                <option value="member">멤버</option>
-              </select>
-            </div>
+            <select value={m.role} onChange={e => updateRole(m.id, e.target.value)}
+              className="text-xs rounded-lg px-2 py-1 focus:outline-none transition-all"
+              style={{ background: `${cfg.color}18`, color: cfg.color, border: `1px solid ${cfg.color}33` }}>
+              <option value="leader">리더</option>
+              <option value="member">멤버</option>
+              <option value="reviewer">리뷰어</option>
+            </select>
             <button onClick={() => removeMember(m.id)}
               className="opacity-0 group-hover:opacity-100 text-xs px-2 py-0.5 rounded transition-all"
               style={{ background: "var(--red-bg)", color: "var(--red)" }}>제거</button>
@@ -107,7 +98,6 @@ export default function ProjectMemberPanel({ projectId }: Props) {
             style={{ background: "var(--bg-4)", border: "1px solid var(--border-2)", color: "var(--text-1)" }}>
             <option value="leader">리더</option>
             <option value="member">멤버</option>
-            <option value="viewer">뷰어</option>
             <option value="reviewer">리뷰어</option>
           </select>
           <button onClick={addMember} disabled={!selectedUser}

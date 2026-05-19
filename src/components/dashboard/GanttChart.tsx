@@ -4,10 +4,10 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
 
 const HEALTH_COLOR: Record<string, string> = {
-  good: "#00D4A0", at_risk: "#F5A623", critical: "#FF4D6A",
+  good: "#34d399", reviewing: "#60a5fa", at_risk: "#fbbf24", critical: "#f87171", suspended: "#71717a",
 };
 const MS_STATUS_COLOR: Record<string, string> = {
-  planned: "#7BA7C8", in_progress: "#2E86FF", completed: "#00D4A0", cancelled: "#4A7099",
+  planned: "#71717a", in_progress: "#60a5fa", completed: "#34d399", cancelled: "#4A7099",
 };
 const PERIOD_OPTIONS = [
   { label: "1개월", months: 1 },
@@ -47,7 +47,6 @@ export default function GanttChart() {
       milestones: (milestones ?? []).filter(m => m.project_id === p.id),
     }));
     setRows(mapped);
-    // 기본: 모두 접기
     const init: Record<string, boolean> = {};
     mapped.forEach(p => { init[p.id] = false; });
     setExpanded(init);
@@ -85,7 +84,7 @@ export default function GanttChart() {
 
   rows.forEach((p, pi) => {
     const py = HEADER_H + rowIdx * ROW_H;
-    const hc = HEALTH_COLOR[p.health] ?? "#7BA7C8";
+    const hc = HEALTH_COLOR[p.health] ?? "#71717a";
     const isExpanded = expanded[p.id];
     const hasMilestones = (p.milestones?.length ?? 0) > 0;
 
@@ -94,7 +93,6 @@ export default function GanttChart() {
         fill={pi % 2 === 0 ? "var(--bg-3)" : "var(--bg-2)"} />
     );
 
-    // 클릭 가능한 프로젝트 라벨
     elements.push(
       <g key={`plabel-${pi}`} style={{ cursor: hasMilestones ? "pointer" : "default" }}
         onClick={() => hasMilestones && toggleExpand(p.id)}>
@@ -130,7 +128,7 @@ export default function GanttChart() {
           <g key={`pbar-${pi}`}>
             <rect x={Math.max(x1, LABEL_W)} y={py + 10}
               width={Math.min(bw, LABEL_W + BAR_W - Math.max(x1, LABEL_W))} height={ROW_H - 20} rx={4}
-              fill={`${hc}33`} stroke={hc} strokeWidth={1.5} />
+              fill={`${hc}22`} stroke={hc} strokeWidth={1.5} />
             <text x={Math.max(x1, LABEL_W) + 6} y={py + ROW_H / 2 + 1} fill={hc} fontSize={10}
               fontFamily="Pretendard, sans-serif" dominantBaseline="middle">
               {p.name.length > 10 ? p.name.slice(0, 10) + "…" : p.name}
@@ -142,8 +140,8 @@ export default function GanttChart() {
       elements.push(
         <g key={`pbar-${pi}`}>
           <rect x={LABEL_W + 8} y={py + 11} width={60} height={ROW_H - 22} rx={4}
-            fill="rgba(74,112,153,0.10)" stroke="#4A709955" strokeWidth={1} strokeDasharray="4 2" />
-          <text x={LABEL_W + 38} y={py + ROW_H / 2 + 1} fill="#4A7099" fontSize={9}
+            fill="rgba(74,112,153,0.08)" stroke="#4A709944" strokeWidth={1} strokeDasharray="4 2" />
+          <text x={LABEL_W + 38} y={py + ROW_H / 2 + 1} fill="#71717a" fontSize={9}
             fontFamily="Pretendard, sans-serif" dominantBaseline="middle" textAnchor="middle">
             대기
           </text>
@@ -153,16 +151,15 @@ export default function GanttChart() {
 
     rowIdx++;
 
-    // 마일스톤 - 펼쳐진 경우만 표시
     if (isExpanded) {
       p.milestones?.forEach((m: any, mi: number) => {
         const my = HEADER_H + rowIdx * ROW_H;
-        const mc = MS_STATUS_COLOR[m.status] ?? "#7BA7C8";
+        const mc = MS_STATUS_COLOR[m.status] ?? "#71717a";
         const isOverdue = m.due_date && m.status !== "completed" && new Date(m.due_date) < today;
 
         elements.push(
           <rect key={`mbg-${pi}-${mi}`} x={0} y={my} width={LABEL_W + BAR_W} height={ROW_H}
-            fill={(pi + mi) % 2 === 0 ? "rgba(0,0,0,0.08)" : "rgba(0,0,0,0.04)"} />
+            fill={(pi + mi) % 2 === 0 ? "rgba(0,0,0,0.06)" : "rgba(0,0,0,0.03)"} />
         );
         elements.push(
           <text key={`mlabel-${pi}-${mi}`} x={24} y={my + ROW_H / 2 + 1}
@@ -184,11 +181,11 @@ export default function GanttChart() {
               <g key={`mbar-${pi}-${mi}`}>
                 <rect x={Math.max(x1, LABEL_W)} y={my + 12}
                   width={Math.min(bw, 8)} height={ROW_H - 24} rx={3}
-                  fill={isOverdue ? "rgba(255,77,106,0.3)" : `${mc}33`}
-                  stroke={isOverdue ? "#FF4D6A" : mc} strokeWidth={1} />
+                  fill={isOverdue ? "rgba(248,113,113,0.25)" : `${mc}25`}
+                  stroke={isOverdue ? "#f87171" : mc} strokeWidth={1} />
                 {!m.start_date && (
                   <polygon points={`${x2},${my + 12} ${x2 + 6},${my + 6} ${x2 - 6},${my + 6}`}
-                    fill={isOverdue ? "#FF4D6A" : mc} />
+                    fill={isOverdue ? "#f87171" : mc} />
                 )}
               </g>
             );
@@ -197,15 +194,14 @@ export default function GanttChart() {
           elements.push(
             <g key={`mbar-${pi}-${mi}`}>
               <rect x={LABEL_W + 8} y={my + 13} width={52} height={ROW_H - 26} rx={3}
-                fill="rgba(74,112,153,0.08)" stroke="#4A709944" strokeWidth={1} strokeDasharray="3 2" />
-              <text x={LABEL_W + 34} y={my + ROW_H / 2 + 1} fill="#4A7099" fontSize={8}
+                fill="rgba(74,112,153,0.06)" stroke="#4A709933" strokeWidth={1} strokeDasharray="3 2" />
+              <text x={LABEL_W + 34} y={my + ROW_H / 2 + 1} fill="#71717a" fontSize={8}
                 fontFamily="Pretendard, sans-serif" dominantBaseline="middle" textAnchor="middle">
                 대기
               </text>
             </g>
           );
         }
-
         rowIdx++;
       });
     }
@@ -220,7 +216,7 @@ export default function GanttChart() {
 
   return (
     <div>
-      <div className="flex items-center gap-1 mb-3">
+      <div className="flex items-center gap-1 mb-3 flex-wrap">
         <span className="text-xs mr-2" style={{ color: "var(--text-3)" }}>표시 기간</span>
         {PERIOD_OPTIONS.map(opt => (
           <button key={opt.months} onClick={() => setPeriodMonths(opt.months)}
@@ -234,19 +230,13 @@ export default function GanttChart() {
           </button>
         ))}
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={() => setExpanded(prev => {
-            const all: Record<string, boolean> = {};
-            rows.forEach(p => { all[p.id] = true; });
-            return all;
-          })} className="text-xs px-2 py-1 rounded-lg"
+          <button onClick={() => setExpanded(() => { const a: Record<string,boolean> = {}; rows.forEach(p => { a[p.id] = true; }); return a; })}
+            className="text-xs px-2 py-1 rounded-lg"
             style={{ background: "var(--bg-3)", color: "var(--text-3)", border: "1px solid var(--border)" }}>
             모두 펼치기
           </button>
-          <button onClick={() => setExpanded(prev => {
-            const all: Record<string, boolean> = {};
-            rows.forEach(p => { all[p.id] = false; });
-            return all;
-          })} className="text-xs px-2 py-1 rounded-lg"
+          <button onClick={() => setExpanded(() => { const a: Record<string,boolean> = {}; rows.forEach(p => { a[p.id] = false; }); return a; })}
+            className="text-xs px-2 py-1 rounded-lg"
             style={{ background: "var(--bg-3)", color: "var(--text-3)", border: "1px solid var(--border)" }}>
             모두 접기
           </button>
@@ -283,7 +273,7 @@ export default function GanttChart() {
             );
           })}
 
-          <text x={12} y={HEADER_H / 2 + 1} fill="var(--text-3)" fontSize={10}
+          <text x={12} y={HEADER_H / 2 + 1} fill="var(--text-2)" fontSize={10}
             fontFamily="Pretendard, sans-serif" dominantBaseline="middle" fontWeight={600}>
             프로젝트 / 마일스톤
           </text>

@@ -6,6 +6,7 @@ import { calcAllProjectsHealth } from "@/lib/health";
 import TaskForm from "@/components/tasks/TaskForm";
 import TaskDetail from "@/components/tasks/TaskDetail";
 import PlanningFeedback from "@/components/tasks/PlanningFeedback";
+import GanttChart from "@/components/dashboard/GanttChart";
 
 const HEALTH: Record<string, { label: string; color: string }> = {
   good:      { label: "정상",     color: "#34d399" },
@@ -23,19 +24,7 @@ function MiniProgress({ value, color }: { value: number; color: string }) {
   );
 }
 
-function MiniBurndown({ start, end, total, done }: { start: string; end: string; total: number; done: number }) {
-  if (!start || !end || total === 0) return null;
-  const now = new Date();
-  const s = new Date(start), e = new Date(end);
-  const totalDays = Math.max((e.getTime() - s.getTime()) / 86400000, 1);
-  const elapsed = Math.max(0, Math.min((now.getTime() - s.getTime()) / 86400000, totalDays));
-  const idealPct = (elapsed / totalDays) * 100;
-  const actualPct = (done / total) * 100;
-  const w = 120, h = 40;
-  const idealX = (idealPct / 100) * w;
-  const actualX = (actualPct / 100) * w;
-  return (
-    <svg width={w} height={h} style={{ overflow: "visible" }}>
+height={h} style={{ overflow: "visible" }}>
       <line x1={0} y1={h} x2={w} y2={0} stroke="var(--border-2)" strokeWidth={1} strokeDasharray="3,3" />
       <line x1={0} y1={h} x2={actualX} y2={h - (actualPct / 100) * h} stroke="#60a5fa" strokeWidth={2} />
       <circle cx={actualX} cy={h - (actualPct / 100) * h} r={3} fill="#60a5fa" />
@@ -286,19 +275,25 @@ export default function DashboardPage() {
                       )}
                     </div>
 
-                    {/* 미니 번다운 */}
-                    {p.start_date && p.end_date && total > 0 && (
-                      <div className="shrink-0">
-                        <p className="text-xs mb-1 text-right" style={{ color: "var(--text-3)" }}>번다운</p>
-                        <MiniBurndown start={p.start_date} end={p.end_date} total={total} done={done} />
-                      </div>
-                    )}
+
                   </div>
                 </a>
               );
             })}
           </div>
         )}
+      </div>
+
+      {/* 전체 일정 - 간트 차트 */}
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-1 h-5 rounded-full" style={{ background: "#fbbf24" }} />
+          <h2 className="text-base font-bold" style={{ color: "var(--text-1)" }}>전체 일정</h2>
+          <span className="text-xs" style={{ color: "var(--text-3)" }}>프로젝트 진행 위치 — ▸ 클릭 시 마일스톤 펼침</span>
+        </div>
+        <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
+          <GanttChart />
+        </div>
       </div>
 
       {/* 내 업무 요약 (viewer 제외) */}
