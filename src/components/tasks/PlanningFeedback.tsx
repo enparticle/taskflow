@@ -1,277 +1,207 @@
 // @ts-nocheck
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase";
 
+interface FeedbackItem {
+  type: "overload" | "deadline" | "blocked" | "no_estimate";
+  level: "danger" | "warning" | "info";
+  title: string;
+  detail: string;
+  taskId?: string;
+  userId?: string;
+}
+
 const LEVEL_CONFIG = {
-  danger:  { color: "#f87171", bg: "rgba(255,77,106,0.08)",  border: "rgba(255,77,106,0.2)",  icon: "⊘" },
-  warning: { color: "#fbbf24", bg: "rgba(245,166,35,0.08)",  border: "rgba(245,166,35,0.2)",  icon: "⚠" },
+  danger:  { color: "#FF4D6A", bg: "rgba(255,77,106,0.08)",  border: "rgba(255,77,106,0.2)",  icon: "⊘" },
+  warning: { color: "#F5A623", bg: "rgba(245,166,35,0.08)",  border: "rgba(245,166,35,0.2)",  icon: "⚠" },
   info:    { color: "#7BA7C8", bg: "rgba(123,167,200,0.08)", border: "rgba(123,167,200,0.2)", icon: "ℹ" },
 };
 
-const RISK_CONFIG = {
-  high:   { label: "높음", color: "#f87171" },
-  medium: { label: "보통", color: "#fbbf24" },
-  low:    { label: "낮음", color: "#34d399" },
-};
-
-interface Props {
-  mode: "dashboard" | "tasks" | "project";
-  projectId?: string;
-  projectName?: string;
-  filterStatus?: string;
-  onTaskClick?: (id: string) => void;
-}
-
-export default function PlanningFeedback({ mode, projectId, projectName, filterStatus, onTaskClick }: Props) {
+export default function PlanningFeedback({ onTaskClick }: { onTaskClick?: (id: string) => void }) {
   const supabase = createClient();
-  const [result, setResult] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
+  const [items, setItems] = useState<FeedbackItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [error, setError] = useState("");
 
-  async function analyze() {
-    setLoading(true); setError("");
-    const now = new Date();
-    let snapshot: any = {};
+  useEffect(() => {
+    async function analyze() {
+      setLoading(true);
+      const now = new Date();
+      const feedback: FeedbackItem[] = [];
 
-    try {
-      if (mode === "dashboard") {
-        // 전체 팀 현황
-        const [{ data: tasks }, { data: users }, { data: projects }, { data: blockedEvents }] = await Promise.all([
-          supabase.from("tasks").select("id,title,status,priority,due_date,estimated_hours,assignee_id,assignee_ids,blocked_reason,project_id").not("status","eq","done"),
-          supabase.from("users").select("id,name,role").eq("is_active",true),
-          supabase.from("projects").select("id,name,health,end_date,status").eq("status","active"),
-          supabase.from("task_events").select("task_id,changed_at").eq("to_status","blocked").order("changed_at",{ascending:false}),
-        ]);
+      // 전체 진행 중 업무
+      const { data: tasks } = await supabase
+        .from("tasks")
+        .select("*, assignee:users!tasks_assignee_id_fkey(name)")
+        .not("status", "eq", "done")
+        .not("status", "eq", "cancelled");
 
-        const blockedSince: Record<string,number> = {};
-        (blockedEvents??[]).forEach(e => {
-          if (!blockedSince[e.task_id]) blockedSince[e.task_id] = Math.floor((now.getTime()-new Date(e.changed_at).getTime())/86400000);
+      if (!tasks) { setLoading(false); return; }
+
+      // 1. 마감 임박 (3일 이내)
+      const soon = new Date(now);
+      soon.setDate(soon.getDate() + 3);
+      const deadline = tasks.filter(t =>
+        t.due_date && new Date(t.due_date) <= soon && new Date(t.due_date) >= now
+      );
+      const overdue = tasks.filter(t =>
+        t.due_date && new Date(t.due_date) < now
+      );
+
+      if (overdue.length > 0) {
+        feedback.push({
+          type: "deadline", level: "danger",
+          title: `마감 초과 ${overdue.length}건`,
+          detail: overdue.slice(0, 3).map(t => t.title).join(", ") + (overdue.length > 3 ? ` 외 ${overdue.length - 3}건` : ""),
+          taskId: overdue[0]?.id,
+        });
+      }
+      if (deadline.length > 0) {
+        feedback.push({
+          type: "deadline", level: "warning",
+          title: `3일 내 마감 ${deadline.length}건`,
+          detail: deadline.slice(0, 3).map(t => t.title).join(", ") + (deadline.length > 3 ? ` 외 ${deadline.length - 3}건` : ""),
+          taskId: deadline[0]?.id,
+        });
+      }
+
+      // 2. Blocked 장기 지속 (2일 이상)
+      const { data: blockedEvents } = await supabase
+        .from("task_events")
+        .select("task_id, changed_at")
+        .eq("to_status", "blocked")
+        .order("changed_at", { ascending: false });
+
+      if (blockedEvents) {
+        const blockedMap: Record<string, Date> = {};
+        blockedEvents.forEach(e => {
+          if (!blockedMap[e.task_id]) blockedMap[e.task_id] = new Date(e.changed_at);
         });
 
-        snapshot = {
-          context: "전체 팀 대시보드",
-          date: now.toLocaleDateString("ko-KR"),
-          total_active_tasks: (tasks??[]).length,
-          overdue: (tasks??[]).filter(t=>t.due_date&&new Date(t.due_date)<now).map(t=>({title:t.title,priority:t.priority,days:Math.floor((now.getTime()-new Date(t.due_date).getTime())/86400000)})),
-          due_soon: (tasks??[]).filter(t=>{if(!t.due_date)return false;const d=(new Date(t.due_date).getTime()-now.getTime())/86400000;return d>=0&&d<=3;}).map(t=>({title:t.title,due:t.due_date,priority:t.priority})),
-          blocked: (tasks??[]).filter(t=>t.status==="blocked").map(t=>({title:t.title,days:blockedSince[t.id]??0,reason:t.blocked_reason})),
-          no_estimate: (tasks??[]).filter(t=>!t.estimated_hours&&t.status!=="backlog").length,
-          member_workload: (users??[]).map(u=>({
-            name: u.name, role: u.role,
-            doing: (tasks??[]).filter(t=>(t.assignee_id===u.id||(t.assignee_ids??[]).includes(u.id))&&t.status==="doing").length,
-            total: (tasks??[]).filter(t=>(t.assignee_id===u.id||(t.assignee_ids??[]).includes(u.id))).length,
-          })).filter(u=>u.total>0),
-          projects: (projects??[]).map(p=>({
-            name:p.name, health:p.health, end_date:p.end_date,
-            tasks:(tasks??[]).filter(t=>t.project_id===p.id).length,
-            done:(tasks??[]).filter(t=>t.project_id===p.id&&t.status==="done").length,
-          })),
-        };
+        const longBlocked = tasks
+          .filter(t => t.status === "blocked" && blockedMap[t.id])
+          .filter(t => {
+            const days = (now.getTime() - blockedMap[t.id].getTime()) / (1000 * 60 * 60 * 24);
+            return days >= 2;
+          });
 
-      } else if (mode === "tasks") {
-        // 전체 업무 페이지 - 필터 적용
-        let q = supabase.from("tasks").select("id,title,status,priority,due_date,estimated_hours,assignee_id,assignee_ids,blocked_reason,project_id,assignee:users!tasks_assignee_id_fkey(name)").not("status","eq","done");
-        if (filterStatus && filterStatus !== "all") q = q.eq("status", filterStatus);
-        const { data: tasks } = await q;
-        const { data: blockedEvents } = await supabase.from("task_events").select("task_id,changed_at").eq("to_status","blocked").order("changed_at",{ascending:false});
-
-        const blockedSince: Record<string,number> = {};
-        (blockedEvents??[]).forEach(e => {
-          if (!blockedSince[e.task_id]) blockedSince[e.task_id] = Math.floor((now.getTime()-new Date(e.changed_at).getTime())/86400000);
-        });
-
-        snapshot = {
-          context: filterStatus && filterStatus !== "all" ? `전체 업무 (${filterStatus} 필터)` : "전체 업무 목록",
-          date: now.toLocaleDateString("ko-KR"),
-          total: (tasks??[]).length,
-          status_breakdown: ["backlog","todo","doing","blocked","review"].map(s=>({status:s, count:(tasks??[]).filter(t=>t.status===s).length})),
-          overdue: (tasks??[]).filter(t=>t.due_date&&new Date(t.due_date)<now).map(t=>({title:t.title,priority:t.priority,assignee:t.assignee?.name})),
-          due_soon: (tasks??[]).filter(t=>{if(!t.due_date)return false;const d=(new Date(t.due_date).getTime()-now.getTime())/86400000;return d>=0&&d<=3;}).map(t=>({title:t.title,assignee:t.assignee?.name})),
-          blocked: (tasks??[]).filter(t=>t.status==="blocked").map(t=>({title:t.title,days:blockedSince[t.id]??0,reason:t.blocked_reason,assignee:t.assignee?.name})),
-          no_estimate: (tasks??[]).filter(t=>!t.estimated_hours&&t.status!=="backlog").map(t=>({title:t.title,status:t.status})),
-          urgent_high: (tasks??[]).filter(t=>["urgent","high"].includes(t.priority)&&t.status!=="done").map(t=>({title:t.title,priority:t.priority,status:t.status})),
-        };
-
-      } else if (mode === "project" && projectId) {
-        // 프로젝트 상세 - 해당 프로젝트만
-        const [{ data: tasks }, { data: milestones }, { data: members }, { data: blockedEvents }] = await Promise.all([
-          supabase.from("tasks").select("id,title,status,priority,due_date,estimated_hours,assignee_id,assignee_ids,blocked_reason,assignee:users!tasks_assignee_id_fkey(name)").eq("project_id",projectId).not("status","eq","done"),
-          supabase.from("milestones").select("*").eq("project_id",projectId),
-          supabase.from("project_members").select("role,user:users(name)").eq("project_id",projectId),
-          supabase.from("task_events").select("task_id,changed_at").eq("to_status","blocked").order("changed_at",{ascending:false}),
-        ]);
-        const { data: project } = await supabase.from("projects").select("*").eq("id",projectId).single();
-
-        const blockedSince: Record<string,number> = {};
-        (blockedEvents??[]).forEach(e => {
-          if (!blockedSince[e.task_id]) blockedSince[e.task_id] = Math.floor((now.getTime()-new Date(e.changed_at).getTime())/86400000);
-        });
-
-        // 번다운 괴리율 직접 계산
-        let burndownDivergence = null;
-        if (project?.start_date && project?.end_date) {
-          const startD = new Date(project.start_date);
-          const endD = new Date(project.end_date);
-          const totalDays = Math.max((endD.getTime() - startD.getTime()) / 86400000, 1);
-          const elapsedDays = Math.max(0, (now.getTime() - startD.getTime()) / 86400000);
-          const prog = Math.min(elapsedDays / totalDays, 1);
-          const totalT = (tasks??[]).length;
-          const doneT = (tasks??[]).filter(t=>t.status==="done").length;
-          const idealRemaining = totalT * (1 - prog);
-          const actualRemaining = totalT - doneT;
-          burndownDivergence = totalT > 0 ? Math.round(((actualRemaining - idealRemaining) / totalT) * 100) : 0;
+        if (longBlocked.length > 0) {
+          feedback.push({
+            type: "blocked", level: "danger",
+            title: `Blocked 2일+ ${longBlocked.length}건`,
+            detail: longBlocked.slice(0, 3).map(t => {
+              const days = Math.floor((now.getTime() - blockedMap[t.id].getTime()) / (1000 * 60 * 60 * 24));
+              return `${t.title} (${days}일)`;
+            }).join(", "),
+            taskId: longBlocked[0]?.id,
+          });
         }
-
-        snapshot = {
-          context: `프로젝트: ${projectName ?? project?.name}`,
-          project_id: projectId,
-          date: now.toLocaleDateString("ko-KR"),
-          project: { name:project?.name, health:project?.health, start:project?.start_date, end:project?.end_date, description:project?.description },
-          burndown_divergence_pct: burndownDivergence,
-          burndown_note: burndownDivergence !== null ? `번다운 괴리율 ${burndownDivergence}% (양수=지연, 음수=초과달성)` : "시작일/마감일 미설정으로 괴리율 계산 불가",
-          total_tasks: (tasks??[]).length,
-          status_breakdown: ["backlog","todo","doing","blocked","review"].map(s=>({status:s,count:(tasks??[]).filter(t=>t.status===s).length})),
-          completion_rate: `${Math.round(((tasks??[]).filter(t=>t.status==="done").length/Math.max((tasks??[]).length,1))*100)}%`,
-          overdue: (tasks??[]).filter(t=>t.due_date&&new Date(t.due_date)<now).map(t=>({title:t.title,assignee:t.assignee?.name})),
-          due_soon: (tasks??[]).filter(t=>{if(!t.due_date)return false;const d=(new Date(t.due_date).getTime()-now.getTime())/86400000;return d>=0&&d<=3;}).map(t=>({title:t.title,assignee:t.assignee?.name})),
-          blocked: (tasks??[]).filter(t=>t.status==="blocked").map(t=>({title:t.title,days:blockedSince[t.id]??0,reason:t.blocked_reason,assignee:t.assignee?.name})),
-          milestones: (milestones??[]).map(m=>({title:m.title,status:m.status,due:m.due_date,overdue:m.due_date&&new Date(m.due_date)<now&&m.status!=="completed"})),
-          team: (members??[]).map(m=>({name:m.user?.name,role:m.role,doing:(tasks??[]).filter(t=>(t.assignee_id===m.user?.id||(t.assignee_ids??[]).includes(m.user?.id))&&t.status==="doing").length})),
-        };
       }
 
-      const res = await fetch("/api/feedback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ snapshot }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setResult(data);
-      setLastUpdated(new Date());
-
-      // 프로젝트 모드일 때 AI가 판단한 health 자동 반영
-      if (mode === "project" && projectId && data.project_health) {
-        const supabaseModule = await import("@supabase/supabase-js");
-        const sb = supabaseModule.createClient(
-          "https://tvgygdyucadaoqmnsgmp.supabase.co",
-          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR2Z3lnZHl1Y2FkYW9xbW5zZ21wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NjA2MzMsImV4cCI6MjA5MzQzNjYzM30.rbMmaPhtqxJv6GUNaUvvtE7C6Cih4VfldlDOsTLvygA"
-        );
-        await sb.from("projects").update({ health: data.project_health }).eq("id", projectId);
+      // 3. 예상 시간 미입력
+      const noEstimate = tasks.filter(t =>
+        !t.estimated_hours && t.status !== "backlog"
+      );
+      if (noEstimate.length > 0) {
+        feedback.push({
+          type: "no_estimate", level: "info",
+          title: `예상 시간 미입력 ${noEstimate.length}건`,
+          detail: "업무 계획 정확도를 높이려면 예상 시간을 입력해주세요",
+        });
       }
-    } catch (e: any) {
-      setError("분석 중 오류가 발생했습니다: " + e.message);
+
+      // 4. 업무량 과부하 (담당자별 진행 중 5건 이상)
+      const { data: users } = await supabase
+        .from("users").select("id, name").eq("is_active", true);
+
+      if (users) {
+        const overloaded = users
+          .map(u => ({
+            ...u,
+            count: tasks.filter(t =>
+              (t.assignee_id === u.id || (t.assignee_ids ?? []).includes(u.id)) &&
+              t.status === "doing"
+            ).length,
+          }))
+          .filter(u => u.count >= 5)
+          .sort((a, b) => b.count - a.count);
+
+        if (overloaded.length > 0) {
+          feedback.push({
+            type: "overload", level: "warning",
+            title: `업무 과부하 ${overloaded.length}명`,
+            detail: overloaded.map(u => `${u.name} (진행 중 ${u.count}건)`).join(", "),
+            userId: overloaded[0]?.id,
+          });
+        }
+      }
+
+      setItems(feedback);
+      setLoading(false);
     }
-    setLoading(false);
-  }
+    analyze();
+  }, []);
 
-  const title = mode === "dashboard" ? "팀 전체 AI 피드백" : mode === "project" ? `${projectName ?? "프로젝트"} AI 피드백` : "업무 AI 피드백";
-  const risk = result?.overall_risk ? RISK_CONFIG[result.overall_risk] : null;
+  if (loading) return null;
+  if (items.length === 0) return (
+    <div className="rounded-xl px-4 py-3 flex items-center gap-2"
+      style={{ background: "rgba(0,212,160,0.06)", border: "1px solid rgba(0,212,160,0.15)" }}>
+      <span style={{ color: "#00D4A0" }}>✓</span>
+      <p className="text-xs font-medium" style={{ color: "#00D4A0" }}>
+        현재 주의가 필요한 항목이 없습니다
+      </p>
+    </div>
+  );
 
   return (
-    <div className="rounded-2xl overflow-hidden sticky top-0"
+    <div className="rounded-2xl overflow-hidden"
       style={{ border: "1px solid var(--border-2)", background: "var(--bg-2)" }}>
-      <div className="flex items-center justify-between px-4 py-3"
+      {/* 헤더 */}
+      <button onClick={() => setCollapsed(!collapsed)}
+        className="w-full flex items-center justify-between px-4 py-3"
         style={{ borderBottom: collapsed ? "none" : "1px solid var(--border)" }}>
         <div className="flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full"
-            style={{ background: "#A78BFA", boxShadow: "0 0 6px #A78BFA" }} />
-          <p className="text-xs font-semibold" style={{ color: "var(--text-1)" }}>{title}</p>
-          {risk && (
-            <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
-              style={{ background: `${risk.color}18`, color: risk.color }}>
-              리스크 {risk.label}
-            </span>
-          )}
+          <div className="w-1.5 h-1.5 rounded-full animate-pulse"
+            style={{ background: "#F5A623", boxShadow: "0 0 6px #F5A623" }} />
+          <p className="text-xs font-semibold" style={{ color: "var(--text-1)" }}>
+            Planning Feedback
+          </p>
+          <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+            style={{
+              background: items.some(i => i.level === "danger") ? "rgba(255,77,106,0.15)" : "rgba(245,166,35,0.15)",
+              color: items.some(i => i.level === "danger") ? "#FF4D6A" : "#F5A623",
+            }}>
+            {items.length}개 항목
+          </span>
         </div>
-        <div className="flex items-center gap-2">
-          {result && (
-            <button onClick={analyze} disabled={loading}
-              className="text-xs px-2 py-1 rounded-lg disabled:opacity-40"
-              style={{ background: "var(--bg-3)", color: "var(--text-3)", border: "1px solid var(--border)" }}>
-              {loading ? "분석 중…" : "다시 분석"}
-            </button>
-          )}
-          <button onClick={() => setCollapsed(!collapsed)} className="text-xs" style={{ color: "var(--text-3)" }}>
-            {collapsed ? "▾" : "▴"}
-          </button>
-        </div>
-      </div>
+        <span className="text-xs" style={{ color: "var(--text-3)" }}>
+          {collapsed ? "▾" : "▴"}
+        </span>
+      </button>
 
       {!collapsed && (
         <div className="p-3 space-y-2">
-          {!result && !loading && !error && (
-            <div className="py-8 text-center space-y-3">
-              <p className="text-xs" style={{ color: "var(--text-3)" }}>버튼을 눌러 AI 피드백을 받아보세요</p>
-              <button onClick={analyze}
-                className="rounded-lg px-5 py-2.5 text-xs font-semibold"
-                style={{ background: "linear-gradient(135deg, #A78BFA, #2E86FF)", color: "#fff", boxShadow: "0 0 16px rgba(167,139,250,0.3)" }}>
-                ✦ AI 분석 시작
-              </button>
-            </div>
-          )}
-
-          {loading && (
-            <div className="py-6 text-center">
-              <div className="inline-block w-4 h-4 rounded-full border-2 animate-spin mb-2"
-                style={{ borderColor: "#A78BFA", borderTopColor: "transparent" }} />
-              <p className="text-xs" style={{ color: "var(--text-3)" }}>Claude가 분석 중입니다…</p>
-            </div>
-          )}
-
-          {error && (
-            <p className="text-xs px-3 py-2 rounded-lg"
-              style={{ background: "var(--red-bg)", color: "var(--red)" }}>{error}</p>
-          )}
-
-          {result && !loading && (
-            <>
-              {result.summary && (
-                <div className="rounded-xl px-3 py-2.5"
-                  style={{ background: "rgba(167,139,250,0.08)", border: "1px solid rgba(167,139,250,0.2)" }}>
-                  <p className="text-xs font-medium" style={{ color: "#A78BFA" }}>{result.summary}</p>
+          {items.map((item, i) => {
+            const cfg = LEVEL_CONFIG[item.level];
+            return (
+              <div key={i}
+                className="flex items-start gap-3 rounded-xl px-3 py-2.5 transition-all"
+                style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, cursor: item.taskId ? "pointer" : "default" }}
+                onClick={() => item.taskId && onTaskClick?.(item.taskId)}
+                onMouseEnter={e => { if (item.taskId) (e.currentTarget as HTMLDivElement).style.opacity = "0.8"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.opacity = "1"; }}>
+                <span className="shrink-0 text-sm mt-0.5" style={{ color: cfg.color }}>{cfg.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold" style={{ color: cfg.color }}>{item.title}</p>
+                  <p className="text-xs mt-0.5 truncate" style={{ color: "var(--text-3)" }}>{item.detail}</p>
                 </div>
-              )}
-              {(result.items ?? []).map((item: any, i: number) => {
-                const cfg = LEVEL_CONFIG[item.level] ?? LEVEL_CONFIG.info;
-                return (
-                  <div key={i} className="rounded-xl px-3 py-2.5"
-                    style={{ background: cfg.bg, border: `1px solid ${cfg.border}` }}>
-                    <div className="flex items-start gap-2">
-                      <span className="shrink-0 text-sm mt-0.5" style={{ color: cfg.color }}>{cfg.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold" style={{ color: cfg.color }}>{item.title}</p>
-                        <p className="text-xs mt-0.5" style={{ color: "var(--text-2)" }}>{item.detail}</p>
-                        {item.action && (
-                          <p className="text-xs mt-1 font-medium" style={{ color: "var(--text-3)" }}>→ {item.action}</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              {mode === "project" && result?.project_health && (
-                <div className="rounded-xl px-3 py-2 flex items-center gap-2"
-                  style={{
-                    background: result.project_health === "good" ? "rgba(0,212,160,0.08)" : result.project_health === "at_risk" ? "rgba(245,166,35,0.08)" : "rgba(255,77,106,0.08)",
-                    border: `1px solid ${result.project_health === "good" ? "rgba(0,212,160,0.2)" : result.project_health === "at_risk" ? "rgba(245,166,35,0.2)" : "rgba(255,77,106,0.2)"}`,
-                  }}>
-                  <span style={{ fontSize: 12 }}>{result.project_health === "good" ? "🟢" : result.project_health === "at_risk" ? "🟡" : "🔴"}</span>
-                  <p className="text-xs font-medium" style={{ color: result.project_health === "good" ? "#34d399" : result.project_health === "at_risk" ? "#fbbf24" : "#f87171" }}>
-                    AI가 프로젝트 상태를 <strong>{result.project_health === "good" ? "정상" : result.project_health === "reviewing" ? "검토 필요" : result.project_health === "at_risk" ? "주의" : result.project_health === "suspended" ? "중단" : "위험"}</strong>으로 업데이트했습니다
-                  </p>
-                </div>
-              )}
-              {lastUpdated && (
-                <p className="text-xs text-center pt-1" style={{ color: "var(--text-3)" }}>
-                  {lastUpdated.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 기준
-                </p>
-              )}
-            </>
-          )}
+                {item.taskId && (
+                  <span className="text-xs shrink-0" style={{ color: "var(--text-3)" }}>→</span>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 // @ts-nocheck
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase";
 import type { Task, User, Project } from "@/types/database";
 type TaskStatus = string;
@@ -10,23 +10,40 @@ type T = Task & {
   assignee?: Pick<User, "name" | "avatar_url"> | null;
   assignees?: Pick<User, "id" | "name">[];
   project?: Pick<Project, "name"> | null;
+  comment_count?: number;
 };
 
 const STATUS: Record<TaskStatus, { label: string; color: string; bg: string }> = {
   backlog: { label: "백로그",  color: "#4A7099", bg: "rgba(74,112,153,0.15)" },
   todo:    { label: "할 일",   color: "#7BA7C8", bg: "rgba(123,167,200,0.12)" },
   doing:   { label: "진행 중", color: "#2E86FF", bg: "rgba(46,134,255,0.15)" },
-  blocked: { label: "Blocked", color: "#FF4D6A", bg: "rgba(255,77,106,0.15)" },
-  review:  { label: "리뷰",    color: "#F5A623", bg: "rgba(245,166,35,0.15)" },
-  done:    { label: "완료",    color: "#00D4A0", bg: "rgba(0,212,160,0.15)" },
+  blocked: { label: "Blocked", color: "#f87171", bg: "rgba(248,113,113,0.15)" },
+  review:  { label: "리뷰",    color: "#fbbf24", bg: "rgba(251,191,36,0.15)" },
+  done:    { label: "완료",    color: "#34d399", bg: "rgba(52,211,153,0.15)" },
 };
 const PRIORITY: Record<string, { label: string; color: string }> = {
   low:    { label: "낮음", color: "#4A7099" },
   medium: { label: "보통", color: "#7BA7C8" },
-  high:   { label: "높음", color: "#F5A623" },
-  urgent: { label: "긴급", color: "#FF4D6A" },
+  high:   { label: "높음", color: "#fbbf24" },
+  urgent: { label: "긴급", color: "#f87171" },
 };
 const STATUS_LIST = ["backlog","todo","doing","blocked","review","done"] as TaskStatus[];
+
+// 사용자 ID 기반 고정 색상 (항상 같은 색상)
+function getUserColor(userId: string): string {
+  const COLORS = [
+    "#60a5fa", "#34d399", "#fbbf24", "#f87171", "#a78bfa",
+    "#fb923c", "#22d3ee", "#e879f9", "#4ade80", "#f43f5e",
+    "#818cf8", "#2dd4bf",
+  ];
+  if (!userId) return COLORS[0];
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) {
+    hash = ((hash << 5) - hash) + userId.charCodeAt(i);
+    hash |= 0;
+  }
+  return COLORS[Math.abs(hash) % COLORS.length];
+}
 
 function fmt(d: string | null) {
   if (!d) return null;
@@ -34,32 +51,31 @@ function fmt(d: string | null) {
   return `${dt.getMonth()+1}/${dt.getDate()}`;
 }
 
-// 담당자 아바타 스택
 function AssigneeStack({ task }: { task: T }) {
-  // assignees 배열이 있으면 우선 사용, 없으면 assignee 단일 사용
   const list = task.assignees && task.assignees.length > 0
     ? task.assignees
     : task.assignee ? [task.assignee] : [];
-
   if (list.length === 0) return null;
 
-  const COLORS = ["#00C2CC","#2E86FF","#F5A623","#00D4A0","#A78BFA","#FF4D6A"];
-
   return (
-    <div className="flex items-center shrink-0" style={{ gap: "-4px" }}>
-      {list.slice(0, 4).map((u, i) => (
-        <span key={(u as any).id ?? i}
-          className="flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold"
-          style={{
-            background: `${COLORS[i % COLORS.length]}22`,
-            color: COLORS[i % COLORS.length],
-            border: `1.5px solid var(--bg-2)`,
-            marginLeft: i > 0 ? -6 : 0,
-            zIndex: list.length - i,
-          }}>
-          {u.name[0]}
-        </span>
-      ))}
+    <div className="flex items-center shrink-0">
+      {list.slice(0, 4).map((u, i) => {
+        const color = getUserColor((u as any).id ?? u.name ?? String(i));
+        return (
+          <span key={(u as any).id ?? i}
+            className="flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold"
+            style={{
+              background: `${color}22`,
+              color,
+              border: `1.5px solid var(--bg-2)`,
+              marginLeft: i > 0 ? -6 : 0,
+              zIndex: list.length - i,
+            }}
+            title={u.name}>
+            {u.name[0]}
+          </span>
+        );
+      })}
       {list.length > 4 && (
         <span className="flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold"
           style={{ background: "var(--bg-4)", color: "var(--text-3)", border: "1.5px solid var(--bg-2)", marginLeft: -6 }}>
@@ -77,9 +93,20 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
+  const [commentCount, setCommentCount] = useState<number>(task.comment_count ?? 0);
 
-  const s = STATUS[task.status];
-  const p = PRIORITY[task.priority];
+  useEffect(() => {
+    if (task.comment_count !== undefined) {
+      setCommentCount(task.comment_count);
+      return;
+    }
+    supabase.from("task_comments").select("id", { count: "exact", head: true })
+      .eq("task_id", task.id)
+      .then(({ count }) => { if (count != null) setCommentCount(count); });
+  }, [task.id]);
+
+  const s = STATUS[task.status] ?? { label: task.status, color: "#7BA7C8", bg: "rgba(123,167,200,0.12)" };
+  const p = PRIORITY[task.priority] ?? { label: task.priority, color: "#7BA7C8" };
   const overdue = task.due_date && task.status !== "done" && new Date(task.due_date) < new Date();
 
   async function changeStatus(newStatus: TaskStatus, blockedReason?: string) {
@@ -101,7 +128,7 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
         onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "var(--bg-2)"; }}
         onClick={() => setShowDetail(true)}>
 
-        {/* 상태 배지 */}
+        {/* 상태 버튼 */}
         <div className="relative shrink-0" onClick={e => e.stopPropagation()}>
           <button onClick={() => { setOpen(!open); setShowBlocked(false); }} disabled={loading}
             className="rounded-md px-2.5 py-1 text-xs font-semibold"
@@ -133,13 +160,13 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
               style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)" }}>
               <p className="mb-2 text-xs font-semibold" style={{ color: "var(--text-1)" }}>Blocked 사유 *</p>
               <textarea value={reason} onChange={e => setReason(e.target.value)}
-                placeholder="왜 막혔는지 입력하세요" rows={2} autoFocus
+                placeholder="왜 막혔는지 입력해주세요" rows={2} autoFocus
                 className="w-full rounded-lg px-2.5 py-1.5 text-xs resize-none focus:outline-none"
                 style={{ background: "var(--bg-4)", border: "1px solid var(--border-2)", color: "var(--text-1)" }} />
               <div className="mt-2 flex gap-2">
                 <button onClick={() => changeStatus("blocked", reason)} disabled={!reason.trim()}
                   className="flex-1 rounded-lg py-1.5 text-xs font-semibold disabled:opacity-30"
-                  style={{ background: "#FF4D6A", color: "#fff" }}>확인</button>
+                  style={{ background: "#f87171", color: "#fff" }}>확인</button>
                 <button onClick={() => { setShowBlocked(false); setOpen(false); }}
                   className="flex-1 rounded-lg py-1.5 text-xs"
                   style={{ background: "var(--bg-4)", color: "var(--text-2)" }}>취소</button>
@@ -148,16 +175,22 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
           )}
         </div>
 
-        {/* 업무명 */}
-        <span className="flex-1 truncate text-sm font-medium"
+        {/* 업무명 + 댓글 수 */}
+        <span className="flex-1 truncate text-sm font-medium flex items-center gap-1.5 min-w-0"
           style={{ color: task.status === "done" ? "var(--text-3)" : "var(--text-1)",
             textDecoration: task.status === "done" ? "line-through" : undefined }}>
-          {task.title}
+          <span className="truncate">{task.title}</span>
+          {commentCount > 0 && (
+            <span className="shrink-0 text-xs px-1.5 py-0.5 rounded-full font-medium"
+              style={{ background: "var(--bg-4)", color: "var(--text-3)", fontSize: 10 }}>
+              💬 {commentCount}
+            </span>
+          )}
         </span>
 
         {task.blocked_reason && (
           <span className="hidden sm:block shrink-0 max-w-[130px] truncate text-xs px-2 py-0.5 rounded-md"
-            style={{ background: "var(--red-bg)", color: "var(--red)" }}>
+            style={{ background: "rgba(248,113,113,0.12)", color: "#f87171" }}>
             {task.blocked_reason}
           </span>
         )}
@@ -168,12 +201,11 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
           </span>
         )}
 
-        {/* 담당자 스택 */}
         <AssigneeStack task={task} />
 
         {task.due_date && (
           <span className="shrink-0 text-xs tabular-nums font-medium"
-            style={{ color: overdue ? "var(--red)" : "var(--text-3)" }}>
+            style={{ color: overdue ? "#f87171" : "var(--text-3)" }}>
             {overdue ? "⚠ " : ""}{fmt(task.due_date)}
           </span>
         )}

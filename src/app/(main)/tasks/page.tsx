@@ -6,6 +6,7 @@ import { loadTasksWithAssignees } from "@/lib/tasks";
 import TaskList from "@/components/tasks/TaskList";
 import TaskDetail from "@/components/tasks/TaskDetail";
 import TaskForm from "@/components/tasks/TaskForm";
+import PlanningFeedback from "@/components/tasks/PlanningFeedback";
 
 const STATUS_FILTERS = [
   { value: "all",     label: "전체" },
@@ -22,14 +23,6 @@ export default function TasksPage() {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("all");
   const [openDetail, setOpenDetail] = useState<string | null>(null);
-  const [myOnly, setMyOnly] = useState(true);
-  const [myUserId, setMyUserId] = useState<string | null>(null);
-
-  useEffect(() => {
-    import("@/lib/auth").then(({ getAuthUser }) => {
-      getAuthUser().then(u => { if (u) setMyUserId(u.userId); });
-    });
-  }, []);
 
   const load = useCallback(async () => {
     let q = supabase.from("tasks")
@@ -37,70 +30,50 @@ export default function TasksPage() {
       .order("due_date", { ascending: true, nullsFirst: false });
     if (filter !== "all") q = q.eq("status", filter);
     const { data } = await loadTasksWithAssignees(q);
-    const ORDER: Record<string, number> = { doing: 0, todo: 1, review: 2, blocked: 3, backlog: 4, done: 5 };
-    const filtered = myOnly && myUserId
-      ? (data ?? []).filter((t: any) => t.assignee_id === myUserId || (t.assignee_ids ?? []).includes(myUserId))
-      : (data ?? []);
-    const sorted = filtered.sort((a: any, b: any) => {
-      const oa = ORDER[a.status] ?? 9, ob = ORDER[b.status] ?? 9;
-      if (oa !== ob) return oa - ob;
-      if (a.due_date && b.due_date) return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
-      if (a.due_date) return -1;
-      if (b.due_date) return 1;
-      return 0;
-    });
-    setTasks(sorted);
-  }, [filter, myOnly, myUserId]);
+    setTasks(data);
+  }, [filter]);
 
   useEffect(() => { load(); }, [load]);
 
   return (
     <div className="space-y-5 max-w-5xl">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <div className="w-1 h-5 rounded-full" style={{ background: "var(--cyan)" }} />
-            <h1 className="text-xl font-bold" style={{ color: "var(--text-1)" }}>업무</h1>
-          </div>
-          <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-            <button onClick={() => setMyOnly(false)}
-              className="rounded-lg px-3 py-1 text-xs font-medium transition-all"
-              style={{ background: !myOnly ? "var(--bg-4)" : "transparent", color: !myOnly ? "var(--text-1)" : "var(--text-3)", border: !myOnly ? "1px solid var(--border-2)" : "1px solid transparent" }}>
-              전체
-            </button>
-            <button onClick={() => setMyOnly(true)}
-              className="rounded-lg px-3 py-1 text-xs font-medium transition-all"
-              style={{ background: myOnly ? "var(--bg-4)" : "transparent", color: myOnly ? "var(--text-1)" : "var(--text-3)", border: myOnly ? "1px solid var(--border-2)" : "1px solid transparent" }}>
-              내 업무
-            </button>
-          </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-1 h-5 rounded-full" style={{ background: "var(--blue)" }} />
+          <h1 className="text-xl font-bold" style={{ color: "var(--text-1)" }}>전체 업무</h1>
+          <span className="text-xs px-2 py-0.5 rounded-full tabular-nums"
+            style={{ background: "var(--blue-bg)", color: "var(--blue)" }}>{tasks.length}</span>
         </div>
-        <button onClick={() => setOpen(true)}
-          className="rounded-xl px-4 py-2 text-sm font-semibold"
-          style={{ background: "linear-gradient(135deg, var(--cyan), #2E86FF)", color: "#fff" }}>
+        <button onClick={() => setOpen(true)} className="rounded-lg px-4 py-2 text-xs font-semibold"
+          style={{ background: "linear-gradient(135deg, #00C2CC, #2E86FF)", color: "#fff", boxShadow: "0 0 16px rgba(0,194,204,0.25)" }}>
           + 새 업무
         </button>
       </div>
 
-      <div className="flex gap-1.5 flex-wrap">
-        {STATUS_FILTERS.map(f => (
-          <button key={f.value} onClick={() => setFilter(f.value)}
-            className="rounded-lg px-3 py-1.5 text-xs font-medium transition-all"
+      <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
+        {STATUS_FILTERS.map(({ value, label }) => (
+          <button key={value} onClick={() => setFilter(value)}
+            className="flex-1 rounded-lg py-1.5 text-xs font-medium transition-all"
             style={{
-              background: filter === f.value ? "var(--cyan-bg)" : "var(--bg-2)",
-              color: filter === f.value ? "var(--cyan)" : "var(--text-3)",
-              border: `1px solid ${filter === f.value ? "var(--cyan)" : "var(--border)"}`,
+              background: filter === value ? "var(--bg-4)" : "transparent",
+              color: filter === value ? "var(--text-1)" : "var(--text-3)",
+              border: filter === value ? "1px solid var(--border-2)" : "1px solid transparent",
             }}>
-            {f.label}
-            {filter === f.value && tasks.length > 0 && <span className="ml-1.5 opacity-70">{tasks.length}</span>}
+            {label}
           </button>
         ))}
       </div>
 
-      <TaskList tasks={tasks} onRefresh={load} onTaskClick={(id: string) => setOpenDetail(id)} />
-
-      {open && <TaskForm onClose={() => setOpen(false)} onSaved={() => { load(); setOpen(false); }} />}
-      {openDetail && <TaskDetail taskId={openDetail} onClose={() => setOpenDetail(null)} onRefresh={load} />}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="col-span-2">
+          <TaskList tasks={tasks} onRefresh={load} />
+        </div>
+        <div>
+          <PlanningFeedback onTaskClick={id => setOpenDetail(id)} />
+        </div>
+      </div>
+      {open && <TaskForm onClose={() => setOpen(false)} onCreated={() => { load(); setOpen(false); }} />}
+      {openDetail && <TaskDetail taskId={openDetail} onClose={() => setOpenDetail(null)} onRefresh={() => { setOpenDetail(null); load(); }} />}
     </div>
   );
 }
