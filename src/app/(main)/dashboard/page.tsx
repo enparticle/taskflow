@@ -5,309 +5,387 @@ import { createClient } from "@/lib/supabase";
 import { calcAllProjectsHealth } from "@/lib/health";
 import TaskForm from "@/components/tasks/TaskForm";
 import TaskDetail from "@/components/tasks/TaskDetail";
-import GanttChart from "@/components/dashboard/GanttChart";
 import PlanningFeedback from "@/components/tasks/PlanningFeedback";
 
-function DonutChart({ data, size = 120 }: { data: { label: string; value: number; color: string }[]; size?: number }) {
-  const total = data.reduce((s, d) => s + d.value, 0);
-  if (total === 0) return <div style={{ width: size, height: size, borderRadius: "50%", background: "var(--bg-4)", margin: "0 auto" }} />;
-  const cx = size / 2, cy = size / 2, r = size * 0.38, stroke = size * 0.18;
-  let offset = -90;
-  const slices = data.filter(d => d.value > 0).map(d => {
-    const angle = (d.value / total) * 360;
-    const start = offset; offset += angle;
-    return { ...d, start, angle };
-  });
-  function arc(start: number, angle: number) {
-    const s = (start * Math.PI) / 180, e = ((start + angle) * Math.PI) / 180;
-    const x1 = cx + r * Math.cos(s), y1 = cy + r * Math.sin(s);
-    const x2 = cx + r * Math.cos(e), y2 = cy + r * Math.sin(e);
-    return `M ${x1} ${y1} A ${r} ${r} 0 ${angle > 180 ? 1 : 0} 1 ${x2} ${y2}`;
-  }
+const HEALTH: Record<string, { label: string; color: string }> = {
+  good:      { label: "정상",     color: "#34d399" },
+  reviewing: { label: "검토 필요", color: "#60a5fa" },
+  at_risk:   { label: "주의",     color: "#fbbf24" },
+  critical:  { label: "위험",     color: "#f87171" },
+  suspended: { label: "중단",     color: "#71717a" },
+};
+
+function MiniProgress({ value, color }: { value: number; color: string }) {
   return (
-    <svg width={size} height={size} style={{ display: "block", margin: "0 auto" }}>
-      {slices.map((s, i) => <path key={i} d={arc(s.start, s.angle)} fill="none" stroke={s.color} strokeWidth={stroke} strokeLinecap="butt" />)}
-      <text x={cx} y={cy + 5} textAnchor="middle" fill="var(--text-1)" fontSize={size * 0.18} fontWeight="bold" fontFamily="Pretendard, sans-serif">{total}</text>
+    <div style={{ height: 6, background: "var(--bg-4)", borderRadius: 3, overflow: "hidden" }}>
+      <div style={{ height: "100%", width: `${Math.min(value, 100)}%`, background: color, borderRadius: 3, transition: "width 0.5s" }} />
+    </div>
+  );
+}
+
+function MiniBurndown({ start, end, total, done }: { start: string; end: string; total: number; done: number }) {
+  if (!start || !end || total === 0) return null;
+  const now = new Date();
+  const s = new Date(start), e = new Date(end);
+  const totalDays = Math.max((e.getTime() - s.getTime()) / 86400000, 1);
+  const elapsed = Math.max(0, Math.min((now.getTime() - s.getTime()) / 86400000, totalDays));
+  const idealPct = (elapsed / totalDays) * 100;
+  const actualPct = (done / total) * 100;
+  const w = 120, h = 40;
+  const idealX = (idealPct / 100) * w;
+  const actualX = (actualPct / 100) * w;
+  return (
+    <svg width={w} height={h} style={{ overflow: "visible" }}>
+      <line x1={0} y1={h} x2={w} y2={0} stroke="var(--border-2)" strokeWidth={1} strokeDasharray="3,3" />
+      <line x1={0} y1={h} x2={actualX} y2={h - (actualPct / 100) * h} stroke="#60a5fa" strokeWidth={2} />
+      <circle cx={actualX} cy={h - (actualPct / 100) * h} r={3} fill="#60a5fa" />
     </svg>
-  );
-}
-
-function BarChart({ data, height = 80 }: { data: { label: string; value: number; color: string }[]; height?: number }) {
-  const max = Math.max(...data.map(d => d.value), 1);
-  return (
-    <div className="flex items-end gap-2" style={{ height }}>
-      {data.map((d, i) => (
-        <div key={i} className="flex flex-col items-center gap-1 flex-1">
-          <span style={{ fontSize: 10, color: "var(--text-3)", fontFamily: "Pretendard" }}>{d.value}</span>
-          <div className="w-full rounded-t-md transition-all" style={{ height: `${(d.value / max) * (height - 20)}px`, background: d.color, minHeight: d.value > 0 ? 4 : 0, boxShadow: d.value > 0 ? `0 0 8px ${d.color}66` : "none" }} />
-          <span style={{ fontSize: 9, color: "var(--text-3)", fontFamily: "Pretendard", textAlign: "center", lineHeight: 1.2 }}>{d.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ProgressBar({ value, color, bg }: { value: number; color: string; bg?: string }) {
-  return (
-    <div className="rounded-full overflow-hidden" style={{ height: 6, background: bg ?? "var(--bg-4)" }}>
-      <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(value, 100)}%`, background: color, boxShadow: `0 0 6px ${color}88` }} />
-    </div>
   );
 }
 
 export default function DashboardPage() {
   const supabase = createClient();
+  const [myUser, setMyUser] = useState<any>(null);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [myTasks, setMyTasks] = useState<any[]>([]);
+  const [memberStats, setMemberStats] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [openForm, setOpenForm] = useState(false);
   const [openDetail, setOpenDetail] = useState<string | null>(null);
-  const [stats, setStats] = useState({ today: 0, blocked: 0, review: 0, overdue: 0, total: 0, done: 0, completionRate: 0 });
-  const [statusDist, setStatusDist] = useState<any[]>([]);
-  const [priorityDist, setPriorityDist] = useState<any[]>([]);
-  const [memberStats, setMemberStats] = useState<any[]>([]);
-  const [projectStats, setProjectStats] = useState<any[]>([]);
-  const [recentTasks, setRecentTasks] = useState<any[]>([]);
+  const now = new Date();
+
+  const greet = () => {
+    const h = now.getHours();
+    if (h < 12) return "좋은 아침이에요";
+    if (h < 18) return "안녕하세요";
+    return "수고하셨어요";
+  };
 
   const load = useCallback(async () => {
-    const now = new Date();
-    const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
-    // 이번 달 시작/끝
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999).toISOString();
+    setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
-    const sel = "*, assignee_ids, assignee:users!tasks_assignee_id_fkey(name), project:projects(name)";
+    const { data: me } = await supabase.from("users").select("*").eq("auth_id", user.id).single();
+    setMyUser(me);
 
-    // 전체 진행 중 업무 (완료되지 않은 것)
-    const { data: activeTasks } = await supabase.from("tasks").select(sel).not("status", "eq", "done");
-    // 이번 달 완료 업무
-    const { data: doneTasks } = await supabase.from("tasks").select(sel)
-      .eq("status", "done").gte("completed_at", monthStart).lte("completed_at", monthEnd);
-    // 전체 업무 (차트용)
-    const { data: allTasks } = await supabase.from("tasks").select(sel);
+    // 프로젝트 health 자동 계산
+    calcAllProjectsHealth(supabase).catch(() => {});
 
-    const tasks: any[] = allTasks ?? [];
-    const active: any[] = activeTasks ?? [];
-    const doneThisMonth: any[] = doneTasks ?? [];
+    const isAdminOrLeader = me?.role === "admin" || me?.role === "leader";
+    const isViewer = me?.role === "viewer";
 
-    const today = active.filter(t => t.due_date && new Date(t.due_date) <= todayEnd).length;
-    const blocked = active.filter(t => t.status === "blocked").length;
-    const review = active.filter(t => t.status === "review").length;
-    const overdue = active.filter(t => t.due_date && new Date(t.due_date) < new Date()).length;
+    // 프로젝트 로드
+    let projQuery = supabase.from("projects").select("*, milestones(id, title, status, due_date), tasks(id, status)").eq("status", "active").order("created_at");
 
-    // 완료율 = 이번 달 완료 / (이번 달 완료 + 현재 진행 중)
-    const total = doneThisMonth.length + active.length;
-    const completionRate = total > 0 ? Math.round((doneThisMonth.length / total) * 100) : 0;
+    if (!isAdminOrLeader && !isViewer) {
+      // member/reviewer는 내가 속한 프로젝트만
+      const { data: myProjs } = await supabase.from("project_members").select("project_id").eq("user_id", me?.id);
+      const ids = (myProjs ?? []).map((p: any) => p.project_id);
+      if (ids.length > 0) projQuery = projQuery.in("id", ids);
+      else { setProjects([]); setLoading(false); return; }
+    }
 
-    setStats({
-      today, blocked, review, overdue,
-      total: active.length,
-      done: doneThisMonth.length,
-      completionRate,
-    });
-    const statusMap: Record<string, { label: string; color: string }> = {
-      backlog: { label: "백로그", color: "#4A7099" }, todo: { label: "할 일", color: "#7BA7C8" },
-      doing: { label: "진행", color: "#2E86FF" }, blocked: { label: "Blocked", color: "#FF4D6A" },
-      review: { label: "리뷰", color: "#F5A623" }, done: { label: "완료", color: "#00D4A0" },
-    };
-    setStatusDist(Object.entries(statusMap).map(([k, v]) => ({ ...v, value: tasks.filter(t => t.status === k).length })));
-    const prioMap: Record<string, { label: string; color: string }> = {
-      urgent: { label: "긴급", color: "#FF4D6A" }, high: { label: "높음", color: "#F5A623" },
-      medium: { label: "보통", color: "#2E86FF" }, low: { label: "낮음", color: "#4A7099" },
-    };
-    setPriorityDist(Object.entries(prioMap).map(([k, v]) => ({ ...v, value: tasks.filter(t => t.priority === k && t.status !== "done").length })));
-    const { data: usersRaw } = await supabase.from("users").select("*").eq("is_active", true).neq("role", "viewer");
-    const users: any[] = usersRaw ?? [];
-    const colors = ["#00C2CC","#2E86FF","#F5A623","#00D4A0","#A78BFA","#FF4D6A"];
-    setMemberStats(users.map((u: any, i: number) => ({
-      name: u.name,
-      doing: tasks.filter(t => (t.assignee_id === u.id || (t.assignee_ids ?? []).includes(u.id)) && t.status === "doing").length,
-      total: tasks.filter(t => (t.assignee_id === u.id || (t.assignee_ids ?? []).includes(u.id)) && t.status !== "done").length,
-      color: colors[i % colors.length],
-    })));
-    const { data: projectsRaw } = await supabase.from("projects").select("*").eq("status", "active");
-    const projects: any[] = projectsRaw ?? [];
-    setProjectStats(projects.map((p: any) => ({
-      name: p.name,
-      done: tasks.filter(t => t.project_id === p.id && t.status === "done").length,
-      total: tasks.filter(t => t.project_id === p.id).length,
-      health: p.health,
-    })));
-    // 최근 30일 업무
-    const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const { data: recent } = await supabase.from("tasks").select(sel)
-      .gte("updated_at", thirtyDaysAgo.toISOString())
-      .order("updated_at", { ascending: false }).limit(6);
-    setRecentTasks(recent ?? []);
+    const { data: projData } = await projQuery;
+    setProjects(projData ?? []);
+
+    // 내 업무 (viewer 제외)
+    if (!isViewer && me) {
+      const { data: tasks } = await supabase.from("tasks")
+        .select("*, project:projects(name)")
+        .or(`assignee_id.eq.${me.id},assignee_ids.cs.{${me.id}}`)
+        .neq("status", "done")
+        .order("due_date", { ascending: true, nullsFirst: false })
+        .limit(10);
+      setMyTasks(tasks ?? []);
+    }
+
+    // 팀원 업무량 (admin/leader만)
+    if (isAdminOrLeader) {
+      const { data: usersRaw } = await supabase.from("users").select("*").eq("is_active", true).neq("role", "viewer");
+      const { data: allTasks } = await supabase.from("tasks").select("id, status, assignee_id, assignee_ids").neq("status", "done");
+      const COLORS = ["#60a5fa","#34d399","#fbbf24","#f87171","#a78bfa","#fb923c","#22d3ee","#e879f9"];
+      const stats = (usersRaw ?? []).map((u: any, i: number) => ({
+        id: u.id, name: u.name, color: COLORS[i % COLORS.length],
+        doing: (allTasks ?? []).filter((t: any) => (t.assignee_id === u.id || (t.assignee_ids ?? []).includes(u.id)) && t.status === "doing").length,
+        total: (allTasks ?? []).filter((t: any) => (t.assignee_id === u.id || (t.assignee_ids ?? []).includes(u.id))).length,
+      })).filter(u => u.total > 0).sort((a, b) => b.total - a.total);
+      setMemberStats(stats);
+    }
+
+    setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const completionRate = stats.completionRate ?? 0;
-  const STATUS_COLOR: Record<string, string> = { backlog: "#4A7099", todo: "#7BA7C8", doing: "#2E86FF", blocked: "#FF4D6A", review: "#F5A623", done: "#00D4A0" };
-  const STATUS_LABEL: Record<string, string> = { backlog: "백로그", todo: "할 일", doing: "진행 중", blocked: "Blocked", review: "리뷰", done: "완료" };
-  const HEALTH_COLOR: Record<string, string> = { good: "#34d399", reviewing: "#60a5fa", at_risk: "#fbbf24", critical: "#f87171", suspended: "#71717a" };
-const HEALTH_LABEL_MAP: Record<string, string> = { good: "정상", reviewing: "검토 필요", at_risk: "주의", critical: "위험", suspended: "중단" };
+  if (loading) return (
+    <div className="flex items-center justify-center h-48">
+      <p style={{ color: "var(--text-3)" }}>로딩 중…</p>
+    </div>
+  );
+
+  const isAdminOrLeader = myUser?.role === "admin" || myUser?.role === "leader";
+  const isViewer = myUser?.role === "viewer";
+
+  // 긴급 업무 (마감 3일 이내 or blocked)
+  const urgentTasks = myTasks.filter(t =>
+    (t.due_date && (new Date(t.due_date).getTime() - now.getTime()) / 86400000 <= 3) || t.status === "blocked"
+  );
 
   return (
-    <div className="space-y-4 max-w-6xl">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 max-w-6xl">
+
+      {/* 헤더 */}
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: "var(--text-1)" }}>대시보드</h1>
-          <div className="flex items-center gap-3 mt-0.5">
-            <p className="text-xs" style={{ color: "var(--text-3)" }}>
-              {new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" })}
-            </p>
-            <span className="text-xs px-2 py-0.5 rounded-full"
-              style={{ background: "var(--cyan-bg)", color: "var(--cyan)", border: "1px solid var(--cyan)33" }}>
-              {new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long" })} 기준
-            </span>
-            <span className="text-xs" style={{ color: "var(--text-3)" }}>
-              최근 업무 피드 · 최근 30일
-            </span>
-          </div>
+          <p className="text-sm" style={{ color: "var(--text-3)" }}>
+            {now.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" })}
+          </p>
+          <h1 className="text-2xl font-bold mt-1" style={{ color: "var(--text-1)" }}>
+            {greet()}{myUser?.name ? `, ${myUser.name}님` : ""}
+          </h1>
         </div>
-        <button onClick={() => setOpenForm(true)} className="rounded-lg px-4 py-2 text-xs font-semibold"
-          style={{ background: "linear-gradient(135deg, #00C2CC, #2E86FF)", color: "#fff", boxShadow: "0 0 16px rgba(0,194,204,0.25)" }}>
-          + 새 업무
-        </button>
+        {!isViewer && (
+          <button onClick={() => setOpenForm(true)}
+            className="rounded-xl px-4 py-2.5 text-sm font-semibold"
+            style={{ background: "linear-gradient(135deg, var(--cyan), #2E86FF)", color: "#fff" }}>
+            + 새 업무
+          </button>
+        )}
       </div>
 
-      {/* 통계 카드 */}
-      <div className="grid grid-cols-4 gap-3">
-        {[
-          { label: "진행 중 업무", value: stats.total,  color: "#2E86FF", bg: "rgba(46,134,255,0.08)",  icon: "≡", sub: `이번 달 완료 ${stats.done}건` },
-          { label: "오늘 마감",  value: stats.today,   color: "#F5A623", bg: "rgba(245,166,35,0.08)",  icon: "◷", sub: `지연 ${stats.overdue}건` },
-          { label: "Blocked",    value: stats.blocked, color: "#FF4D6A", bg: "rgba(255,77,106,0.08)",  icon: "⊘", sub: "즉시 확인 필요" },
-          { label: "완료율",     value: `${completionRate}%`, color: "#00D4A0", bg: "rgba(0,212,160,0.08)", icon: "✓", sub: `${stats.done} / ${stats.total}건` },
-        ].map((c, i) => (
-          <div key={i} className="rounded-2xl p-4"
-            style={{ background: c.bg, border: `1px solid ${c.color}22`, boxShadow: `0 0 20px ${c.color}11` }}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium" style={{ color: "var(--text-2)" }}>{c.label}</span>
-              <span style={{ color: c.color, fontSize: 16 }}>{c.icon}</span>
-            </div>
-            <p className="text-3xl font-bold tabular-nums" style={{ color: c.color }}>{c.value}</p>
-            <p className="text-xs mt-1" style={{ color: "var(--text-3)" }}>{c.sub}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* 차트 행 */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-          <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-2)" }}>업무 상태 분포</p>
-          <DonutChart data={statusDist} size={100} />
-          <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5">
-            {statusDist.filter(d => d.value > 0).map((d, i) => (
-              <div key={i} className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full shrink-0" style={{ background: d.color }} />
-                <span className="text-xs" style={{ color: "var(--text-3)" }}>{d.label}</span>
-                <span className="text-xs font-semibold ml-auto" style={{ color: d.color }}>{d.value}</span>
-              </div>
+      {/* 긴급 업무 알림 (viewer 제외) */}
+      {!isViewer && urgentTasks.length > 0 && (
+        <div className="rounded-2xl px-4 py-3 flex items-center gap-3 flex-wrap"
+          style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.2)" }}>
+          <span style={{ fontSize: 16 }}>⚠️</span>
+          <p className="text-sm font-medium" style={{ color: "#f87171" }}>
+            긴급 업무 {urgentTasks.length}건 —
+          </p>
+          <div className="flex gap-2 flex-wrap">
+            {urgentTasks.slice(0, 3).map(t => (
+              <button key={t.id} onClick={() => setOpenDetail(t.id)}
+                className="text-xs px-2.5 py-1 rounded-lg transition-all"
+                style={{ background: "rgba(248,113,113,0.1)", color: "#f87171", border: "1px solid rgba(248,113,113,0.2)" }}>
+                {t.title}
+                {t.due_date && ` (D${Math.ceil((new Date(t.due_date).getTime() - now.getTime()) / 86400000)})`}
+              </button>
             ))}
+            {urgentTasks.length > 3 && <span className="text-xs" style={{ color: "var(--text-3)" }}>외 {urgentTasks.length - 3}건</span>}
           </div>
         </div>
-        <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-          <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-2)" }}>우선순위별 진행 업무</p>
-          <BarChart data={priorityDist} height={100} />
-        </div>
-        <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-          <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-2)" }}>팀원별 업무량</p>
-          <div className="space-y-3">
-            {memberStats.map((m, i) => (
-              <div key={i}>
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
-                      style={{ background: `${m.color}22`, color: m.color, fontSize: 10 }}>{m.name[0]}</div>
-                    <span className="text-xs" style={{ color: "var(--text-2)" }}>{m.name}</span>
-                  </div>
-                  <span className="text-xs tabular-nums" style={{ color: m.color }}>{m.total}건</span>
-                </div>
-                <ProgressBar value={m.total} max={Math.max(...memberStats.map((x: any) => x.total), 1)} color={m.color} />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      )}
 
-      {/* 간트 차트 */}
-      <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
+      {/* 프로젝트 현황 - 메인 */}
+      <div>
         <div className="flex items-center gap-2 mb-4">
-          <div className="w-1 h-4 rounded-full" style={{ background: "var(--cyan)" }} />
-          <p className="text-xs font-semibold" style={{ color: "var(--text-2)" }}>프로젝트 타임라인</p>
-          <div className="flex items-center gap-3 ml-auto">
-            {[
-              { color: "#00D4A0", label: "완료" }, { color: "#2E86FF", label: "진행 중" },
-              { color: "#F5A623", label: "계획" }, { color: "#FF4D6A", label: "지연" },
-            ].map(l => (
-              <div key={l.label} className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full" style={{ background: l.color }} />
-                <span className="text-xs" style={{ color: "var(--text-3)" }}>{l.label}</span>
-              </div>
-            ))}
-          </div>
+          <div className="w-1 h-5 rounded-full" style={{ background: "var(--cyan)" }} />
+          <h2 className="text-base font-bold" style={{ color: "var(--text-1)" }}>프로젝트 현황</h2>
+          <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "var(--bg-3)", color: "var(--text-3)" }}>{projects.length}개</span>
         </div>
-        <GanttChart />
-      </div>
 
-      {/* 하단 행 */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-          <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-2)" }}>프로젝트 진행 현황</p>
-          <div className="space-y-3">
-            {projectStats.map((p, i) => {
-              const pct = p.total > 0 ? Math.round((p.done / p.total) * 100) : 0;
-              const hc = HEALTH_COLOR[p.health] ?? "#7BA7C8";
+        {projects.length === 0 ? (
+          <div className="rounded-2xl py-12 text-center" style={{ background: "var(--bg-2)", border: "1px dashed var(--border-2)" }}>
+            <p className="text-sm" style={{ color: "var(--text-3)" }}>진행 중인 프로젝트가 없습니다</p>
+          </div>
+        ) : (
+          <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+            {projects.map((p: any) => {
+              const tasks = p.tasks ?? [];
+              const total = tasks.length;
+              const done = tasks.filter((t: any) => t.status === "done").length;
+              const doing = tasks.filter((t: any) => t.status === "doing").length;
+              const blocked = tasks.filter((t: any) => t.status === "blocked").length;
+              const rate = total > 0 ? Math.round((done / total) * 100) : 0;
+              const hc = HEALTH[p.health ?? "good"];
+              const currentMilestone = (p.milestones ?? []).find((m: any) => m.status === "in_progress");
+              const nextMilestone = (p.milestones ?? []).find((m: any) => m.status === "planned");
+              const daysLeft = p.end_date ? Math.ceil((new Date(p.end_date).getTime() - now.getTime()) / 86400000) : null;
+
               return (
-                <div key={i}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full" style={{ background: hc }} />
-                      <span className="text-xs font-medium truncate max-w-[140px]" style={{ color: "var(--text-1)" }}>{p.name}</span>
+                <a key={p.id} href={`/projects/${p.id}`}
+                  className="block rounded-2xl overflow-hidden transition-all"
+                  style={{ background: "var(--bg-2)", border: `1px solid ${hc.color}33` }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = `${hc.color}66`; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.borderColor = `${hc.color}33`; }}>
+
+                  {/* 프로젝트 헤더 */}
+                  <div className="px-5 pt-4 pb-3" style={{ borderBottom: "1px solid var(--border)" }}>
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <h3 className="text-sm font-bold truncate" style={{ color: "var(--text-1)" }}>{p.name}</h3>
+                          <span className="text-xs px-2 py-0.5 rounded-full font-semibold shrink-0"
+                            style={{ background: `${hc.color}15`, color: hc.color }}>
+                            {hc.label}
+                          </span>
+                        </div>
+                        {/* 진행률 바 */}
+                        <div className="flex items-center gap-2">
+                          <div style={{ flex: 1 }}><MiniProgress value={rate} color={hc.color} /></div>
+                          <span className="text-xs font-bold shrink-0" style={{ color: hc.color }}>{rate}%</span>
+                        </div>
+                      </div>
+                      {/* D-day */}
+                      {daysLeft !== null && (
+                        <div className="text-right shrink-0">
+                          <p className="text-xs" style={{ color: "var(--text-3)" }}>마감</p>
+                          <p className="text-sm font-bold" style={{ color: daysLeft < 0 ? "#f87171" : daysLeft <= 7 ? "#fbbf24" : "var(--text-2)" }}>
+                            {daysLeft < 0 ? `${Math.abs(daysLeft)}일 초과` : daysLeft === 0 ? "오늘" : `D-${daysLeft}`}
+                          </p>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs tabular-nums" style={{ color: "var(--text-3)" }}>{p.done}/{p.total}</span>
-                      <span className="text-xs font-bold tabular-nums" style={{ color: hc }}>{pct}%</span>
+
+                    {/* 업무 통계 */}
+                    <div className="flex items-center gap-3">
+                      {[
+                        { label: "전체", value: total, color: "var(--text-3)" },
+                        { label: "진행 중", value: doing, color: "#60a5fa" },
+                        { label: "완료", value: done, color: "#34d399" },
+                        ...(blocked > 0 ? [{ label: "Blocked", value: blocked, color: "#f87171" }] : []),
+                      ].map((s, i) => (
+                        <div key={i} className="flex items-center gap-1">
+                          <span className="text-xs" style={{ color: s.color }}>{s.label}</span>
+                          <span className="text-xs font-semibold" style={{ color: s.color }}>{s.value}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  <ProgressBar value={pct} color={hc} />
-                </div>
+
+                  {/* 마일스톤 + 번다운 */}
+                  <div className="px-5 py-3 flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      {currentMilestone && (
+                        <div className="mb-2">
+                          <p className="text-xs mb-0.5" style={{ color: "var(--text-3)" }}>진행 중 마일스톤</p>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#60a5fa" }} />
+                            <p className="text-xs font-medium truncate" style={{ color: "var(--text-1)" }}>{currentMilestone.title}</p>
+                            {currentMilestone.due_date && (
+                              <span className="text-xs shrink-0" style={{ color: "var(--text-3)" }}>
+                                ~{new Date(currentMilestone.due_date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {nextMilestone && (
+                        <div>
+                          <p className="text-xs mb-0.5" style={{ color: "var(--text-3)" }}>다음 마일스톤</p>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "var(--border-2)" }} />
+                            <p className="text-xs truncate" style={{ color: "var(--text-2)" }}>{nextMilestone.title}</p>
+                          </div>
+                        </div>
+                      )}
+                      {!currentMilestone && !nextMilestone && (
+                        <p className="text-xs" style={{ color: "var(--text-3)" }}>마일스톤 없음</p>
+                      )}
+                    </div>
+
+                    {/* 미니 번다운 */}
+                    {p.start_date && p.end_date && total > 0 && (
+                      <div className="shrink-0">
+                        <p className="text-xs mb-1 text-right" style={{ color: "var(--text-3)" }}>번다운</p>
+                        <MiniBurndown start={p.start_date} end={p.end_date} total={total} done={done} />
+                      </div>
+                    )}
+                  </div>
+                </a>
               );
             })}
-            {projectStats.length === 0 && <p className="text-xs text-center py-4" style={{ color: "var(--text-3)" }}>진행 중인 프로젝트 없음</p>}
           </div>
-        </div>
-        <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-          <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-2)" }}>최근 업무</p>
-          <div className="space-y-1.5">
-            {recentTasks.map((t: any) => (
-              <div key={t.id} className="flex items-center gap-2 rounded-lg px-3 py-2 cursor-pointer transition-all"
-                style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}
-                onClick={() => setOpenDetail(t.id)}
-                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border-2)"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border)"; }}>
-                <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: STATUS_COLOR[t.status] }} />
-                <span className="flex-1 text-xs truncate" style={{ color: "var(--text-1)" }}>{t.title}</span>
-                <span className="text-xs px-1.5 py-0.5 rounded-md shrink-0"
-                  style={{ background: `${STATUS_COLOR[t.status]}18`, color: STATUS_COLOR[t.status] }}>
-                  {STATUS_LABEL[t.status]}
-                </span>
-                {t.assignee && (
-                  <span className="w-4 h-4 rounded-full flex items-center justify-center shrink-0"
-                    style={{ background: "var(--cyan-bg)", color: "var(--cyan)", fontSize: 9, fontWeight: 700 }}>
-                    {t.assignee.name[0]}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* AI 피드백 */}
-      <PlanningFeedback mode="dashboard" />
+      {/* 내 업무 요약 (viewer 제외) */}
+      {!isViewer && myTasks.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-1 h-5 rounded-full" style={{ background: "#a78bfa" }} />
+            <h2 className="text-base font-bold" style={{ color: "var(--text-1)" }}>내 업무</h2>
+            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "var(--bg-3)", color: "var(--text-3)" }}>{myTasks.length}건</span>
+          </div>
+          <div className="space-y-2">
+            {myTasks.slice(0, 6).map(t => {
+              const STATUS_COLOR: Record<string, string> = { doing: "#60a5fa", todo: "#a1a1aa", review: "#fbbf24", blocked: "#f87171", backlog: "#52525b" };
+              const STATUS_LABEL: Record<string, string> = { doing: "진행 중", todo: "할 일", review: "리뷰", blocked: "Blocked", backlog: "백로그" };
+              const sc = STATUS_COLOR[t.status] ?? "#a1a1aa";
+              const daysLeft = t.due_date ? Math.ceil((new Date(t.due_date).getTime() - now.getTime()) / 86400000) : null;
 
-      {openForm && <TaskForm onClose={() => setOpenForm(false)} onCreated={() => { load(); setOpenForm(false); }} />}
-      {openDetail && <TaskDetail taskId={openDetail} onClose={() => setOpenDetail(null)} onRefresh={() => { setOpenDetail(null); load(); }} />}
+              return (
+                <button key={t.id} onClick={() => setOpenDetail(t.id)}
+                  className="w-full rounded-xl px-4 py-3 flex items-center gap-3 text-left transition-all"
+                  style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border-2)"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border)"; }}>
+                  <div className="w-2 h-2 rounded-full shrink-0" style={{ background: sc }} />
+                  <p className="flex-1 text-sm truncate" style={{ color: "var(--text-1)" }}>{t.title}</p>
+                  {t.project?.name && <span className="text-xs shrink-0" style={{ color: "var(--text-3)" }}>{t.project.name}</span>}
+                  <span className="text-xs px-2 py-0.5 rounded-full shrink-0 font-medium" style={{ background: `${sc}15`, color: sc }}>
+                    {STATUS_LABEL[t.status] ?? t.status}
+                  </span>
+                  {daysLeft !== null && (
+                    <span className="text-xs shrink-0" style={{ color: daysLeft < 0 ? "#f87171" : daysLeft <= 3 ? "#fbbf24" : "var(--text-3)" }}>
+                      {daysLeft < 0 ? `${Math.abs(daysLeft)}일 초과` : daysLeft === 0 ? "오늘" : `D-${daysLeft}`}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 팀원 업무량 + AI 피드백 (admin/leader만) */}
+      {isAdminOrLeader && (
+        <div className="grid grid-cols-2 gap-6">
+          {/* 팀원 업무량 */}
+          {memberStats.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-1 h-5 rounded-full" style={{ background: "#fbbf24" }} />
+                <h2 className="text-base font-bold" style={{ color: "var(--text-1)" }}>팀원별 업무량</h2>
+              </div>
+              <div className="rounded-2xl p-4 space-y-3" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
+                {memberStats.map((m: any) => {
+                  const maxTotal = Math.max(...memberStats.map(x => x.total), 1);
+                  return (
+                    <div key={m.id}>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <div className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
+                            style={{ background: `${m.color}22`, color: m.color }}>
+                            {m.name?.[0]}
+                          </div>
+                          <span className="text-xs" style={{ color: "var(--text-2)" }}>{m.name}</span>
+                        </div>
+                        <span className="text-xs font-semibold" style={{ color: "var(--text-2)" }}>{m.total}건</span>
+                      </div>
+                      <div style={{ height: 5, background: "var(--bg-4)", borderRadius: 3, overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${(m.total / maxTotal) * 100}%`, background: m.color, borderRadius: 3 }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* AI 피드백 */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-1 h-5 rounded-full" style={{ background: "#a78bfa" }} />
+              <h2 className="text-base font-bold" style={{ color: "var(--text-1)" }}>AI 피드백</h2>
+            </div>
+            <PlanningFeedback mode="dashboard" />
+          </div>
+        </div>
+      )}
+
+      {openForm && <TaskForm onClose={() => setOpenForm(false)} onSaved={() => { load(); setOpenForm(false); }} />}
+      {openDetail && <TaskDetail taskId={openDetail} onClose={() => setOpenDetail(null)} onRefresh={load} />}
     </div>
   );
 }
