@@ -105,18 +105,20 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
       .then(({ count }) => { if (count != null) setCommentCount(count); });
   }, [task.id]);
 
-  const s = STATUS[task.status] ?? { label: task.status, color: "#7BA7C8", bg: "rgba(123,167,200,0.12)" };
+  const [localStatus, setLocalStatus] = useState(task.status);
+  const s = STATUS[localStatus] ?? { label: localStatus, color: "#7BA7C8", bg: "rgba(123,167,200,0.12)" };
   const p = PRIORITY[task.priority] ?? { label: task.priority, color: "#7BA7C8" };
   const overdue = task.due_date && task.status !== "done" && new Date(task.due_date) < new Date();
 
   async function changeStatus(newStatus: TaskStatus, blockedReason?: string) {
     setLoading(true);
+    setLocalStatus(newStatus); // 낙관적 업데이트
+    setOpen(false); setShowBlocked(false); setReason("");
     await supabase.from("tasks").update({
       status: newStatus,
       blocked_reason: newStatus === "blocked" ? (blockedReason ?? null) : null,
     }).eq("id", task.id);
     setLoading(false);
-    setOpen(false); setShowBlocked(false); setReason("");
     onRefresh();
   }
 

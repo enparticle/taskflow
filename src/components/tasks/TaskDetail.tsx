@@ -56,6 +56,21 @@ function fmtDT(d: string | null) {
 
 interface Props { taskId: string; onClose: () => void; onRefresh: () => void; }
 
+function Section({ title, defaultOpen = true, children }: { title: string; defaultOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div>
+      <button onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between mb-2 py-1"
+        style={{ borderBottom: "1px solid var(--border)" }}>
+        <p className="text-xs font-semibold" style={{ color: "var(--text-3)" }}>{title}</p>
+        <span className="text-xs" style={{ color: "var(--text-3)" }}>{open ? "▾" : "▸"}</span>
+      </button>
+      {open && children}
+    </div>
+  );
+}
+
 export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
   const supabase = createClient();
   const [task, setTask] = useState<T | null>(null);
@@ -285,8 +300,8 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
           </div>
 
           {/* 설명 */}
-          <div>
-            <p className="text-xs font-medium mb-1.5" style={{ color: "var(--text-3)" }}>설명</p>
+          <Section title="설명">
+            <div>
             {editing === "description" ? (
               <div className="space-y-2">
                 <textarea autoFocus value={editVal} onChange={e => setEditVal(e.target.value)} rows={4}
@@ -306,7 +321,8 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
                 {(task as any).description || (canEdit ? "설명 없음 — 클릭해서 입력" : "설명 없음")}
               </p>
             )}
-          </div>
+            </div>
+          </Section>
 
           {/* 미팅 완료 버튼 */}
           {isMeeting && task.status !== "done" && canEdit && (
@@ -502,6 +518,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
           </div>
 
           {/* 세부 필드 */}
+          <Section title="세부 정보" defaultOpen={true}>
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
               <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>프로젝트</p>
@@ -582,10 +599,11 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
               </div>
             )}
           </div>
+          </Section>
 
           {/* 타임라인 */}
+          <Section title="타임라인" defaultOpen={false}>
           <div className="rounded-xl p-4" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
-            <p className="text-xs font-medium mb-3" style={{ color: "var(--text-3)" }}>타임라인</p>
             <div className={`grid gap-3 text-center ${isMeeting ? "grid-cols-2" : "grid-cols-3"}`}>
               {isMeeting ? (
                 <>
@@ -638,11 +656,12 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
               )}
             </div>
           </div>
+          </Section>
 
           {/* 변경 이력 */}
           {events.length > 0 && (
+          <Section title="변경 이력" defaultOpen={false}>
             <div className="rounded-xl p-4" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
-              <p className="text-xs font-medium mb-3" style={{ color: "var(--text-3)" }}>변경 이력</p>
               <div className="space-y-2">
                 {events.map((ev, i) => (
                   <div key={ev.id ?? i} className="flex items-start gap-2 text-xs">
@@ -664,6 +683,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
                 ))}
               </div>
             </div>
+          </Section>
           )}
 
           {/* 리뷰 */}
@@ -675,15 +695,14 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
           )}
 
           {/* 업무 의존성 */}
-          <div>
-            <p className="text-xs font-medium mb-2" style={{ color: "var(--text-3)" }}>업무 의존성</p>
+          <Section title="업무 의존성" defaultOpen={false}>
             <TaskDependencies taskId={taskId} projectId={(task as any).project_id} />
-          </div>
+          </Section>
 
           {/* 댓글 */}
-          <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+          <Section title="댓글" defaultOpen={true}>
             <TaskComments taskId={taskId} />
-          </div>
+          </Section>
         </div>
       </div>
     </div>
