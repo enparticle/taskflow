@@ -1,107 +1,103 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 const BASE_RULES = `
-분석 기준 (반드시 이 순서로 사고하세요):
-1. 패턴 인식: 수치에서 반복되는 패턴이나 이상징후를 찾으세요
-2. 원인 추론: 그 패턴이 왜 발생했는지 구조적 원인을 추론하세요
-3. 리스크 예측: 이 상태가 지속되면 어떤 문제가 생길지 예측하세요
-4. 실행 가능한 조치: 이번 주 안에 할 수 있는 구체적 행동을 제시하세요
-5. 균형: 잘 되고 있는 점도 반드시 언급하세요
-
-금지사항:
-- 단순 사실 나열 금지
-- 모호한 조언 금지
-- 수치 그대로 반복 금지`;
+遺꾩꽍 湲곗? (諛섎뱶?????쒖꽌濡??ш퀬?섏꽭??:
+1. ?⑦꽩 ?몄떇: ?섏튂?먯꽌 諛섎났?섎뒗 ?⑦꽩?대굹 ?댁긽吏뺥썑瑜?李얠쑝?몄슂
+2. ?먯씤 異붾줎: 洹??⑦꽩????諛쒖깮?덈뒗吏 援ъ“???먯씤??異붾줎?섏꽭??3. 由ъ뒪???덉륫: ???곹깭媛 吏?띾릺硫??대뼡 臾몄젣媛 ?앷만吏 ?덉륫?섏꽭??4. ?ㅽ뻾 媛?ν븳 議곗튂: ?대쾲 二??덉뿉 ?????덈뒗 援ъ껜???됰룞???쒖떆?섏꽭??5. 洹좏삎: ???섍퀬 ?덈뒗 ?먮룄 諛섎뱶???멸툒?섏꽭??
+湲덉??ы빆:
+- ?⑥닚 ?ъ떎 ?섏뿴 湲덉?
+- 紐⑦샇??議곗뼵 湲덉?
+- ?섏튂 洹몃?濡?諛섎났 湲덉?`;
 
 const PROJECT_HEALTH_CRITERIA = `
-project_health 판단 기준 (snapshot의 burndown_divergence_pct 참고):
+project_health ?먮떒 湲곗? (snapshot??burndown_divergence_pct 李멸퀬):
 
-[시작일/마감일 있는 경우 - 번다운 괴리율 기준]
-- good(정상): 괴리율 10% 이내, Blocked 2건 미만
-- reviewing(검토 필요): 괴리율 10~20% OR Blocked 2건 이상
-- at_risk(주의): 괴리율 20~35% OR Blocked 3건 이상
-- critical(위험): 마감 초과 OR 괴리율 35% 초과 OR Blocked 5건 이상
+[?쒖옉??留덇컧???덈뒗 寃쎌슦 - 踰덈떎??愿대━??湲곗?]
+- good(?뺤긽): 愿대━??10% ?대궡, Blocked 2嫄?誘몃쭔
+- reviewing(寃???꾩슂): 愿대━??10~20% OR Blocked 2嫄??댁긽
+- at_risk(二쇱쓽): 愿대━??20~35% OR Blocked 3嫄??댁긽
+- critical(?꾪뿕): 留덇컧 珥덇낵 OR 愿대━??35% 珥덇낵 OR Blocked 5嫄??댁긽
 
-[시작일/마감일 없는 경우 - 보수적 기준]
-- good(정상): Blocked 3건 미만, 지연 7건 미만이면 기본 정상
-- reviewing(검토 필요): Blocked 3건 이상 OR 지연 7건 이상
-- at_risk(주의): Blocked 5건 이상 OR 지연 10건 이상
-- critical(위험): Blocked 7건 이상
+[?쒖옉??留덇컧???녿뒗 寃쎌슦 - 蹂댁닔??湲곗?]
+- good(?뺤긽): Blocked 3嫄?誘몃쭔, 吏??7嫄?誘몃쭔?대㈃ 湲곕낯 ?뺤긽
+- reviewing(寃???꾩슂): Blocked 3嫄??댁긽 OR 吏??7嫄??댁긽
+- at_risk(二쇱쓽): Blocked 5嫄??댁긽 OR 吏??10嫄??댁긽
+- critical(?꾪뿕): Blocked 7嫄??댁긽
 
-공통: suspended(중단)는 현재 health가 suspended일 때만 반환.
-분석 내용은 자유롭게 작성하되 project_health 값은 위 기준을 따르세요.`;
+怨듯넻: suspended(以묐떒)???꾩옱 health媛 suspended???뚮쭔 諛섑솚.
+遺꾩꽍 ?댁슜? ?먯쑀濡?쾶 ?묒꽦?섎릺 project_health 媛믪? ??湲곗????곕Ⅴ?몄슂.`;
 
 const SUGGESTION_RULES = `
-AI 추천 사항 (suggestions):
-분석 결과 구체적인 변경이 필요하면 suggestions 배열에 추가하세요.
-사용자가 승인하면 자동으로 적용됩니다.
+AI 異붿쿇 ?ы빆 (suggestions):
+遺꾩꽍 寃곌낵 援ъ껜?곸씤 蹂寃쎌씠 ?꾩슂?섎㈃ suggestions 諛곗뿴??異붽??섏꽭??
+?ъ슜?먭? ?뱀씤?섎㈃ ?먮룞?쇰줈 ?곸슜?⑸땲??
 
-추천 가능한 항목:
-- assignee: 담당자 재배분 (task_id + suggested_value: "사용자 이름")
-- deadline: 마감일 조정 (task_id + suggested_value: "YYYY-MM-DD")
-- priority: 우선순위 변경 (task_id + suggested_value: "urgent|high|medium|low")
-- status: 상태 변경 (task_id + suggested_value: "todo|doing|review|blocked|done|backlog")
+異붿쿇 媛?ν븳 ??ぉ:
+- assignee: ?대떦???щ같遺?(task_id + suggested_value: "?ъ슜???대쫫")
+- deadline: 留덇컧??議곗젙 (task_id + suggested_value: "YYYY-MM-DD")
+- priority: ?곗꽑?쒖쐞 蹂寃?(task_id + suggested_value: "urgent|high|medium|low")
+- status: ?곹깭 蹂寃?(task_id + suggested_value: "todo|doing|review|blocked|done|backlog")
 
-추천 조건:
-- 명확한 근거가 있을 때만 추천 (불명확하면 suggestions 비워두기)
-- 담당자 추천 시 반드시 snapshot의 team 데이터에 있는 사람만 추천
-- 마감일은 현실적인 날짜로 추천`;
+異붿쿇 議곌굔:
+- 紐낇솗??洹쇨굅媛 ?덉쓣 ?뚮쭔 異붿쿇 (遺덈챸?뺥븯硫?suggestions 鍮꾩썙?먭린)
+- ?대떦??異붿쿇 ??諛섎뱶??snapshot??team ?곗씠?곗뿉 ?덈뒗 ?щ엺留?異붿쿇
+- 留덇컧?쇱? ?꾩떎?곸씤 ?좎쭨濡?異붿쿇`;
 
 function buildPrompt(snapshot: any): string {
   const context = snapshot.context ?? "";
-  const isProject = context.startsWith("프로젝트:");
-  const isTasks = context.includes("업무 목록") || context.includes("업무");
+  const isProject = context.startsWith("?꾨줈?앺듃:");
+  const isTasks = context.includes("?낅Т 紐⑸줉") || context.includes("?낅Т");
 
-  let roleDesc = "조직 운영과 팀 역학에 정통한 시니어 컨설턴트";
-  let focusDesc = "표면적 수치가 아닌 구조적 문제와 팀 역학을 진단";
+  let roleDesc = "議곗쭅 ?댁쁺怨?? ??븰???뺥넻???쒕땲??而⑥꽕?댄듃";
+  let focusDesc = "?쒕㈃???섏튂媛 ?꾨땶 援ъ“??臾몄젣? ? ??븰??吏꾨떒";
 
   if (isProject) {
-    roleDesc = "프로젝트 관리 전문가";
-    focusDesc = "이 프로젝트의 진행 리스크, 마일스톤 달성 가능성, 팀 내 병목을 진단";
+    roleDesc = "?꾨줈?앺듃 愿由??꾨Ц媛";
+    focusDesc = "???꾨줈?앺듃??吏꾪뻾 由ъ뒪?? 留덉씪?ㅽ넠 ?ъ꽦 媛?μ꽦, ? ??蹂묐ぉ??吏꾨떒";
   } else if (isTasks) {
-    roleDesc = "업무 프로세스 전문가";
-    focusDesc = "업무 분배, 우선순위 설정, 진행 흐름의 문제를 진단";
+    roleDesc = "?낅Т ?꾨줈?몄뒪 ?꾨Ц媛";
+    focusDesc = "?낅Т 遺꾨같, ?곗꽑?쒖쐞 ?ㅼ젙, 吏꾪뻾 ?먮쫫??臾몄젣瑜?吏꾨떒";
   }
 
   const projectHealthField = isProject ? '\n  "project_health": "good|reviewing|at_risk|critical|suspended",' : "";
 
-  return `당신은 ${roleDesc}입니다. 아래 데이터를 보고 ${focusDesc}해주세요.
+  return `?뱀떊? ${roleDesc}?낅땲?? ?꾨옒 ?곗씠?곕? 蹂닿퀬 ${focusDesc}?댁＜?몄슂.
 
-현황 데이터:
+?꾪솴 ?곗씠??
 ${JSON.stringify(snapshot)}
 ${BASE_RULES}
 ${isProject ? PROJECT_HEALTH_CRITERIA : ""}
 ${SUGGESTION_RULES}
 
-아래 JSON 형식으로만 응답하세요. 마크다운이나 코드블록 없이 순수 JSON만:
+?꾨옒 JSON ?뺤떇?쇰줈留??묐떟?섏꽭?? 留덊겕?ㅼ슫?대굹 肄붾뱶釉붾줉 ?놁씠 ?쒖닔 JSON留?
 {${projectHealthField}
-  "summary": "핵심 진단 한 문장 (60자이내)",
+  "summary": "?듭떖 吏꾨떒 ??臾몄옣 (60?먯씠??",
   "items": [
     {
       "level": "danger|warning|info",
-      "title": "진단명 (20자이내)",
-      "detail": "패턴 원인 리스크 순서로 서술 (120자이내)",
-      "action": "이번 주 실행 가능한 구체적 조치 (70자이내)"
+      "title": "吏꾨떒紐?(20?먯씠??",
+      "detail": "?⑦꽩 ?먯씤 由ъ뒪???쒖꽌濡??쒖닠 (120?먯씠??",
+      "action": "?대쾲 二??ㅽ뻾 媛?ν븳 援ъ껜??議곗튂 (70?먯씠??"
     }
   ],
   "overall_risk": "high|medium|low",
   "suggestions": [
     {
       "type": "assignee|deadline|priority|status",
-      "task_id": "업무 ID (snapshot의 tasks에서)",
-      "task_title": "업무명",
+      "task_id": "?낅Т ID (snapshot??tasks?먯꽌)",
+      "task_title": "?낅Т紐?,
       "field": "assignee_id|due_date|priority|status",
-      "current_value": "현재 값",
-      "suggested_value": "추천 값",
-      "reason": "추천 이유 (50자이내)"
+      "current_value": "?꾩옱 媛?,
+      "suggested_value": "異붿쿇 媛?,
+      "reason": "異붿쿇 ?댁쑀 (50?먯씠??"
     }
   ]
 }
 
-level은 danger/warning/info, overall_risk는 high/medium/low.
-items는 최대 6개. suggestions는 근거가 명확할 때만, 최대 5개.`;
+level? danger/warning/info, overall_risk??high/medium/low.
+items??理쒕? 6媛? suggestions??洹쇨굅媛 紐낇솗???뚮쭔, 理쒕? 5媛?`;
 }
 
 async function callWithRetry(client: any, params: any, maxRetries = 3): Promise<any> {
@@ -128,22 +124,24 @@ export async function POST(req: NextRequest) {
 
     const message = await callWithRetry(client, {
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 1500,
-      system: "당신은 JSON만 반환합니다. 절대로 마크다운, 코드블록, 설명 텍스트를 포함하지 마세요. 응답은 반드시 { 로 시작하고 } 로 끝나야 합니다.",
+      max_tokens: 2500,
+      system: "?뱀떊? JSON留?諛섑솚?⑸땲?? ?덈?濡?留덊겕?ㅼ슫, 肄붾뱶釉붾줉, ?ㅻ챸 ?띿뒪?몃? ?ы븿?섏? 留덉꽭?? ?묐떟? 諛섎뱶??{ 濡??쒖옉?섍퀬 } 濡??앸굹???⑸땲??",
       messages: [{ role: "user", content: prompt }],
     });
 
     const text = message.content[0].type === "text" ? message.content[0].text.trim() : "";
-    console.log("RAW RESPONSE:", JSON.stringify(text));
+    const raw = message.content[0].type === "text" ? message.content[0].text.trim() : "";
+    // 코드블록 제거
+    const text = raw.replace(/^```[a-z]*\s*/m, "").replace(/\s*```\s*$/m, "").trim();
 
     let result = null;
     try { result = JSON.parse(text); } catch {}
     if (!result) {
-      const clean = text.replace(/```json|```/g, "").trim();
-      try { result = JSON.parse(clean); } catch {}
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) { try { result = JSON.parse(match[0]); } catch {} }
     }
     if (!result) {
-      // 백틱 코드블록 제거 후 JSON 추출
+      // 諛깊떛 肄붾뱶釉붾줉 ?쒓굅 ??JSON 異붿텧
       const stripped = text.replace(/^```[a-z]*\n?/gm, "").replace(/```$/gm, "").trim();
       try { result = JSON.parse(stripped); } catch {}
       if (!result) {
@@ -153,15 +151,14 @@ export async function POST(req: NextRequest) {
     }
     if (!result) {
       result = {
-        summary: "데이터 분석 완료",
-        items: [{ level: "info", title: "분석 결과", detail: text.slice(0, 100), action: "TaskFlow에서 상세 확인" }],
+        summary: "?곗씠??遺꾩꽍 ?꾨즺",
+        items: [{ level: "info", title: "遺꾩꽍 寃곌낵", detail: text.slice(0, 100), action: "TaskFlow?먯꽌 ?곸꽭 ?뺤씤" }],
         overall_risk: "medium",
         suggestions: [],
       };
     }
 
-    // suggestions를 DB에 저장
-    if (result.suggestions?.length > 0 && snapshot.project_id) {
+    // suggestions瑜?DB?????    if (result.suggestions?.length > 0 && snapshot.project_id) {
       try {
         const supabase = createClient(
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -188,3 +185,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
