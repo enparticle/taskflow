@@ -134,6 +134,7 @@ export async function POST(req: NextRequest) {
     });
 
     const text = message.content[0].type === "text" ? message.content[0].text.trim() : "";
+    console.log("RAW RESPONSE:", JSON.stringify(text));
 
     let result = null;
     try { result = JSON.parse(text); } catch {}
