@@ -142,8 +142,13 @@ export async function POST(req: NextRequest) {
       try { result = JSON.parse(clean); } catch {}
     }
     if (!result) {
-      const match = text.match(/\{[\s\S]*\}/);
-      if (match) { try { result = JSON.parse(match[0]); } catch {} }
+      // 백틱 코드블록 제거 후 JSON 추출
+      const stripped = text.replace(/^```[a-z]*\n?/gm, "").replace(/```$/gm, "").trim();
+      try { result = JSON.parse(stripped); } catch {}
+      if (!result) {
+        const match = stripped.match(/\{[\s\S]*\}/);
+        if (match) { try { result = JSON.parse(match[0]); } catch {} }
+      }
     }
     if (!result) {
       result = {
