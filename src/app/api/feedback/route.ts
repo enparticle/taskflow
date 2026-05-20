@@ -11,7 +11,7 @@ const BASE_RULES = `
 5. 균형: 잘 되고 있는 점도 반드시 언급하세요
 
 금지사항:
-- "X건이 있습니다", "확인이 필요합니다" 같은 단순 사실 나열 금지
+- 단순 사실 나열 금지
 - 모호한 조언 금지
 - 수치 그대로 반복 금지`;
 
@@ -30,7 +30,8 @@ project_health 판단 기준 (snapshot의 burndown_divergence_pct 참고):
 - at_risk(주의): Blocked 5건 이상 OR 지연 10건 이상
 - critical(위험): Blocked 7건 이상
 
-공통: suspended(중단)는 현재 health가 suspended일 때만 반환.`;
+공통: suspended(중단)는 현재 health가 suspended일 때만 반환.
+분석 내용은 자유롭게 작성하되 project_health 값은 위 기준을 따르세요.`;
 
 const SUGGESTION_RULES = `
 AI 추천 사항 (suggestions):
@@ -103,6 +104,20 @@ level은 danger/warning/info, overall_risk는 high/medium/low.
 items는 최대 6개. suggestions는 근거가 명확할 때만, 최대 5개.`;
 }
 
+async function callWithRetry(client: any, params: any, maxRetries = 3): Promise<any> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await client.messages.create(params);
+    } catch (e: any) {
+      if (e?.status === 529 && i < maxRetries - 1) {
+        await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+        continue;
+      }
+      throw e;
+    }
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const Anthropic = (await import("@anthropic-ai/sdk")).default;
@@ -111,7 +126,7 @@ export async function POST(req: NextRequest) {
     const { snapshot } = await req.json();
     const prompt = buildPrompt(snapshot);
 
-    const message = await client.messages.create({
+    const message = await callWithRetry(client, {
       model: "claude-haiku-4-5-20251001",
       max_tokens: 1500,
       system: "당신은 JSON만 반환합니다. 절대로 마크다운, 코드블록, 설명 텍스트를 포함하지 마세요. 응답은 반드시 { 로 시작하고 } 로 끝나야 합니다.",
