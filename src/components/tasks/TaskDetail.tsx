@@ -88,6 +88,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
   const [showAssigneeMenu, setShowAssigneeMenu] = useState(false);
   const [canDelete, setCanDelete] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
+  const [canChangeStatus, setCanChangeStatus] = useState(false);
   const [myUser, setMyUser] = useState<any>(null);
   const [meetingNote, setMeetingNote] = useState<any>(null);
   const [meetingNotes, setMeetingNotes] = useState<any[]>([]);
@@ -159,7 +160,10 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
       const ids = (data as any)?.assignee_ids ?? [];
       const isAssignee = ids.includes(authUser.userId) || (data as any)?.assignee_id === authUser.userId;
       setCanDelete(canDeleteTask(authUser.role, projRole));
-      setCanEdit(authUser.role === "admin" || projRole === "leader" || projRole === "reviewer" || isAssignee);
+      // Admin/Leader만 전체 수정 가능
+      setCanEdit(authUser.role === "admin" || projRole === "leader");
+      // 상태 변경은 Admin/Leader + 본인 업무 담당자
+      setCanChangeStatus(authUser.role === "admin" || projRole === "leader" || isAssignee);
     }
     setLoading(false);
   }
@@ -341,7 +345,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
           </Section>
 
           {/* 미팅 완료 버튼 */}
-          {isMeeting && task.status !== "done" && canEdit && (
+          {isMeeting && task.status !== "done" && canChangeStatus && (
             <button onClick={() => changeStatus("done" as any)}
               className="w-full rounded-xl py-2.5 text-xs font-semibold transition-all"
               style={{ background: "rgba(52,211,153,0.15)", color: "#34d399", border: "1px solid rgba(52,211,153,0.3)" }}>
@@ -424,7 +428,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
           {/* 상태 */}
           <div>
             <p className="text-xs font-medium mb-1.5" style={{ color: "var(--text-3)" }}>상태</p>
-            {canEdit ? (
+            {canChangeStatus ? (
               <div className="relative inline-block">
                 <button onClick={() => setShowStatusMenu(!showStatusMenu)}
                   className="rounded-lg px-3 py-2 text-sm font-semibold"
@@ -481,8 +485,8 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
           <div ref={assigneeRef}>
             <p className="text-xs font-medium mb-1.5" style={{ color: "var(--text-3)" }}>담당자</p>
             <button type="button"
-              onClick={e => { e.stopPropagation(); setShowAssigneeMenu(v => !v); }}
-              className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left"
+              onClick={e => { e.stopPropagation(); if (canEdit) setShowAssigneeMenu(v => !v); }}
+              className={`w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left ${canEdit ? "" : "cursor-default"}`}
               style={{ background: "var(--bg-3)", border: "1px solid var(--border)", minHeight: 40 }}>
               {selectedUsers.length === 0 ? (
                 <span style={{ color: "var(--text-3)", fontSize: 12 }}>담당자 선택</span>
@@ -494,8 +498,10 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
                       <span key={u.id} className="flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold"
                         style={{ background: `${color}20`, color, border: `1px solid ${color}33` }}>
                         {u.name}
-                        <span onClick={e => { e.stopPropagation(); toggleAssignee(u.id); }}
-                          className="cursor-pointer hover:opacity-60 ml-0.5" style={{ fontSize: 10 }}>✕</span>
+                        {canEdit && (
+                          <span onClick={e => { e.stopPropagation(); toggleAssignee(u.id); }}
+                            className="cursor-pointer hover:opacity-60 ml-0.5" style={{ fontSize: 10 }}>✕</span>
+                        )}
                       </span>
                     );
                   })}
@@ -538,15 +544,17 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
               <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>프로젝트</p>
-              <select value={(task as any).project_id ?? ""} onChange={e => update("project_id", e.target.value || null)}
-                className="w-full text-xs focus:outline-none" style={{ background: "transparent", color: "#E8F4FF", border: "none", colorScheme: "dark" }}>
+              <select value={(task as any).project_id ?? ""} onChange={e => canEdit && update("project_id", e.target.value || null)}
+                disabled={!canEdit}
+                className="w-full text-xs focus:outline-none" style={{ background: "transparent", color: canEdit ? "#E8F4FF" : "var(--text-3)", border: "none", colorScheme: "dark" }}>
                 <option value="">없음</option>
                 {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
             <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
               <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>우선순위</p>
-              <select value={task.priority} onChange={e => update("priority", e.target.value)}
+              <select value={task.priority} onChange={e => canEdit && update("priority", e.target.value)}
+                disabled={!canEdit}
                 className="w-full text-xs font-semibold focus:outline-none" style={{ background: "transparent", color: p.color, border: "none", colorScheme: "dark" }}>
                 {["low","medium","high","urgent"].map(v => <option key={v} value={v}>{PRIORITY[v].label}</option>)}
               </select>
@@ -554,8 +562,9 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
             {milestones.length > 0 && (
               <div className="rounded-xl p-3 col-span-2" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
                 <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>마일스톤</p>
-                <select value={(task as any).milestone_id ?? ""} onChange={e => update("milestone_id", e.target.value || null)}
-                  className="w-full text-xs focus:outline-none" style={{ background: "transparent", color: "#E8F4FF", border: "none", colorScheme: "dark" }}>
+                <select value={(task as any).milestone_id ?? ""} onChange={e => canEdit && update("milestone_id", e.target.value || null)}
+                  disabled={!canEdit}
+                  className="w-full text-xs focus:outline-none" style={{ background: "transparent", color: canEdit ? "#E8F4FF" : "var(--text-3)", border: "none", colorScheme: "dark" }}>
                   <option value="">미분류</option>
                   {milestones.map((m: any) => (
                     <option key={m.id} value={m.id}>
@@ -567,8 +576,9 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
             )}
             <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
               <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>난이도</p>
-              <select value={(task as any).difficulty ?? ""} onChange={e => update("difficulty", e.target.value || null)}
-                className="w-full text-xs focus:outline-none" style={{ background: "transparent", color: "#E8F4FF", border: "none", colorScheme: "dark" }}>
+              <select value={(task as any).difficulty ?? ""} onChange={e => canEdit && update("difficulty", e.target.value || null)}
+                disabled={!canEdit}
+                className="w-full text-xs focus:outline-none" style={{ background: "transparent", color: canEdit ? "#E8F4FF" : "var(--text-3)", border: "none", colorScheme: "dark" }}>
                 <option value="">미정</option>
                 {["low","medium","high","very_high"].map(v => <option key={v} value={v}>{DIFFICULTY[v]}</option>)}
               </select>
@@ -576,9 +586,10 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
             <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
               <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>마감일</p>
               <input type="date" value={(task as any).due_date ? (task as any).due_date.split("T")[0] : ""}
-                onChange={e => update("due_date", e.target.value || null)}
+                onChange={e => canEdit && update("due_date", e.target.value || null)}
+                disabled={!canEdit}
                 className="w-full text-xs focus:outline-none"
-                style={{ background: "transparent", color: isOverdue ? "#f87171" : "var(--text-1)", border: "none", colorScheme: "dark" }} />
+                style={{ background: "transparent", color: isOverdue ? "#f87171" : canEdit ? "var(--text-1)" : "var(--text-3)", border: "none", colorScheme: "dark" }} />
             </div>
             <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
               <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>예상 시간</p>
@@ -590,8 +601,8 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
                   style={{ background: "transparent", color: "#E8F4FF", border: "none", colorScheme: "dark" }} />
               ) : (
                 <p className="text-xs cursor-pointer"
-                  style={{ color: (task as any).estimated_hours ? "var(--text-1)" : "var(--text-3)" }}
-                  onClick={() => { setEditing("estimated_hours"); setEditVal(String((task as any).estimated_hours ?? "")); }}>
+                  style={{ color: (task as any).estimated_hours ? "var(--text-1)" : "var(--text-3)", cursor: canEdit ? "pointer" : "default" }}
+                  onClick={() => { if (canEdit) { setEditing("estimated_hours"); setEditVal(String((task as any).estimated_hours ?? "")); } }}>
                   {(task as any).estimated_hours ? `${(task as any).estimated_hours}시간` : "미정 — 클릭해서 입력"}
                 </p>
               )}
