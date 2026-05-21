@@ -80,6 +80,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
   const [milestones, setMilestones] = useState<any[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
   const [editVal, setEditVal] = useState("");
+  const [descVal, setDescVal] = useState("");
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [showBlockedInput, setShowBlockedInput] = useState(false);
   const [blockedReason, setBlockedReason] = useState("");
@@ -181,6 +182,21 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
         metadata: { from: prev, to: value },
       });
     }
+
+    // 마감일 변경 시 담당자에게 알림
+    if (field === "due_date" && prev !== value && assigneeIds.length > 0) {
+      const newDate = value ? new Date(value).toLocaleDateString("ko-KR", { month: "short", day: "numeric" }) : "미정";
+      for (const uid of assigneeIds) {
+        if (uid === myUser?.userId) continue;
+        await supabase.from("notifications").insert({
+          user_id: uid, type: "deadline",
+          title: `마감일이 ${newDate}으로 변경됐습니다`,
+          body: (task as any)?.title ?? "업무",
+          task_id: taskId,
+        });
+      }
+    }
+
     await loadTask(); setEditing(null);
   }
 
@@ -304,11 +320,11 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
             <div>
             {editing === "description" ? (
               <div className="space-y-2">
-                <textarea autoFocus value={editVal} onChange={e => setEditVal(e.target.value)} rows={4}
+                <textarea autoFocus value={descVal} onChange={e => setDescVal(e.target.value)} rows={4}
                   className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none resize-none"
                   style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)", color: "var(--text-1)" }} />
                 <div className="flex gap-2">
-                  <button onClick={() => update("description", editVal)} className="rounded-lg px-3 py-1.5 text-xs font-semibold"
+                  <button onClick={() => update("description", descVal)} className="rounded-lg px-3 py-1.5 text-xs font-semibold"
                     style={{ background: "var(--cyan-bg)", color: "var(--cyan)" }}>저장</button>
                   <button onClick={() => setEditing(null)} className="rounded-lg px-3 py-1.5 text-xs"
                     style={{ background: "var(--bg-3)", color: "var(--text-3)" }}>취소</button>
@@ -317,7 +333,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
             ) : (
               <p className={`text-sm rounded-lg px-3 py-2 ${canEdit ? "cursor-pointer hover:opacity-80" : ""}`}
                 style={{ color: task.description ? "var(--text-2)" : "var(--text-3)", background: "var(--bg-3)", border: "1px solid var(--border)" }}
-                onClick={() => { if (canEdit) { setEditing("description"); setEditVal((task as any).description ?? ""); } }}>
+                onClick={() => { if (canEdit) { setEditing("description"); setDescVal((task as any).description ?? ""); } }}>
                 {(task as any).description || (canEdit ? "설명 없음 — 클릭해서 입력" : "설명 없음")}
               </p>
             )}
