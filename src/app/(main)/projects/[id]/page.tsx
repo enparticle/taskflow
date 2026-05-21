@@ -45,6 +45,8 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<any>(null);
   const [tasks, setTasks] = useState<any[]>([]);
   const [tab, setTab] = useState<Tab>("overview");
+  const [myRole, setMyRole] = useState<string | null>(null);
+  const [sysRole, setSysRole] = useState<string>("member");
   const [openForm, setOpenForm] = useState(false);
   const [openDetail, setOpenDetail] = useState<string | null>(null);
   const [openEdit, setOpenEdit] = useState(false);
@@ -56,6 +58,16 @@ export default function ProjectDetailPage() {
     const { data: p } = await supabase.from("projects")
       .select("*, owner:users!projects_owner_id_fkey(name)").eq("id", id).single();
     setProject(p);
+
+    // 권한 확인
+    const { getAuthUser, getProjectRole } = await import("@/lib/auth");
+    const authUser = await getAuthUser();
+    if (authUser) {
+      setSysRole(authUser.role);
+      const projRole = await getProjectRole(id, authUser.userId);
+      setMyRole(projRole);
+    }
+
     const { data: t } = await supabase.from("tasks")
       .select("*, assignee:users!tasks_assignee_id_fkey(name,avatar_url), project:projects(name)")
       .eq("project_id", id).order("created_at", { ascending: true });
@@ -70,6 +82,7 @@ export default function ProjectDetailPage() {
     </div>
   );
 
+  const canManage = sysRole === "admin" || myRole === "leader";
   const total = tasks.length;
   const done = tasks.filter(t => t.status === "done").length;
   const blocked = tasks.filter(t => t.status === "blocked").length;
@@ -84,7 +97,7 @@ export default function ProjectDetailPage() {
 
   const TABS: { id: Tab; label: string }[] = [
     { id: "overview",   label: "개요" },
-    { id: "milestones", label: "계획" },
+    ...(canManage ? [{ id: "milestones" as Tab, label: "계획" }] : []),
     { id: "tasks",      label: `업무 (${total})` },
     { id: "members",    label: "팀 구성" },
   ];
@@ -109,12 +122,16 @@ export default function ProjectDetailPage() {
             {project.description && <p className="text-sm" style={{ color: "var(--text-2)" }}>{project.description}</p>}
           </div>
           <div className="flex gap-2 shrink-0">
-            <button onClick={() => setOpenEdit(true)} className="rounded-lg px-3 py-2 text-xs font-medium"
-              style={{ background: "var(--bg-3)", color: "var(--text-2)", border: "1px solid var(--border-2)" }}>수정</button>
-            <button onClick={() => setOpenForm(true)} className="rounded-lg px-4 py-2 text-xs font-semibold"
-              style={{ background: "linear-gradient(135deg, #00C2CC, #2E86FF)", color: "#fff" }}>
-              + 새 업무
-            </button>
+            {canManage && (
+              <button onClick={() => setOpenEdit(true)} className="rounded-lg px-3 py-2 text-xs font-medium"
+                style={{ background: "var(--bg-3)", color: "var(--text-2)", border: "1px solid var(--border-2)" }}>수정</button>
+            )}
+            {canManage && (
+              <button onClick={() => setOpenForm(true)} className="rounded-lg px-4 py-2 text-xs font-semibold"
+                style={{ background: "linear-gradient(135deg, #00C2CC, #2E86FF)", color: "#fff" }}>
+                + 새 업무
+              </button>
+            )}
           </div>
         </div>
         <div className="mt-4">
