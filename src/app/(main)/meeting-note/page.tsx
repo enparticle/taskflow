@@ -58,7 +58,7 @@ export default function MeetingNotePage() {
     if (!myUser) return;
     setHistoryLoading(true);
     const { data } = await supabase.from("meeting_drafts").select("*, project:projects(name)")
-      .eq("user_id", myUser.userId).order("updated_at", { ascending: false }).limit(20);
+      .eq("user_id", myUser.userId).order("group_order", { ascending: true }).order("updated_at", { ascending: false }).limit(20);
     setHistory(data ?? []);
     setHistoryLoading(false);
   }
@@ -236,43 +236,15 @@ export default function MeetingNotePage() {
   const PL: Record<string, string> = { urgent: "긴급", high: "높음", medium: "보통", low: "낮음" };
 
   if (view === "history") return (
-    <div className="max-w-3xl space-y-5">
-      <div className="flex items-center gap-3">
-        <button onClick={() => setView("main")} className="text-xs" style={{ color: "var(--text-3)" }}>← 뒤로</button>
-        <span style={{ color: "var(--border)" }}>|</span>
-        <h1 className="text-sm font-bold" style={{ color: "var(--text-1)" }}>회의록 이전 내역</h1>
-      </div>
-      {historyLoading ? <div className="text-center py-12"><p className="text-sm" style={{ color: "var(--text-3)" }}>로딩 중…</p></div> : history.length === 0 ? (
-        <div className="rounded-2xl py-12 text-center" style={{ background: "var(--bg-2)", border: "1px dashed var(--border-2)" }}><p className="text-sm" style={{ color: "var(--text-3)" }}>저장된 회의록이 없습니다</p></div>
-      ) : (
-        <div className="space-y-3">
-          {history.map(item => (
-            <div key={item.id} className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: item.status === "completed" ? "rgba(52,211,153,0.12)" : "rgba(167,139,250,0.12)", color: item.status === "completed" ? "#34d399" : "#a78bfa" }}>
-                      {item.status === "completed" ? "완료" : "임시저장"}
-                    </span>
-                    {item.project?.name && <span className="text-xs" style={{ color: "var(--text-3)" }}>{item.project.name}</span>}
-                    <span className="text-xs" style={{ color: "var(--text-3)" }}>{new Date(item.updated_at).toLocaleDateString("ko-KR", { month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
-                  </div>
-                  {item.result?.summary && <p className="text-sm mb-1" style={{ color: "var(--text-1)" }}>{item.result.summary}</p>}
-                  <div className="flex items-center gap-3 flex-wrap">
-                    {(item.result?.tasks?.length ?? 0) > 0 && <span className="text-xs" style={{ color: "var(--text-3)" }}>업무 {item.result.tasks.length}건</span>}
-                    {item.audio_path && <span className="text-xs" style={{ color: "#7BA7C8" }}>🎙️ 녹음 있음</span>}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button onClick={() => loadFromHistory(item)} className="rounded-lg px-3 py-1.5 text-xs font-medium" style={{ background: "var(--bg-3)", color: "var(--text-2)", border: "1px solid var(--border)" }}>불러오기</button>
-                  <button onClick={() => deleteHistory(item.id)} className="rounded-lg px-2 py-1.5 text-xs" style={{ background: "rgba(248,113,113,0.08)", color: "#f87171" }}>삭제</button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    <HistoryView
+      history={history}
+      historyLoading={historyLoading}
+      onBack={() => setView("main")}
+      onLoad={loadFromHistory}
+      onDelete={deleteHistory}
+      onRefresh={loadHistory}
+      supabase={supabase}
+    />
   );
 
   if (step === "done") return (
@@ -480,6 +452,201 @@ export default function MeetingNotePage() {
         style={{ background: "linear-gradient(135deg, #fbbf24, #f87171)", color: "#fff" }}>
         ✦ AI 분석 시작
       </button>
+    </div>
+  );
+}
+
+
+function HistoryView({ history, historyLoading, onBack, onLoad, onDelete, onRefresh, supabase }: any) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [groupTitle, setGroupTitle] = useState("");
+  const [showGroupForm, setShowGroupForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // 그룹별로 정리
+  const groups: Record<string, any[]> = {};
+  const ungrouped: any[] = [];
+  history.forEach((item: any) => {
+    if (item.group_id) {
+      if (!groups[item.group_id]) groups[item.group_id] = [];
+      groups[item.group_id].push(item);
+    } else {
+      ungrouped.push(item);
+    }
+  });
+
+  async function createGroup() {
+    if (!groupTitle.trim() || selected.size === 0) return;
+    setSaving(true);
+    const groupId = crypto.randomUUID();
+    const ids = Array.from(selected);
+    for (let i = 0; i < ids.length; i++) {
+      await supabase.from("meeting_drafts").update({
+        group_id: groupId,
+        group_title: groupTitle.trim(),
+        group_order: i,
+      }).eq("id", ids[i]);
+    }
+    setSelected(new Set());
+    setGroupTitle("");
+    setShowGroupForm(false);
+    setSaving(false);
+    onRefresh();
+  }
+
+  async function ungroup(groupId: string) {
+    if (!confirm("그룹을 해제할까요?")) return;
+    await supabase.from("meeting_drafts").update({ group_id: null, group_title: null, group_order: 0 })
+      .eq("group_id", groupId);
+    onRefresh();
+  }
+
+  async function renameGroup(groupId: string, items: any[]) {
+    const newTitle = prompt("새 제목을 입력하세요", items[0]?.group_title ?? "");
+    if (!newTitle) return;
+    for (const item of items) {
+      await supabase.from("meeting_drafts").update({ group_title: newTitle }).eq("id", item.id);
+    }
+    onRefresh();
+  }
+
+  function toggleSelect(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  const FS = { background: "var(--bg-3)", border: "1px solid var(--border-2)", color: "var(--text-1)", borderRadius: 8, padding: "6px 10px", fontSize: 13, width: "100%", outline: "none" };
+
+  function ItemCard({ item, showCheck = false }: { item: any; showCheck?: boolean }) {
+    return (
+      <div className="flex items-start gap-3">
+        {showCheck && (
+          <input type="checkbox" checked={selected.has(item.id)} onChange={() => toggleSelect(item.id)}
+            className="mt-1 rounded cursor-pointer shrink-0" />
+        )}
+        <div className="flex-1 min-w-0 rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                  style={{ background: item.status === "completed" ? "rgba(52,211,153,0.12)" : "rgba(167,139,250,0.12)", color: item.status === "completed" ? "#34d399" : "#a78bfa" }}>
+                  {item.status === "completed" ? "완료" : "임시저장"}
+                </span>
+                {item.project?.name && <span className="text-xs" style={{ color: "var(--text-3)" }}>{item.project.name}</span>}
+                <span className="text-xs" style={{ color: "var(--text-3)" }}>
+                  {new Date(item.updated_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                </span>
+                {item.audio_path && <span className="text-xs" style={{ color: "#7BA7C8" }}>🎙️</span>}
+              </div>
+              {item.result?.summary && <p className="text-xs" style={{ color: "var(--text-2)" }}>{item.result.summary}</p>}
+              {(item.result?.tasks?.length ?? 0) > 0 && (
+                <span className="text-xs" style={{ color: "var(--text-3)" }}>업무 {item.result.tasks.length}건</span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button onClick={() => onLoad(item)} className="rounded-lg px-2.5 py-1 text-xs font-medium"
+                style={{ background: "var(--bg-4)", color: "var(--text-2)", border: "1px solid var(--border)" }}>불러오기</button>
+              <button onClick={() => onDelete(item.id)} className="rounded-lg px-2 py-1 text-xs"
+                style={{ background: "rgba(248,113,113,0.08)", color: "#f87171" }}>삭제</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-3xl space-y-5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button onClick={onBack} className="text-xs" style={{ color: "var(--text-3)" }}>← 뒤로</button>
+          <span style={{ color: "var(--border)" }}>|</span>
+          <h1 className="text-sm font-bold" style={{ color: "var(--text-1)" }}>회의록 이전 내역</h1>
+        </div>
+        {selected.size > 0 && !showGroupForm && (
+          <button onClick={() => setShowGroupForm(true)}
+            className="rounded-xl px-3 py-2 text-xs font-semibold"
+            style={{ background: "rgba(167,139,250,0.12)", color: "#a78bfa", border: "1px solid rgba(167,139,250,0.3)" }}>
+            📎 {selected.size}개 묶기
+          </button>
+        )}
+      </div>
+
+      {/* 묶기 폼 */}
+      {showGroupForm && (
+        <div className="rounded-2xl p-4 space-y-3" style={{ background: "rgba(167,139,250,0.08)", border: "1px solid rgba(167,139,250,0.3)" }}>
+          <p className="text-xs font-semibold" style={{ color: "#a78bfa" }}>📎 {selected.size}개 회의록 묶기</p>
+          <input value={groupTitle} onChange={e => setGroupTitle(e.target.value)}
+            placeholder="회의 제목 입력 (예: 5월 3주차 주간 회의)" style={FS}
+            onKeyDown={e => { if (e.key === "Enter") createGroup(); if (e.key === "Escape") setShowGroupForm(false); }} />
+          <div className="flex gap-2">
+            <button onClick={createGroup} disabled={!groupTitle.trim() || saving}
+              className="rounded-xl px-4 py-2 text-xs font-semibold disabled:opacity-40"
+              style={{ background: "#a78bfa", color: "#fff" }}>
+              {saving ? "저장 중…" : "묶기"}
+            </button>
+            <button onClick={() => { setShowGroupForm(false); setGroupTitle(""); }}
+              className="rounded-xl px-4 py-2 text-xs"
+              style={{ background: "var(--bg-3)", color: "var(--text-2)" }}>취소</button>
+          </div>
+        </div>
+      )}
+
+      {historyLoading ? (
+        <div className="text-center py-12"><p className="text-sm" style={{ color: "var(--text-3)" }}>로딩 중…</p></div>
+      ) : history.length === 0 ? (
+        <div className="rounded-2xl py-12 text-center" style={{ background: "var(--bg-2)", border: "1px dashed var(--border-2)" }}>
+          <p className="text-sm" style={{ color: "var(--text-3)" }}>저장된 회의록이 없습니다</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* 그룹된 회의록 */}
+          {Object.entries(groups).map(([gId, items]) => {
+            const title = items[0]?.group_title ?? "묶음 회의록";
+            const totalTasks = items.reduce((s, i) => s + (i.result?.tasks?.length ?? 0), 0);
+            return (
+              <div key={gId} className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(167,139,250,0.3)" }}>
+                <div className="flex items-center justify-between px-4 py-3"
+                  style={{ background: "rgba(167,139,250,0.08)", borderBottom: "1px solid rgba(167,139,250,0.2)" }}>
+                  <div className="flex items-center gap-2">
+                    <span style={{ color: "#a78bfa" }}>📎</span>
+                    <p className="text-sm font-semibold" style={{ color: "#a78bfa" }}>{title}</p>
+                    <span className="text-xs" style={{ color: "var(--text-3)" }}>
+                      {items.length}개 · 업무 {totalTasks}건
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => renameGroup(gId, items)}
+                      className="text-xs" style={{ color: "var(--text-3)" }}>이름 변경</button>
+                    <button onClick={() => ungroup(gId)}
+                      className="text-xs" style={{ color: "#f87171" }}>그룹 해제</button>
+                  </div>
+                </div>
+                <div className="p-3 space-y-2" style={{ background: "var(--bg-2)" }}>
+                  {items.map(item => <ItemCard key={item.id} item={item} />)}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* 미그룹 회의록 */}
+          {ungrouped.length > 0 && (
+            <div className="space-y-2">
+              {ungrouped.length > 1 && (
+                <p className="text-xs px-1" style={{ color: "var(--text-3)" }}>
+                  체크박스로 여러 개 선택 후 묶기 가능
+                </p>
+              )}
+              {ungrouped.map(item => (
+                <ItemCard key={item.id} item={item} showCheck={ungrouped.length > 1} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
