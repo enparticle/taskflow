@@ -250,105 +250,145 @@ function ProjectSlide({ project, tasks }: any) {
   );
 }
 
-// ── 캘린더 슬라이드 ──
+// ── 캘린더 슬라이드 (이전주 ~ 다가올 2주, 총 4주) ──
 function CalendarSlide({ events, tasks }: any) {
   const now = new Date();
-  const year = now.getFullYear(), month = now.getMonth();
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const cells: (Date | null)[] = [
-    ...Array(firstDay).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => new Date(year, month, i + 1)),
-  ];
-  while (cells.length % 7 !== 0) cells.push(null);
+
+  // 이전 주 시작일 (일요일 기준)
+  const rangeStart = new Date(now);
+  rangeStart.setDate(now.getDate() - now.getDay() - 7); // 지난주 일요일
+  rangeStart.setHours(0, 0, 0, 0);
+
+  // 다가올 2주 끝 (4주 총 28일)
+  const rangeEnd = new Date(rangeStart);
+  rangeEnd.setDate(rangeStart.getDate() + 27);
+  rangeEnd.setHours(23, 59, 59, 999);
+
+  // 4주 × 7일 = 28개 날짜
+  const cells: Date[] = Array.from({ length: 28 }, (_, i) => {
+    const d = new Date(rangeStart);
+    d.setDate(rangeStart.getDate() + i);
+    return d;
+  });
 
   function getEventsForDay(date: Date) {
     const result: any[] = [];
     events.forEach((ev: any) => {
       if (!ev.start_date) return;
       const start = new Date(ev.start_date);
-      const end = ev.end_date ? new Date(ev.end_date) : start;
+      start.setHours(0,0,0,0);
+      const end = ev.end_date ? new Date(ev.end_date) : new Date(start);
+      end.setHours(23,59,59,999);
       if (date >= start && date <= end) result.push({ ...ev, _type: "event" });
     });
     tasks.forEach((t: any) => {
       if (!t.due_date) return;
-      if (isSameDay(date, new Date(t.due_date))) {
-        result.push({ ...t, _type: "task", type: "deadline" });
-      }
+      const due = new Date(t.due_date);
+      if (isSameDay(date, due)) result.push({ ...t, _type: "task", type: "deadline" });
     });
     return result;
   }
 
+  // 현재 주 판단
+  const thisWeekStart = new Date(now);
+  thisWeekStart.setDate(now.getDate() - now.getDay());
+  thisWeekStart.setHours(0,0,0,0);
+  const thisWeekEnd = new Date(thisWeekStart);
+  thisWeekEnd.setDate(thisWeekStart.getDate() + 6);
+  thisWeekEnd.setHours(23,59,59,999);
+
+  function getWeekLabel(weekIdx: number) {
+    if (weekIdx === 0) return "지난 주";
+    if (weekIdx === 1) return "이번 주";
+    if (weekIdx === 2) return "다음 주";
+    return "2주 후";
+  }
+
   return (
     <div className="h-full flex flex-col gap-5 p-10">
-      <div className="flex items-center gap-3">
-        <div className="w-2 h-8 rounded-full" style={{ background: "#a78bfa" }} />
-        <h1 className="text-4xl font-bold" style={{ color: "var(--text-1)" }}>
-          {now.toLocaleDateString("ko-KR", { year: "numeric", month: "long" })} 일정
-        </h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-2 h-8 rounded-full" style={{ background: "#a78bfa" }} />
+          <h1 className="text-4xl font-bold" style={{ color: "var(--text-1)" }}>일정</h1>
+        </div>
+        <p className="text-lg" style={{ color: "var(--text-3)" }}>
+          {rangeStart.toLocaleDateString("ko-KR", { month: "long", day: "numeric" })} —{" "}
+          {rangeEnd.toLocaleDateString("ko-KR", { month: "long", day: "numeric" })}
+        </p>
       </div>
 
       <div className="flex-1 rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+        {/* 요일 헤더 */}
         <div className="grid grid-cols-7" style={{ background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
           {DAYS.map((d, i) => (
             <div key={i} className="py-4 text-center text-lg font-semibold"
               style={{ color: i===0?"#f87171":i===6?"#60a5fa":"var(--text-2)" }}>{d}</div>
           ))}
         </div>
-        <div className="grid grid-cols-7 h-full">
-          {cells.map((d, i) => {
-            if (!d) return <div key={i} style={{ background: "var(--bg-3)", borderRight: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }} />;
-            const dayEvs = getEventsForDay(d);
-            const col = i % 7;
-            const isToday = isSameDay(d, now);
+
+        {/* 4주 그리드 */}
+        <div className="grid" style={{ gridTemplateRows: "repeat(4, 1fr)", height: "calc(100% - 56px)" }}>
+          {[0,1,2,3].map(weekIdx => {
+            const weekDays = cells.slice(weekIdx * 7, weekIdx * 7 + 7);
+            const isThisWeek = weekIdx === 1;
             return (
-              <div key={i} className="p-3"
-                style={{ background: isToday ? "rgba(34,211,238,0.06)" : "var(--bg-2)", borderRight: col < 6 ? "1px solid var(--border)" : "none", borderBottom: "1px solid var(--border)" }}>
-                <p className="text-base w-8 h-8 rounded-full flex items-center justify-center mb-1 font-semibold"
-                  style={{ background: isToday ? "var(--cyan)" : "transparent", color: isToday ? "#0D1B2E" : col===0 ? "#f87171" : col===6 ? "#60a5fa" : "var(--text-1)" }}>
-                  {d.getDate()}
-                </p>
-                {dayEvs.slice(0, 3).map((ev, j) => {
-                  const cfg = EVENT_TYPE_CONFIG[ev.type] ?? EVENT_TYPE_CONFIG.personal;
-                  const color = ev.color || cfg.color;
+              <div key={weekIdx} className="grid grid-cols-7 relative"
+                style={{ borderBottom: weekIdx < 3 ? "1px solid var(--border)" : "none" }}>
+                {/* 주 라벨 */}
+                <div className="absolute left-0 top-1 z-10 px-2">
+                  <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    style={{
+                      background: isThisWeek ? "var(--cyan-bg)" : "var(--bg-3)",
+                      color: isThisWeek ? "var(--cyan)" : "var(--text-3)",
+                      fontSize: 11,
+                    }}>
+                    {getWeekLabel(weekIdx)}
+                  </span>
+                </div>
+                {weekDays.map((d, i) => {
+                  const dayEvs = getEventsForDay(d);
+                  const col = i % 7;
+                  const isToday = isSameDay(d, now);
+                  const isPast = d < thisWeekStart;
                   return (
-                    <div key={j} className="rounded px-1.5 py-0.5 text-xs truncate mb-0.5"
-                      style={{ background: `${color}22`, color, fontSize: 13 }}>
-                      {ev.title}
+                    <div key={i} className="p-2 pt-7"
+                      style={{
+                        background: isToday ? "rgba(34,211,238,0.06)" : isPast ? "rgba(0,0,0,0.15)" : "var(--bg-2)",
+                        borderRight: col < 6 ? "1px solid var(--border)" : "none",
+                        opacity: isPast ? 0.7 : 1,
+                      }}>
+                      <p className="text-base w-8 h-8 rounded-full flex items-center justify-center mb-1 font-semibold"
+                        style={{
+                          background: isToday ? "var(--cyan)" : "transparent",
+                          color: isToday ? "#0D1B2E" : col===0 ? "#f87171" : col===6 ? "#60a5fa" : "var(--text-1)",
+                        }}>
+                        {d.getDate()}
+                        {d.getDate() === 1 && (
+                          <span className="text-xs ml-0.5" style={{ color: "var(--text-3)" }}>
+                            {d.getMonth() + 1}월
+                          </span>
+                        )}
+                      </p>
+                      {dayEvs.slice(0, 3).map((ev, j) => {
+                        const cfg = EVENT_TYPE_CONFIG[ev.type] ?? EVENT_TYPE_CONFIG.personal;
+                        const color = ev.color || cfg.color;
+                        return (
+                          <div key={j} className="rounded px-1.5 py-0.5 truncate mb-0.5"
+                            style={{ background: `${color}22`, color, fontSize: 12, border: `1px solid ${color}33` }}>
+                            {ev._type === "task" ? "📌 " : ""}{ev.title}
+                          </div>
+                        );
+                      })}
+                      {dayEvs.length > 3 && (
+                        <p style={{ fontSize: 11, color: "var(--text-3)" }}>+{dayEvs.length - 3}개</p>
+                      )}
                     </div>
                   );
                 })}
-                {dayEvs.length > 3 && <p style={{ fontSize: 12, color: "var(--text-3)" }}>+{dayEvs.length - 3}개</p>}
               </div>
             );
           })}
         </div>
-      </div>
-
-      {/* 이번 달 주요 일정 */}
-      <div className="flex gap-2 flex-wrap">
-        {[...events, ...tasks.map((t: any) => ({ ...t, _type: "task", type: "deadline", title: `📌 ${t.title}`, start_date: t.due_date }))]
-          .filter((ev: any) => {
-            if (!ev.start_date) return false;
-            const d = new Date(ev.start_date);
-            return d.getFullYear() === year && d.getMonth() === month;
-          })
-          .sort((a: any, b: any) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
-          .slice(0, 6)
-          .map((ev: any, i: number) => {
-            const cfg = EVENT_TYPE_CONFIG[ev.type] ?? EVENT_TYPE_CONFIG.personal;
-            const color = ev.color || cfg.color;
-            return (
-              <div key={i} className="rounded-xl px-4 py-3 flex items-center gap-3"
-                style={{ background: `${color}12`, border: `1px solid ${color}33` }}>
-                <div className="w-3 h-3 rounded-full shrink-0" style={{ background: color }} />
-                <span className="text-sm font-medium" style={{ color }}>
-                  {new Date(ev.start_date).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })}
-                </span>
-                <span className="text-base" style={{ color: "var(--text-1)" }}>{ev.title}</span>
-              </div>
-            );
-          })}
       </div>
     </div>
   );
