@@ -67,14 +67,14 @@ function DashboardSlide({ projects, tasks, users }: any) {
           <div key={s.label} className="rounded-2xl p-5 text-center"
             style={{ background: `${s.color}12`, border: `1px solid ${s.color}33` }}>
             <p className="text-4xl font-bold tabular-nums" style={{ color: s.color }}>{s.value}</p>
-            <p className="text-sm mt-1" style={{ color: "var(--text-3)" }}>{s.label}</p>
+            <p className="text-lg mt-2" style={{ color: "var(--text-3)" }}>{s.label}</p>
           </div>
         ))}
       </div>
 
       {/* 프로젝트 현황 */}
-      <div className="grid grid-cols-2 gap-4 flex-1">
-        {projects.slice(0, 4).map((p: any) => {
+      <div className={`grid gap-4 flex-1 ${projects.length <= 4 ? "grid-cols-2" : projects.length <= 6 ? "grid-cols-3" : "grid-cols-4"}`}>
+        {projects.map((p: any) => {
           const total = p.tasks?.length ?? 0;
           const done = (p.tasks ?? []).filter((t: any) => t.status === "done").length;
           const rate = total > 0 ? Math.round((done / total) * 100) : 0;
@@ -160,7 +160,7 @@ function ProjectSlide({ project, tasks }: any) {
   const review = tasks.filter((t: any) => t.status === "review").length;
   const rate = total > 0 ? Math.round((done / total) * 100) : 0;
   const daysLeft = project.end_date ? Math.ceil((new Date(project.end_date).getTime() - now.getTime()) / 86400000) : null;
-  const activeTasks = tasks.filter((t: any) => t.status !== "done").slice(0, 8);
+  const activeTasks = tasks.filter((t: any) => t.status !== "done").slice(0, 12);
 
   return (
     <div className="h-full flex flex-col gap-5 p-10">
@@ -175,16 +175,16 @@ function ProjectSlide({ project, tasks }: any) {
               <span className="text-sm" style={{ color: "var(--text-3)" }}>담당 · {project.owner.name}</span>
             )}
           </div>
-          <h1 className="text-3xl font-bold" style={{ color: "var(--text-1)" }}>{project.name}</h1>
+          <h1 className="text-4xl font-bold" style={{ color: "var(--text-1)" }}>{project.name}</h1>
           {project.description && (
-            <p className="text-base mt-1" style={{ color: "var(--text-2)" }}>{project.description}</p>
+            <p className="text-xl mt-2" style={{ color: "var(--text-2)" }}>{project.description}</p>
           )}
         </div>
         <div className="text-right">
           {daysLeft !== null && (
             <div className="rounded-2xl px-5 py-3" style={{ background: `${daysLeft < 0 ? "#f87171" : daysLeft <= 14 ? "#fbbf24" : "#34d399"}12`, border: `1px solid ${daysLeft < 0 ? "#f87171" : daysLeft <= 14 ? "#fbbf24" : "#34d399"}33` }}>
               <p className="text-xs mb-1" style={{ color: "var(--text-3)" }}>마감까지</p>
-              <p className="text-3xl font-bold tabular-nums" style={{ color: daysLeft < 0 ? "#f87171" : daysLeft <= 14 ? "#fbbf24" : "#34d399" }}>
+              <p className="text-5xl font-bold tabular-nums" style={{ color: daysLeft < 0 ? "#f87171" : daysLeft <= 14 ? "#fbbf24" : "#34d399" }}>
                 {daysLeft < 0 ? `+${Math.abs(daysLeft)}` : `D-${daysLeft}`}
               </p>
             </div>
@@ -196,10 +196,10 @@ function ProjectSlide({ project, tasks }: any) {
       <div>
         <div className="flex justify-between mb-2">
           <span className="text-base" style={{ color: "var(--text-3)" }}>전체 진행률</span>
-          <span className="text-2xl font-bold" style={{ color: hc.color }}>{rate}%</span>
+          <span className="text-4xl font-bold" style={{ color: hc.color }}>{rate}%</span>
         </div>
-        <div style={{ height: 12, background: "var(--bg-4)", borderRadius: 6, overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${rate}%`, background: hc.color, borderRadius: 6, transition: "width 1s" }} />
+        <div style={{ height: 18, background: "var(--bg-4)", borderRadius: 9, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${rate}%`, background: hc.color, borderRadius: 9, transition: "width 1s" }} />
         </div>
       </div>
 
@@ -212,27 +212,27 @@ function ProjectSlide({ project, tasks }: any) {
           { label: "Blocked", value: blocked, color: "#f87171" },
           { label: "완료", value: done, color: "#34d399" },
         ].map(s => (
-          <div key={s.label} className="rounded-2xl p-4 text-center"
+          <div key={s.label} className="rounded-2xl p-6 text-center"
             style={{ background: `${s.color}10`, border: `1px solid ${s.color}22` }}>
-            <p className="text-3xl font-bold tabular-nums" style={{ color: s.color }}>{s.value}</p>
-            <p className="text-sm mt-1" style={{ color: "var(--text-3)" }}>{s.label}</p>
+            <p className="text-5xl font-bold tabular-nums" style={{ color: s.color }}>{s.value}</p>
+            <p className="text-lg mt-2" style={{ color: "var(--text-3)" }}>{s.label}</p>
           </div>
         ))}
       </div>
 
       {/* 진행 중 업무 목록 */}
       <div className="flex-1">
-        <p className="text-sm font-semibold mb-3" style={{ color: "var(--text-3)" }}>진행 중 업무</p>
-        <div className="grid grid-cols-2 gap-2">
+        <p className="text-base font-semibold mb-3" style={{ color: "var(--text-3)" }}>진행 중 업무</p>
+        <div className="grid grid-cols-2 gap-3">
           {activeTasks.map((t: any) => {
             const sc = STATUS_CONFIG[t.status] ?? STATUS_CONFIG.todo;
             const overdue = t.due_date && new Date(t.due_date) < now && t.status !== "done";
             return (
               <div key={t.id} className="rounded-xl px-4 py-2.5 flex items-center gap-3"
                 style={{ background: "var(--bg-2)", border: `1px solid ${sc.color}22`, borderLeft: `3px solid ${sc.color}` }}>
-                <span className="text-xs px-2 py-0.5 rounded font-medium shrink-0"
+                <span className="text-sm px-2.5 py-1 rounded font-medium shrink-0"
                   style={{ background: `${sc.color}18`, color: sc.color }}>{sc.label}</span>
-                <span className="flex-1 text-sm truncate" style={{ color: "var(--text-1)" }}>{t.title}</span>
+                <span className="flex-1 text-base truncate" style={{ color: "var(--text-1)" }}>{t.title}</span>
                 {t.assignee?.name && (
                   <span className="text-xs shrink-0" style={{ color: "var(--text-3)" }}>{t.assignee.name}</span>
                 )}
