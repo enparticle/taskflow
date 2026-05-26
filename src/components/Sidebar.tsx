@@ -101,6 +101,16 @@ export default function Sidebar() {
           {/* 칸반 보드 - 비활성화 (활성화하려면 아래 주석 해제)
           <NavLink href="/kanban" label="칸반 보드" icon="⊞" />
           */}
+          {(userRole === "admin" || userRole === "viewer") && (
+            <a href="/viewer" target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium transition-all"
+              style={{ color: "var(--text-2)", borderLeft: "2px solid transparent" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-1)"; (e.currentTarget as HTMLAnchorElement).style.background = "var(--bg-3)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-2)"; (e.currentTarget as HTMLAnchorElement).style.background = "transparent"; }}>
+              <span className="w-4 text-center shrink-0" style={{ fontSize: 13 }}>📺</span>
+              전체 현황 보기
+            </a>
+          )}
 
           {/* 프로젝트 그룹 */}
           <GroupLabel label="프로젝트" />
