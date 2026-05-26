@@ -1,6 +1,6 @@
 // @ts-nocheck
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase";
 import type { Task, User, Project } from "@/types/database";
 type TaskStatus = string;
@@ -94,6 +94,8 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
   const [loading, setLoading] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const [commentCount, setCommentCount] = useState<number>(task.comment_count ?? 0);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (task.comment_count !== undefined) {
@@ -132,15 +134,21 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
 
         {/* 상태 버튼 */}
         <div className="relative shrink-0" onClick={e => e.stopPropagation()}>
-          <button onClick={() => { setOpen(!open); setShowBlocked(false); }} disabled={loading}
+          <button ref={btnRef} onClick={() => {
+            if (!open && btnRef.current) {
+              const rect = btnRef.current.getBoundingClientRect();
+              setDropdownPos({ top: rect.bottom + 4, left: rect.left });
+            }
+            setOpen(!open); setShowBlocked(false);
+          }} disabled={loading}
             className="rounded-md px-2.5 py-1 text-xs font-semibold"
             style={{ background: s.bg, color: s.color }}>
             {loading ? "…" : s.label} ▾
           </button>
 
-          {open && !showBlocked && (
-            <div className="absolute left-0 top-8 z-50 w-32 rounded-xl overflow-hidden shadow-2xl"
-              style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)" }}>
+          {open && !showBlocked && dropdownPos && (
+            <div className="fixed z-[9999] w-32 rounded-xl overflow-hidden shadow-2xl"
+              style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)", top: dropdownPos.top, left: dropdownPos.left }}>
               {STATUS_LIST.map(sv => (
                 <button key={sv}
                   onClick={() => sv === "blocked" ? setShowBlocked(true) : changeStatus(sv)}
@@ -152,14 +160,14 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
                   {STATUS[sv].label}
                 </button>
               ))}
-              <button onClick={() => setOpen(false)} className="w-full px-3 py-2 text-xs text-center"
+              <button onClick={() => { setOpen(false); setDropdownPos(null); }} className="w-full px-3 py-2 text-xs text-center"
                 style={{ borderTop: "1px solid var(--border)", color: "var(--text-3)" }}>닫기</button>
             </div>
           )}
 
-          {showBlocked && (
-            <div className="absolute left-0 top-8 z-50 w-64 rounded-xl p-3 shadow-2xl"
-              style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)" }}>
+          {showBlocked && dropdownPos && (
+            <div className="fixed z-[9999] w-64 rounded-xl p-3 shadow-2xl"
+              style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)", top: dropdownPos.top, left: dropdownPos.left }}>
               <p className="mb-2 text-xs font-semibold" style={{ color: "var(--text-1)" }}>Blocked 사유 *</p>
               <textarea value={reason} onChange={e => setReason(e.target.value)}
                 placeholder="왜 막혔는지 입력해주세요" rows={2} autoFocus
