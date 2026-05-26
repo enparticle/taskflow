@@ -82,7 +82,7 @@ function DashboardSlide({ projects, tasks, users }: any) {
           const daysLeft = p.end_date ? Math.ceil((new Date(p.end_date).getTime() - now.getTime()) / 86400000) : null;
 
           return (
-            <div key={p.id} className="rounded-2xl p-5 flex flex-col gap-3"
+            <div key={p.id} className="rounded-2xl p-5 flex flex-col gap-2"
               style={{ background: "var(--bg-2)", border: `1px solid ${hc.color}33` }}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -91,13 +91,14 @@ function DashboardSlide({ projects, tasks, users }: any) {
                   <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
                     style={{ background: `${hc.color}18`, color: hc.color }}>{hc.label}</span>
                 </div>
-                {daysLeft !== null && (
-                  <span className="text-sm font-bold" style={{ color: daysLeft < 0 ? "#f87171" : daysLeft <= 7 ? "#fbbf24" : "var(--text-3)" }}>
-                    {daysLeft < 0 ? `${Math.abs(daysLeft)}일 초과` : `D-${daysLeft}`}
+                {p.end_date && (
+                  <span className="text-sm font-semibold shrink-0"
+                    style={{ color: daysLeft !== null && daysLeft < 0 ? "#f87171" : daysLeft !== null && daysLeft <= 7 ? "#fbbf24" : "var(--text-3)" }}>
+                    {new Date(p.end_date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
                   </span>
                 )}
               </div>
-              <div className="flex-1">
+              <div>
                 <div className="flex justify-between mb-1">
                   <span className="text-xs" style={{ color: "var(--text-3)" }}>진행률</span>
                   <span className="text-sm font-bold" style={{ color: hc.color }}>{rate}%</span>
