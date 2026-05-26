@@ -8,6 +8,7 @@ import TaskForm from "@/components/tasks/TaskForm";
 import TaskDetail from "@/components/tasks/TaskDetail";
 import ProjectForm from "@/components/projects/ProjectForm";
 import ProjectMemberPanel from "@/components/team/ProjectMemberPanel";
+import MilestonePanel from "@/components/milestones/MilestonePanel";
 import PlanningFeedback from "@/components/tasks/PlanningFeedback";
 import TaskDraftPanel from "@/components/tasks/TaskDraftPanel";
 import { getAuthUser, getProjectRole } from "@/lib/auth";
@@ -59,6 +60,7 @@ export default function ProjectDetailPage() {
   const [myRole, setMyRole] = useState<string | null>(null);
   const [sysRole, setSysRole] = useState<string>("member");
   const [expandedMs, setExpandedMs] = useState<Record<string, boolean>>({});
+  const [openMilestone, setOpenMilestone] = useState(false);
   const [allProjects, setAllProjects] = useState<any[]>([]);
 
   const load = useCallback(async () => {
@@ -233,7 +235,7 @@ export default function ProjectDetailPage() {
               <div className="flex items-center justify-between mb-3">
                 <p className="text-xs font-semibold" style={{ color: "var(--text-2)" }}>단계</p>
                 {canManage && (
-                  <button onClick={() => setTab("tasks")}
+                  <button onClick={() => setOpenMilestone(true)}
                     className="text-xs" style={{ color: "var(--cyan)" }}>관리 →</button>
                 )}
               </div>
@@ -289,7 +291,7 @@ export default function ProjectDetailPage() {
               <p className="text-xs" style={{ color: "var(--text-3)" }}>
                 단계별로 업무를 구성하세요
               </p>
-              <button onClick={() => setOpenEdit(true)}
+              <button onClick={() => setOpenMilestone(true)}
                 className="text-xs px-3 py-1.5 rounded-lg"
                 style={{ background: "var(--bg-2)", color: "var(--cyan)", border: "1px solid var(--border)" }}>
                 ⚙ 단계 관리
@@ -375,6 +377,22 @@ export default function ProjectDetailPage() {
       {openForm && <TaskForm onClose={() => setOpenForm(false)} onCreated={() => { load(); setOpenForm(false); }} defaultProjectId={id} />}
       {openDetail && <TaskDetail taskId={openDetail} onClose={() => setOpenDetail(null)} onRefresh={() => { setOpenDetail(null); load(); }} />}
       {openEdit && <ProjectForm project={project} onClose={() => setOpenEdit(false)} onSaved={() => { load(); setOpenEdit(false); }} />}
+      {openMilestone && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.6)" }}
+          onClick={() => setOpenMilestone(false)}>
+          <div className="w-full max-w-2xl max-h-[80vh] rounded-2xl overflow-hidden flex flex-col"
+            style={{ background: "var(--bg-2)", border: "1px solid var(--border-2)" }}
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
+              <h2 className="text-sm font-bold" style={{ color: "var(--text-1)" }}>단계 관리</h2>
+              <button onClick={() => setOpenMilestone(false)} style={{ color: "var(--text-3)" }}>✕</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              <MilestonePanel projectId={id} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
