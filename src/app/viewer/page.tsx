@@ -283,7 +283,7 @@ function CalendarSlide({ events, tasks }: any) {
     <div className="h-full flex flex-col gap-5 p-10">
       <div className="flex items-center gap-3">
         <div className="w-2 h-8 rounded-full" style={{ background: "#a78bfa" }} />
-        <h1 className="text-3xl font-bold" style={{ color: "var(--text-1)" }}>
+        <h1 className="text-4xl font-bold" style={{ color: "var(--text-1)" }}>
           {now.toLocaleDateString("ko-KR", { year: "numeric", month: "long" })} 일정
         </h1>
       </div>
@@ -291,7 +291,7 @@ function CalendarSlide({ events, tasks }: any) {
       <div className="flex-1 rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
         <div className="grid grid-cols-7" style={{ background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
           {DAYS.map((d, i) => (
-            <div key={i} className="py-3 text-center text-base font-semibold"
+            <div key={i} className="py-4 text-center text-lg font-semibold"
               style={{ color: i===0?"#f87171":i===6?"#60a5fa":"var(--text-2)" }}>{d}</div>
           ))}
         </div>
@@ -302,9 +302,9 @@ function CalendarSlide({ events, tasks }: any) {
             const col = i % 7;
             const isToday = isSameDay(d, now);
             return (
-              <div key={i} className="p-2"
+              <div key={i} className="p-3"
                 style={{ background: isToday ? "rgba(34,211,238,0.06)" : "var(--bg-2)", borderRight: col < 6 ? "1px solid var(--border)" : "none", borderBottom: "1px solid var(--border)" }}>
-                <p className="text-sm w-7 h-7 rounded-full flex items-center justify-center mb-1 font-semibold"
+                <p className="text-base w-8 h-8 rounded-full flex items-center justify-center mb-1 font-semibold"
                   style={{ background: isToday ? "var(--cyan)" : "transparent", color: isToday ? "#0D1B2E" : col===0 ? "#f87171" : col===6 ? "#60a5fa" : "var(--text-1)" }}>
                   {d.getDate()}
                 </p>
@@ -313,12 +313,12 @@ function CalendarSlide({ events, tasks }: any) {
                   const color = ev.color || cfg.color;
                   return (
                     <div key={j} className="rounded px-1.5 py-0.5 text-xs truncate mb-0.5"
-                      style={{ background: `${color}22`, color, fontSize: 11 }}>
+                      style={{ background: `${color}22`, color, fontSize: 13 }}>
                       {ev.title}
                     </div>
                   );
                 })}
-                {dayEvs.length > 3 && <p style={{ fontSize: 10, color: "var(--text-3)" }}>+{dayEvs.length - 3}</p>}
+                {dayEvs.length > 3 && <p style={{ fontSize: 12, color: "var(--text-3)" }}>+{dayEvs.length - 3}개</p>}
               </div>
             );
           })}
@@ -339,13 +339,13 @@ function CalendarSlide({ events, tasks }: any) {
             const cfg = EVENT_TYPE_CONFIG[ev.type] ?? EVENT_TYPE_CONFIG.personal;
             const color = ev.color || cfg.color;
             return (
-              <div key={i} className="rounded-xl px-3 py-2 flex items-center gap-2"
+              <div key={i} className="rounded-xl px-4 py-3 flex items-center gap-3"
                 style={{ background: `${color}12`, border: `1px solid ${color}33` }}>
-                <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
-                <span className="text-xs" style={{ color }}>
+                <div className="w-3 h-3 rounded-full shrink-0" style={{ background: color }} />
+                <span className="text-sm font-medium" style={{ color }}>
                   {new Date(ev.start_date).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })}
                 </span>
-                <span className="text-sm" style={{ color: "var(--text-1)" }}>{ev.title}</span>
+                <span className="text-base" style={{ color: "var(--text-1)" }}>{ev.title}</span>
               </div>
             );
           })}

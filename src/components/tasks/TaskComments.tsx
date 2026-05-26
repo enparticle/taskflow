@@ -107,10 +107,17 @@ export default function TaskComments({ taskId }: { taskId: string }) {
 
   async function saveEdit(id: string) {
     if (!editContent.trim()) return;
-    await supabase.from("task_comments").update({
-      content: editContent.trim(),
-      updated_at: new Date().toISOString(),
-    }).eq("id", id);
+    try {
+      await supabase.from("task_comments").update({
+        content: editContent.trim(),
+        updated_at: new Date().toISOString(),
+      }).eq("id", id);
+    } catch {
+      // updated_at 컬럼 없는 경우 content만 업데이트
+      await supabase.from("task_comments").update({
+        content: editContent.trim(),
+      }).eq("id", id);
+    }
     setEditingId(null); setEditContent("");
     await load();
   }
