@@ -312,7 +312,7 @@ function CalendarSlide({ events, tasks }: any) {
           <div className="w-2 h-8 rounded-full" style={{ background: "#a78bfa" }} />
           <h1 className="text-4xl font-bold" style={{ color: "var(--text-1)" }}>일정</h1>
         </div>
-        <p className="text-lg" style={{ color: "var(--text-3)" }}>
+        <p className="text-xl" style={{ color: "var(--text-3)" }}>
           {rangeStart.toLocaleDateString("ko-KR", { month: "long", day: "numeric" })} —{" "}
           {rangeEnd.toLocaleDateString("ko-KR", { month: "long", day: "numeric" })}
         </p>
@@ -322,7 +322,7 @@ function CalendarSlide({ events, tasks }: any) {
         {/* 요일 헤더 */}
         <div className="grid grid-cols-7" style={{ background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
           {DAYS.map((d, i) => (
-            <div key={i} className="py-4 text-center text-lg font-semibold"
+            <div key={i} className="py-5 text-center text-2xl font-bold"
               style={{ color: i===0?"#f87171":i===6?"#60a5fa":"var(--text-2)" }}>{d}</div>
           ))}
         </div>
@@ -341,7 +341,8 @@ function CalendarSlide({ events, tasks }: any) {
                     style={{
                       background: isThisWeek ? "var(--cyan-bg)" : "var(--bg-3)",
                       color: isThisWeek ? "var(--cyan)" : "var(--text-3)",
-                      fontSize: 11,
+                      fontSize: 13,
+                      padding: "3px 10px",
                     }}>
                     {getWeekLabel(weekIdx)}
                   </span>
@@ -358,7 +359,7 @@ function CalendarSlide({ events, tasks }: any) {
                         borderRight: col < 6 ? "1px solid var(--border)" : "none",
                         opacity: isPast ? 0.7 : 1,
                       }}>
-                      <p className="text-base w-8 h-8 rounded-full flex items-center justify-center mb-1 font-semibold"
+                      <p className="text-xl w-10 h-10 rounded-full flex items-center justify-center mb-1 font-bold"
                         style={{
                           background: isToday ? "var(--cyan)" : "transparent",
                           color: isToday ? "#0D1B2E" : col===0 ? "#f87171" : col===6 ? "#60a5fa" : "var(--text-1)",
@@ -381,7 +382,7 @@ function CalendarSlide({ events, tasks }: any) {
                         );
                       })}
                       {dayEvs.length > 3 && (
-                        <p style={{ fontSize: 11, color: "var(--text-3)" }}>+{dayEvs.length - 3}개</p>
+                        <p style={{ fontSize: 13, color: "var(--text-3)" }}>+{dayEvs.length - 3}개</p>
                       )}
                     </div>
                   );

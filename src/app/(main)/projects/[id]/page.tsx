@@ -9,6 +9,7 @@ import TaskDetail from "@/components/tasks/TaskDetail";
 import ProjectForm from "@/components/projects/ProjectForm";
 import ProjectMemberPanel from "@/components/team/ProjectMemberPanel";
 import PlanningFeedback from "@/components/tasks/PlanningFeedback";
+import TaskDraftPanel from "@/components/tasks/TaskDraftPanel";
 import { getAuthUser, getProjectRole } from "@/lib/auth";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -197,6 +198,9 @@ export default function ProjectDetailPage() {
       {/* 개요 탭 */}
       {tab === "overview" && (
         <div className="space-y-4">
+          {canManage && (
+            <TaskDraftPanel projectId={id} onApproved={load} />
+          )}
           <PlanningFeedback mode="project" projectId={id} projectName={project?.name}
             onTaskClick={(tid) => setOpenDetail(tid)} />
 
@@ -274,6 +278,11 @@ export default function ProjectDetailPage() {
       {/* 업무 탭 - 마일스톤별 그룹핑 */}
       {tab === "tasks" && (
         <div className="space-y-3">
+          {/* 회의록 업무 검토 (Admin/Leader만) */}
+          {canManage && (
+            <TaskDraftPanel projectId={id} onApproved={load} />
+          )}
+
           {/* 마일스톤 관리 버튼 (Admin/Leader만) */}
           {canManage && (
             <div className="flex items-center justify-between">

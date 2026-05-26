@@ -168,18 +168,45 @@ export default function MeetingNotePage() {
     if (!result) return;
     setApplying(true);
     let count = 0;
-    for (const task of result.tasks ?? []) {
-      if (!task.selected) continue;
-      const { error } = await supabase.from("tasks").insert({
-        title: task.title, task_type: task.task_type ?? "other", priority: task.priority ?? "medium",
-        status: task.is_blocked ? "blocked" : "todo", blocked_reason: task.is_blocked ? task.blocked_reason : null,
-        due_date: task.due_date ?? null, assignee_id: task.assignee_id ?? null, assignee_ids: task.assignee_ids ?? [],
-        project_id: task.projectId || null,
-      });
-      if (!error) count++;
+    const selectedTasks = (result.tasks ?? []).filter((t: any) => t.selected);
+
+    // 프로젝트가 있는 업무 → task_drafts (리더 승인 필요)
+    // 프로젝트 없는 업무 → tasks 직접 등록
+    for (const task of selectedTasks) {
+      if (task.projectId) {
+        // task_drafts에 저장 (리더 승인 대기)
+        const { error } = await supabase.from("task_drafts").insert({
+          meeting_draft_id: draftId,
+          project_id: task.projectId,
+          title: task.title,
+          task_type: task.task_type ?? "other",
+          priority: task.priority ?? "medium",
+          due_date: task.due_date ?? null,
+          assignee_id: task.assignee_id ?? null,
+          assignee_ids: task.assignee_ids ?? [],
+          is_blocked: task.is_blocked ?? false,
+          blocked_reason: task.is_blocked ? task.blocked_reason : null,
+          status: "pending",
+          submitted_by: myUser?.userId ?? null,
+        });
+        if (!error) count++;
+      } else {
+        // 프로젝트 없으면 바로 등록
+        const { error } = await supabase.from("tasks").insert({
+          title: task.title, task_type: task.task_type ?? "other", priority: task.priority ?? "medium",
+          status: task.is_blocked ? "blocked" : "todo", blocked_reason: task.is_blocked ? task.blocked_reason : null,
+          due_date: task.due_date ?? null, assignee_id: task.assignee_id ?? null, assignee_ids: task.assignee_ids ?? [],
+          project_id: null,
+        });
+        if (!error) count++;
+      }
     }
+
+    const draftCount = selectedTasks.filter((t: any) => t.projectId).length;
+    const directCount = selectedTasks.filter((t: any) => !t.projectId).length;
+
     await completeDraft();
-    setResult((r: any) => ({ ...r, _count: count }));
+    setResult((r: any) => ({ ...r, _count: count, _draftCount: draftCount, _directCount: directCount }));
     setStep("done"); setApplying(false);
   }
 
@@ -252,8 +279,20 @@ export default function MeetingNotePage() {
     <div className="max-w-lg mx-auto mt-20 text-center space-y-6">
       <div className="text-5xl">✅</div>
       <div>
-        <p className="text-xl font-bold mb-2" style={{ color: "var(--text-1)" }}>업무가 등록됐습니다!</p>
-        <p className="text-sm" style={{ color: "var(--text-3)" }}>{result?._count ?? result?.tasks?.filter((t:any)=>t.selected).length}건이 등록됐습니다</p>
+        <p className="text-xl font-bold mb-2" style={{ color: "var(--text-1)" }}>업무가 제출됐습니다!</p>
+        {result?._draftCount > 0 && (
+          <div className="rounded-xl px-4 py-3 mb-2" style={{ background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.2)" }}>
+            <p className="text-sm font-medium" style={{ color: "#60a5fa" }}>
+              📋 {result._draftCount}건 → 프로젝트 리더 승인 대기
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: "var(--text-3)" }}>리더가 검토 후 프로젝트 업무에 추가합니다</p>
+          </div>
+        )}
+        {result?._directCount > 0 && (
+          <p className="text-sm" style={{ color: "var(--text-3)" }}>
+            {result._directCount}건은 바로 등록됐습니다
+          </p>
+        )}
       </div>
       <div className="flex gap-3 justify-center">
         <button onClick={() => router.push("/tasks")} className="rounded-xl px-6 py-3 text-sm font-semibold" style={{ background: "linear-gradient(135deg, #00C2CC, #2E86FF)", color: "#fff" }}>업무 목록 보기 →</button>
