@@ -58,6 +58,7 @@ export default function ProjectDetailPage() {
   const [myRole, setMyRole] = useState<string | null>(null);
   const [sysRole, setSysRole] = useState<string>("member");
   const [expandedMs, setExpandedMs] = useState<Record<string, boolean>>({});
+  const [allProjects, setAllProjects] = useState<any[]>([]);
 
   const load = useCallback(async () => {
     const { data: p } = await supabase.from("projects")
@@ -70,6 +71,9 @@ export default function ProjectDetailPage() {
       const projRole = await getProjectRole(id, authUser.userId);
       setMyRole(projRole);
     }
+
+    const { data: allProj } = await supabase.from("projects").select("id, name").eq("status", "active");
+    setAllProjects(allProj ?? []);
 
     const { data: ms } = await supabase.from("milestones")
       .select("*").eq("project_id", id).neq("status", "cancelled").order("sort_order");
@@ -316,7 +320,7 @@ export default function ProjectDetailPage() {
                     {mTasks.length === 0 ? (
                       <p className="text-xs text-center py-4" style={{ color: "var(--text-3)" }}>이 단계에 업무가 없습니다</p>
                     ) : (
-                      <TaskList tasks={mTasks} onRefresh={load} onTaskClick={id => setOpenDetail(id)} />
+                      <TaskList tasks={mTasks} onRefresh={load} onTaskClick={id => setOpenDetail(id)} milestones={milestones} projects={allProjects} />
                     )}
                   </div>
                 )}
@@ -342,7 +346,7 @@ export default function ProjectDetailPage() {
                   {unclassified.length === 0 ? (
                     <p className="text-xs text-center py-4" style={{ color: "var(--text-3)" }}>미분류 업무 없음</p>
                   ) : (
-                    <TaskList tasks={unclassified} onRefresh={load} onTaskClick={id => setOpenDetail(id)} />
+                    <TaskList tasks={unclassified} onRefresh={load} onTaskClick={id => setOpenDetail(id)} milestones={milestones} projects={allProjects} />
                   )}
                 </div>
               )}
