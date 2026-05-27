@@ -12,16 +12,14 @@ const HEALTH_CONFIG: Record<string, { label: string; color: string }> = {
   critical:  { label: "위험",     color: "#f87171" },
   suspended: { label: "중단",     color: "#71717a" },
 };
-
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  backlog: { label: "백로그",  color: "#4A7099" },
-  todo:    { label: "할 일",   color: "#7BA7C8" },
-  doing:   { label: "진행 중", color: "#2E86FF" },
+  backlog: { label: "백로그",  color: "#8899aa" },
+  todo:    { label: "할 일",   color: "#aabbcc" },
+  doing:   { label: "진행 중", color: "#60a5fa" },
   blocked: { label: "Blocked", color: "#f87171" },
   review:  { label: "리뷰",    color: "#fbbf24" },
   done:    { label: "완료",    color: "#34d399" },
 };
-
 const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
   personal: { label: "개인",  color: "#a78bfa" },
   vacation: { label: "연차",  color: "#34d399" },
@@ -29,87 +27,80 @@ const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
   meeting:  { label: "미팅",  color: "#60a5fa" },
   deadline: { label: "마감",  color: "#fbbf24" },
 };
-
 const DAYS = ["일","월","화","수","목","금","토"];
+const BG  = "#1a2233";
+const BG2 = "#202c3f";
+const BG3 = "#263347";
+const TEXT1 = "#e8f0fe";
+const TEXT2 = "#a8bbd0";
+const TEXT3 = "#6a8099";
+const BORDER = "rgba(255,255,255,0.08)";
 
 function isSameDay(a: Date, b: Date) {
-  return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+  return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
 }
 
 // ── 대시보드 슬라이드 ──
 function DashboardSlide({ projects, tasks, users }: any) {
   const now = new Date();
-  const doingT = tasks.filter((t:any) => t.status==="doing").length;
-  const doneT  = tasks.filter((t:any) => t.status==="done").length;
-  const blockedT = tasks.filter((t:any) => t.status==="blocked").length;
-  const overdueT = tasks.filter((t:any) => t.due_date && new Date(t.due_date)<now && t.status!=="done").length;
+  const doingT   = tasks.filter((t:any)=>t.status==="doing").length;
+  const doneT    = tasks.filter((t:any)=>t.status==="done").length;
+  const blockedT = tasks.filter((t:any)=>t.status==="blocked").length;
+  const overdueT = tasks.filter((t:any)=>t.due_date&&new Date(t.due_date)<now&&t.status!=="done").length;
+  const TEAM_COLORS = ["#60a5fa","#34d399","#fbbf24","#f87171","#a78bfa","#fb923c","#22d3ee","#e879f9"];
 
   return (
-    <div className="h-full flex flex-col p-12 gap-8">
+    <div style={{ height:"100%", display:"flex", flexDirection:"column", padding:"40px 48px", gap:28, background:BG }}>
       {/* 헤더 */}
-      <div>
-        <p className="text-2xl" style={{ color: "var(--text-3)" }}>
-          {now.toLocaleDateString("ko-KR", { year:"numeric", month:"long", day:"numeric", weekday:"long" })}
-        </p>
-        <h1 className="text-6xl font-bold mt-2" style={{ color: "var(--text-1)" }}>팀 전체 현황</h1>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
+        <div>
+          <p style={{ fontSize:22, color:TEXT3, marginBottom:8 }}>
+            {now.toLocaleDateString("ko-KR",{year:"numeric",month:"long",day:"numeric",weekday:"long"})}
+          </p>
+          <h1 style={{ fontSize:52, fontWeight:700, color:TEXT1, margin:0 }}>팀 전체 현황</h1>
+        </div>
+        <div style={{ display:"flex", gap:12 }}>
+          {[
+            { label:"진행 중", value:doingT,   color:"#60a5fa" },
+            { label:"완료",    value:doneT,    color:"#34d399" },
+            { label:"Blocked", value:blockedT, color:"#f87171" },
+            { label:"마감초과", value:overdueT, color:"#fbbf24" },
+          ].map(s=>(
+            <div key={s.label} style={{ background:BG2, border:`1px solid ${s.color}33`, borderRadius:20, padding:"16px 28px", textAlign:"center", minWidth:120 }}>
+              <p style={{ fontSize:52, fontWeight:700, color:s.color, margin:0, lineHeight:1 }}>{s.value}</p>
+              <p style={{ fontSize:18, color:TEXT3, margin:"8px 0 0" }}>{s.label}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* 전체 통계 */}
-      <div className="grid grid-cols-4 gap-6">
-        {[
-          { label: "진행 중",   value: doingT,   color: "#2E86FF" },
-          { label: "완료",      value: doneT,    color: "#34d399" },
-          { label: "Blocked",   value: blockedT, color: "#f87171" },
-          { label: "마감 초과", value: overdueT, color: "#fbbf24" },
-        ].map(s => (
-          <div key={s.label} className="rounded-3xl p-8 text-center"
-            style={{ background: `${s.color}15`, border: `2px solid ${s.color}44` }}>
-            <p className="text-8xl font-bold tabular-nums" style={{ color: s.color }}>{s.value}</p>
-            <p className="text-2xl mt-3" style={{ color: "var(--text-3)" }}>{s.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* 프로젝트 현황 */}
-      <div className="flex-1 grid gap-5" style={{ gridTemplateColumns: `repeat(${Math.min(projects.length, 3)}, 1fr)` }}>
-        {projects.slice(0, 6).map((p: any) => {
-          const hc = HEALTH_CONFIG[p.health] ?? HEALTH_CONFIG.good;
-          const total = p.tasks?.length ?? 0;
-          const done = (p.tasks??[]).filter((t:any)=>t.status==="done").length;
+      {/* 프로젝트 카드들 */}
+      <div style={{ flex:1, display:"grid", gap:20, gridTemplateColumns:`repeat(${Math.min(projects.length,3)},1fr)` }}>
+        {projects.slice(0,6).map((p:any)=>{
+          const hc = HEALTH_CONFIG[p.health]??HEALTH_CONFIG.good;
+          const total = p.tasks?.length??0;
+          const done  = (p.tasks??[]).filter((t:any)=>t.status==="done").length;
           const doing = (p.tasks??[]).filter((t:any)=>t.status==="doing").length;
-          const blocked = (p.tasks??[]).filter((t:any)=>t.status==="blocked").length;
-          const daysLeft = p.end_date ? Math.ceil((new Date(p.end_date).getTime()-now.getTime())/86400000) : null;
+          const blkd  = (p.tasks??[]).filter((t:any)=>t.status==="blocked").length;
           return (
-            <div key={p.id} className="rounded-3xl p-7 flex flex-col gap-4"
-              style={{ background: "var(--bg-2)", border: `2px solid ${hc.color}44` }}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-3 h-3 rounded-full shrink-0" style={{ background: hc.color }} />
-                    <span className="text-xl px-3 py-1 rounded-full font-bold"
-                      style={{ background: `${hc.color}18`, color: hc.color }}>{hc.label}</span>
-                  </div>
-                  <h3 className="text-3xl font-bold truncate" style={{ color: "var(--text-1)" }}>{p.name}</h3>
+            <div key={p.id} style={{ background:BG2, border:`1.5px solid ${hc.color}44`, borderRadius:20, padding:"24px 28px", display:"flex", flexDirection:"column", gap:16 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <span style={{ fontSize:16, background:`${hc.color}20`, color:hc.color, borderRadius:20, padding:"4px 14px", fontWeight:600 }}>{hc.label}</span>
+                  <h3 style={{ fontSize:28, fontWeight:700, color:TEXT1, margin:"10px 0 0", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p.name}</h3>
                 </div>
-                {daysLeft !== null && (
-                  <div className="text-right shrink-0">
-                    <p className="text-lg" style={{ color: "var(--text-3)" }}>마감</p>
-                    <p className="text-2xl font-bold" style={{ color: daysLeft<0?"#f87171":daysLeft<=7?"#fbbf24":"var(--text-2)" }}>
-                      {p.end_date ? new Date(p.end_date).toLocaleDateString("ko-KR",{month:"short",day:"numeric"}) : ""}
+                {p.end_date && (
+                  <div style={{ textAlign:"right", marginLeft:12, flexShrink:0 }}>
+                    <p style={{ fontSize:14, color:TEXT3, margin:0 }}>마감</p>
+                    <p style={{ fontSize:20, fontWeight:600, color:TEXT2, margin:0 }}>
+                      {new Date(p.end_date).toLocaleDateString("ko-KR",{month:"short",day:"numeric"})}
                     </p>
                   </div>
                 )}
               </div>
-              <div className="flex gap-5 flex-wrap">
-                {[
-                  { label:"진행", value:doing, color:"#2E86FF" },
-                  { label:"완료", value:done, color:"#34d399" },
-                  { label:"전체", value:total, color:"var(--text-3)" },
-                  ...(blocked>0?[{label:"Blocked",value:blocked,color:"#f87171"}]:[]),
-                ].map((s,i) => (
-                  <span key={i} className="text-xl" style={{ color: s.color }}>
-                    {s.label} <span className="font-bold text-2xl">{s.value}</span>
-                  </span>
+              <div style={{ display:"flex", gap:20, flexWrap:"wrap" }}>
+                {[{l:"진행",v:doing,c:"#60a5fa"},{l:"완료",v:done,c:"#34d399"},{l:"전체",v:total,c:TEXT3},...(blkd>0?[{l:"Blocked",v:blkd,c:"#f87171"}]:[])].map((s,i)=>(
+                  <span key={i} style={{ fontSize:18, color:s.c }}>{s.l} <b style={{ fontSize:24 }}>{s.v}</b></span>
                 ))}
               </div>
             </div>
@@ -118,23 +109,20 @@ function DashboardSlide({ projects, tasks, users }: any) {
       </div>
 
       {/* 팀원 */}
-      {users.length > 0 && (
-        <div className="flex gap-4">
-          {users.slice(0,8).map((u:any, i:number) => {
-            const COLORS = ["#60a5fa","#34d399","#fbbf24","#f87171","#a78bfa","#fb923c","#22d3ee","#e879f9"];
-            const color = COLORS[i%COLORS.length];
+      {users.length>0 && (
+        <div style={{ display:"flex", gap:12 }}>
+          {users.slice(0,8).map((u:any,i:number)=>{
+            const color = TEAM_COLORS[i%TEAM_COLORS.length];
             const doing = tasks.filter((t:any)=>(t.assignee_id===u.id||(t.assignee_ids??[]).includes(u.id))&&t.status==="doing").length;
             const total = tasks.filter((t:any)=>(t.assignee_id===u.id||(t.assignee_ids??[]).includes(u.id))&&t.status!=="done").length;
             return (
-              <div key={u.id} className="rounded-2xl px-5 py-4 flex items-center gap-3 flex-1"
-                style={{ background: `${color}12`, border: `1.5px solid ${color}33` }}>
-                <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold shrink-0"
-                  style={{ background: `${color}22`, color }}>
+              <div key={u.id} style={{ flex:1, background:BG2, border:`1px solid ${color}33`, borderRadius:16, padding:"14px 18px", display:"flex", alignItems:"center", gap:12 }}>
+                <div style={{ width:44, height:44, borderRadius:"50%", background:`${color}22`, color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, fontWeight:700, flexShrink:0 }}>
                   {u.name?.[0]}
                 </div>
                 <div>
-                  <p className="text-lg font-semibold" style={{ color: "var(--text-1)" }}>{u.name}</p>
-                  <p className="text-base" style={{ color }}>진행 {doing} / 전체 {total}</p>
+                  <p style={{ fontSize:18, fontWeight:600, color:TEXT1, margin:0 }}>{u.name}</p>
+                  <p style={{ fontSize:15, color, margin:0 }}>진행 {doing} / 전체 {total}</p>
                 </div>
               </div>
             );
@@ -148,82 +136,66 @@ function DashboardSlide({ projects, tasks, users }: any) {
 // ── 프로젝트 슬라이드 ──
 function ProjectSlide({ project, tasks }: any) {
   const now = new Date();
-  const hc = HEALTH_CONFIG[project.health] ?? HEALTH_CONFIG.good;
-  const total = tasks.length;
-  const done  = tasks.filter((t:any)=>t.status==="done").length;
-  const doing = tasks.filter((t:any)=>t.status==="doing").length;
+  const hc = HEALTH_CONFIG[project.health]??HEALTH_CONFIG.good;
+  const total   = tasks.length;
+  const done    = tasks.filter((t:any)=>t.status==="done").length;
+  const doing   = tasks.filter((t:any)=>t.status==="doing").length;
   const blocked = tasks.filter((t:any)=>t.status==="blocked").length;
-  const review = tasks.filter((t:any)=>t.status==="review").length;
+  const review  = tasks.filter((t:any)=>t.status==="review").length;
   const daysLeft = project.end_date ? Math.ceil((new Date(project.end_date).getTime()-now.getTime())/86400000) : null;
-  const activeTasks = tasks.filter((t:any)=>t.status!=="done" && t.status!=="backlog").slice(0,10);
+  const activeTasks = tasks.filter((t:any)=>t.status!=="done"&&t.status!=="backlog").slice(0,10);
+  const dDayColor = daysLeft===null?"#34d399":daysLeft<0?"#f87171":daysLeft<=14?"#fbbf24":"#34d399";
 
   return (
-    <div className="h-full flex flex-col p-12 gap-7">
+    <div style={{ height:"100%", display:"flex", flexDirection:"column", padding:"40px 48px", gap:28, background:BG }}>
       {/* 헤더 */}
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-4 mb-3">
-            <div className="w-4 h-4 rounded-full" style={{ background: hc.color }} />
-            <span className="text-2xl px-4 py-1.5 rounded-full font-bold"
-              style={{ background: `${hc.color}18`, color: hc.color }}>{hc.label}</span>
-            {project.owner?.name && (
-              <span className="text-2xl" style={{ color: "var(--text-3)" }}>담당 · {project.owner.name}</span>
-            )}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:12 }}>
+            <div style={{ width:14, height:14, borderRadius:"50%", background:hc.color, flexShrink:0 }} />
+            <span style={{ fontSize:20, background:`${hc.color}20`, color:hc.color, borderRadius:20, padding:"4px 16px", fontWeight:600 }}>{hc.label}</span>
+            {project.owner?.name && <span style={{ fontSize:20, color:TEXT3 }}>담당 · {project.owner.name}</span>}
           </div>
-          <h1 className="text-6xl font-bold" style={{ color: "var(--text-1)" }}>{project.name}</h1>
-          {project.description && (
-            <p className="text-2xl mt-2" style={{ color: "var(--text-2)" }}>{project.description}</p>
-          )}
+          <h1 style={{ fontSize:56, fontWeight:700, color:TEXT1, margin:0, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{project.name}</h1>
+          {project.description && <p style={{ fontSize:22, color:TEXT2, margin:"8px 0 0" }}>{project.description}</p>}
         </div>
-        {daysLeft !== null && (
-          <div className="rounded-3xl px-8 py-6 text-center shrink-0"
-            style={{ background: `${daysLeft<0?"#f87171":daysLeft<=14?"#fbbf24":"#34d399"}12`, border: `2px solid ${daysLeft<0?"#f87171":daysLeft<=14?"#fbbf24":"#34d399"}44` }}>
-            <p className="text-xl" style={{ color: "var(--text-3)" }}>마감일</p>
-            <p className="text-4xl font-bold mt-1" style={{ color: daysLeft<0?"#f87171":daysLeft<=14?"#fbbf24":"#34d399" }}>
+        {daysLeft!==null && (
+          <div style={{ background:BG2, border:`2px solid ${dDayColor}44`, borderRadius:20, padding:"20px 32px", textAlign:"center", flexShrink:0, marginLeft:24 }}>
+            <p style={{ fontSize:18, color:TEXT3, margin:0 }}>마감일</p>
+            <p style={{ fontSize:28, fontWeight:600, color:TEXT2, margin:"4px 0 0" }}>
               {new Date(project.end_date).toLocaleDateString("ko-KR",{month:"long",day:"numeric"})}
             </p>
-            <p className="text-2xl font-bold mt-1" style={{ color: daysLeft<0?"#f87171":daysLeft<=14?"#fbbf24":"#34d399" }}>
-              {daysLeft<0?`${Math.abs(daysLeft)}일 초과`:`D-${daysLeft}`}
+            <p style={{ fontSize:40, fontWeight:700, color:dDayColor, margin:"4px 0 0" }}>
+              {daysLeft<0?`+${Math.abs(daysLeft)}일`:`D-${daysLeft}`}
             </p>
           </div>
         )}
       </div>
 
-      {/* 통계 카드 */}
-      <div className="grid grid-cols-5 gap-5">
-        {[
-          { label:"전체",    value:total,   color:"#7BA7C8" },
-          { label:"진행 중", value:doing,   color:"#2E86FF" },
-          { label:"리뷰",    value:review,  color:"#fbbf24" },
-          { label:"Blocked", value:blocked, color:"#f87171" },
-          { label:"완료",    value:done,    color:"#34d399" },
-        ].map(s => (
-          <div key={s.label} className="rounded-3xl p-7 text-center"
-            style={{ background: `${s.color}12`, border: `2px solid ${s.color}33` }}>
-            <p className="text-7xl font-bold tabular-nums" style={{ color: s.color }}>{s.value}</p>
-            <p className="text-2xl mt-2" style={{ color: "var(--text-3)" }}>{s.label}</p>
+      {/* 통계 */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:16 }}>
+        {[{l:"전체",v:total,c:"#aabbcc"},{l:"진행 중",v:doing,c:"#60a5fa"},{l:"리뷰",v:review,c:"#fbbf24"},{l:"Blocked",v:blocked,c:"#f87171"},{l:"완료",v:done,c:"#34d399"}].map(s=>(
+          <div key={s.l} style={{ background:BG2, border:`1px solid ${s.c}33`, borderRadius:18, padding:"20px 16px", textAlign:"center" }}>
+            <p style={{ fontSize:56, fontWeight:700, color:s.c, margin:0, lineHeight:1 }}>{s.v}</p>
+            <p style={{ fontSize:19, color:TEXT3, margin:"8px 0 0" }}>{s.l}</p>
           </div>
         ))}
       </div>
 
-      {/* 진행 중 업무 */}
-      <div className="flex-1">
-        <p className="text-2xl font-semibold mb-4" style={{ color: "var(--text-3)" }}>진행 중 업무</p>
-        <div className="grid grid-cols-2 gap-3">
-          {activeTasks.map((t:any) => {
-            const sc = STATUS_CONFIG[t.status] ?? STATUS_CONFIG.todo;
-            const overdue = t.due_date && new Date(t.due_date)<now && t.status!=="done";
+      {/* 업무 목록 */}
+      <div style={{ flex:1, overflow:"hidden" }}>
+        <p style={{ fontSize:20, color:TEXT3, marginBottom:12 }}>진행 중 업무</p>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          {activeTasks.map((t:any)=>{
+            const sc = STATUS_CONFIG[t.status]??STATUS_CONFIG.todo;
+            const overdue = t.due_date&&new Date(t.due_date)<now&&t.status!=="done";
             return (
-              <div key={t.id} className="rounded-2xl px-6 py-4 flex items-center gap-4"
-                style={{ background:"var(--bg-2)", borderLeft:`4px solid ${sc.color}`, border:`1px solid ${sc.color}22` }}>
-                <span className="text-base px-3 py-1.5 rounded-lg font-bold shrink-0"
-                  style={{ background:`${sc.color}18`, color:sc.color }}>{sc.label}</span>
-                <span className="flex-1 text-xl truncate" style={{ color:"var(--text-1)" }}>{t.title}</span>
-                {t.assignee?.name && (
-                  <span className="text-lg shrink-0" style={{ color:"var(--text-3)" }}>{t.assignee.name}</span>
-                )}
+              <div key={t.id} style={{ background:BG2, borderLeft:`4px solid ${sc.color}`, borderRadius:"0 12px 12px 0", padding:"12px 18px", display:"flex", alignItems:"center", gap:12 }}>
+                <span style={{ fontSize:14, background:`${sc.color}20`, color:sc.color, borderRadius:8, padding:"4px 12px", fontWeight:600, flexShrink:0 }}>{sc.label}</span>
+                <span style={{ flex:1, fontSize:20, color:TEXT1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.title}</span>
+                {t.assignee?.name && <span style={{ fontSize:17, color:TEXT3, flexShrink:0 }}>{t.assignee.name}</span>}
                 {t.due_date && (
-                  <span className="text-lg shrink-0 font-medium" style={{ color:overdue?"#f87171":"var(--text-3)" }}>
+                  <span style={{ fontSize:17, color:overdue?"#f87171":TEXT3, flexShrink:0, fontWeight:overdue?600:400 }}>
                     {overdue?"⚠ ":""}{new Date(t.due_date).toLocaleDateString("ko-KR",{month:"numeric",day:"numeric"})}
                   </span>
                 )}
@@ -240,17 +212,18 @@ function ProjectSlide({ project, tasks }: any) {
 function CalendarSlide({ events, tasks }: any) {
   const now = new Date();
   const rangeStart = new Date(now);
-  rangeStart.setDate(now.getDate() - now.getDay() - 7);
+  rangeStart.setDate(now.getDate()-now.getDay()-7);
   rangeStart.setHours(0,0,0,0);
   const cells: Date[] = Array.from({length:28},(_,i)=>{ const d=new Date(rangeStart); d.setDate(rangeStart.getDate()+i); return d; });
+  const thisWeekStart = new Date(now); thisWeekStart.setDate(now.getDate()-now.getDay()); thisWeekStart.setHours(0,0,0,0);
 
   function getEventsForDay(date: Date) {
     const result: any[] = [];
     events.forEach((ev:any)=>{
       if (!ev.start_date) return;
-      const s = new Date(ev.start_date); s.setHours(0,0,0,0);
-      const e = ev.end_date ? new Date(ev.end_date) : new Date(s); e.setHours(23,59,59,999);
-      if (date>=s && date<=e) result.push({...ev,_type:"event"});
+      const s=new Date(ev.start_date); s.setHours(0,0,0,0);
+      const e=ev.end_date?new Date(ev.end_date):new Date(s); e.setHours(23,59,59,999);
+      if (date>=s&&date<=e) result.push({...ev,_type:"event"});
     });
     tasks.forEach((t:any)=>{
       if (!t.due_date) return;
@@ -259,69 +232,62 @@ function CalendarSlide({ events, tasks }: any) {
     return result;
   }
 
-  const thisWeekStart = new Date(now); thisWeekStart.setDate(now.getDate()-now.getDay()); thisWeekStart.setHours(0,0,0,0);
-  function getWeekLabel(i:number) { return ["지난 주","이번 주","다음 주","2주 후"][i]; }
+  const WEEK_LABELS = ["지난 주","이번 주","다음 주","2주 후"];
 
   return (
-    <div className="h-full flex flex-col p-12 gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-6xl font-bold" style={{ color:"var(--text-1)" }}>일정</h1>
-        <div className="flex gap-5">
+    <div style={{ height:"100%", display:"flex", flexDirection:"column", padding:"40px 48px", gap:24, background:BG }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <h1 style={{ fontSize:52, fontWeight:700, color:TEXT1, margin:0 }}>일정</h1>
+        <div style={{ display:"flex", gap:20 }}>
           {Object.entries(EVENT_TYPE_CONFIG).map(([k,v])=>(
-            <div key={k} className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-sm" style={{background:v.color}} />
-              <span className="text-xl" style={{color:"var(--text-3)"}}>{v.label}</span>
+            <div key={k} style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <div style={{ width:14, height:14, borderRadius:4, background:v.color }} />
+              <span style={{ fontSize:18, color:TEXT3 }}>{v.label}</span>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="flex-1 rounded-3xl overflow-hidden" style={{ border:"1px solid var(--border)" }}>
+      <div style={{ flex:1, borderRadius:20, overflow:"hidden", border:`1px solid ${BORDER}` }}>
         {/* 요일 헤더 */}
-        <div className="grid grid-cols-7" style={{ background:"var(--bg-3)", borderBottom:"1px solid var(--border)" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", background:BG3, borderBottom:`1px solid ${BORDER}` }}>
           {DAYS.map((d,i)=>(
-            <div key={i} className="py-5 text-center text-3xl font-bold"
-              style={{color:i===0?"#f87171":i===6?"#60a5fa":"var(--text-2)"}}>{d}</div>
+            <div key={i} style={{ padding:"16px 0", textAlign:"center", fontSize:24, fontWeight:600, color:i===0?"#f87171":i===6?"#60a5fa":TEXT2 }}>{d}</div>
           ))}
         </div>
 
         {/* 4주 */}
-        <div style={{ display:"grid", gridTemplateRows:"repeat(4,1fr)", height:"calc(100% - 72px)" }}>
+        <div style={{ display:"grid", gridTemplateRows:"repeat(4,1fr)", height:"calc(100% - 57px)" }}>
           {[0,1,2,3].map(wk=>{
-            const weekDays = cells.slice(wk*7, wk*7+7);
+            const weekDays = cells.slice(wk*7,wk*7+7);
             const isThisWeek = wk===1;
             return (
-              <div key={wk} className="grid grid-cols-7 relative"
-                style={{ borderBottom:wk<3?"1px solid var(--border)":"none" }}>
-                <div className="absolute left-2 top-2 z-10">
-                  <span className="text-base px-3 py-1 rounded-full font-bold"
-                    style={{ background:isThisWeek?"var(--cyan-bg)":"var(--bg-3)", color:isThisWeek?"var(--cyan)":"var(--text-3)" }}>
-                    {getWeekLabel(wk)}
+              <div key={wk} style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", position:"relative", borderBottom:wk<3?`1px solid ${BORDER}`:"none" }}>
+                <div style={{ position:"absolute", left:8, top:6, zIndex:2 }}>
+                  <span style={{ fontSize:14, background:isThisWeek?"rgba(34,211,238,0.2)":BG3, color:isThisWeek?"var(--cyan)":TEXT3, borderRadius:12, padding:"3px 12px", fontWeight:600 }}>
+                    {WEEK_LABELS[wk]}
                   </span>
                 </div>
                 {weekDays.map((d,i)=>{
                   const dayEvs = getEventsForDay(d);
                   const col = i%7;
                   const isToday = isSameDay(d,now);
-                  const isPast = d < thisWeekStart;
+                  const isPast = d<thisWeekStart;
                   return (
-                    <div key={i} className="p-2 pt-10"
-                      style={{ background:isToday?"rgba(34,211,238,0.06)":isPast?"rgba(0,0,0,0.12)":"var(--bg-2)", borderRight:col<6?"1px solid var(--border)":"none", opacity:isPast?0.65:1 }}>
-                      <p className="text-2xl font-bold w-10 h-10 rounded-full flex items-center justify-center mb-1"
-                        style={{ background:isToday?"var(--cyan)":"transparent", color:isToday?"#0D1B2E":col===0?"#f87171":col===6?"#60a5fa":"var(--text-1)" }}>
+                    <div key={i} style={{ background:isToday?"rgba(34,211,238,0.07)":isPast?"rgba(0,0,0,0.15)":BG2, borderRight:col<6?`1px solid ${BORDER}`:"none", padding:"8px 10px", paddingTop:34, opacity:isPast?0.6:1 }}>
+                      <div style={{ width:36, height:36, borderRadius:"50%", background:isToday?"#00C2CC":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, fontWeight:600, color:isToday?"#0D1B2E":col===0?"#f87171":col===6?"#60a5fa":TEXT1, marginBottom:4 }}>
                         {d.getDate()}
-                      </p>
+                      </div>
                       {dayEvs.slice(0,3).map((ev,j)=>{
                         const cfg = EVENT_TYPE_CONFIG[ev.type]??EVENT_TYPE_CONFIG.personal;
                         const color = ev.color||cfg.color;
                         return (
-                          <div key={j} className="rounded-lg px-2 py-1 truncate mb-1"
-                            style={{ background:`${color}22`, color, fontSize:18, fontWeight:500, border:`1px solid ${color}33` }}>
+                          <div key={j} style={{ background:`${color}22`, color, fontSize:16, fontWeight:500, borderRadius:6, padding:"3px 8px", marginBottom:3, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis", border:`1px solid ${color}44` }}>
                             {ev._type==="task"?"📌 ":""}{ev.title}
                           </div>
                         );
                       })}
-                      {dayEvs.length>3 && <p style={{fontSize:16,color:"var(--text-3)"}}>+{dayEvs.length-3}개</p>}
+                      {dayEvs.length>3 && <p style={{fontSize:14,color:TEXT3,margin:0}}>+{dayEvs.length-3}개</p>}
                     </div>
                   );
                 })}
@@ -348,7 +314,6 @@ export default function ViewerPage() {
   const [duration, setDuration] = useState(SLIDE_DURATION);
   const [fullscreen, setFullscreen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState(300);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
   const timerRef = useRef<any>(null);
@@ -357,147 +322,126 @@ export default function ViewerPage() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
-    const [{ data: p }, { data: t }, { data: u }, { data: ev }] = await Promise.all([
+    const [{ data:p },{ data:t },{ data:u },{ data:ev }] = await Promise.all([
       supabase.from("projects").select("*, owner:users!projects_owner_id_fkey(name), tasks(id,title,status,due_date,assignee_id,assignee_ids,assignee:users!tasks_assignee_id_fkey(name))").eq("status","active").order("created_at"),
       supabase.from("tasks").select("id,title,status,due_date,assignee_id,assignee_ids,project_id").neq("status","done"),
       supabase.from("users").select("id,name").eq("is_active",true).neq("role","viewer"),
       supabase.from("calendar_events").select("*").order("start_date"),
     ]);
-    setProjects(p??[]);
-    setAllTasks(t??[]);
-    setUsers(u??[]);
-    setEvents(ev??[]);
-    const slideList = [
-      { type:"dashboard" },
-      ...(p??[]).map((proj:any)=>({ type:"project", id:proj.id })),
-      { type:"calendar" },
-    ];
-    setSlides(slideList);
+    setProjects(p??[]); setAllTasks(t??[]); setUsers(u??[]); setEvents(ev??[]);
+    setSlides([{type:"dashboard"},...(p??[]).map((proj:any)=>({type:"project",id:proj.id})),{type:"calendar"}]);
     setLastRefreshed(new Date());
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
-
-  useEffect(() => {
-    if (!autoRefresh) { clearInterval(refreshRef.current); return; }
-    refreshRef.current = setInterval(() => { load(); }, refreshInterval*1000);
-    return () => clearInterval(refreshRef.current);
-  }, [autoRefresh, refreshInterval, load]);
-
-  useEffect(() => {
-    if (loading || slides.length===0 || paused) return;
+  useEffect(()=>{ load(); },[load]);
+  useEffect(()=>{
+    refreshRef.current = setInterval(()=>{ load(); }, refreshInterval*1000);
+    return ()=>clearInterval(refreshRef.current);
+  },[refreshInterval,load]);
+  useEffect(()=>{
+    if (loading||slides.length===0||paused) return;
     setProgress(0);
-    progressRef.current = setInterval(()=>{ setProgress(p=>p>=100?0:p+(100/(duration*10))); }, 100);
-    timerRef.current = setTimeout(()=>{ setCurrent(c=>(c+1)%slides.length); }, duration*1000);
-    return () => { clearTimeout(timerRef.current); clearInterval(progressRef.current); };
-  }, [current, paused, loading, slides.length, duration]);
+    progressRef.current = setInterval(()=>setProgress(p=>p>=100?0:p+(100/(duration*10))),100);
+    timerRef.current = setTimeout(()=>setCurrent(c=>(c+1)%slides.length),duration*1000);
+    return ()=>{ clearTimeout(timerRef.current); clearInterval(progressRef.current); };
+  },[current,paused,loading,slides.length,duration]);
 
   function toggleFullscreen() {
     if (!document.fullscreenElement) { containerRef.current?.requestFullscreen(); setFullscreen(true); }
     else { document.exitFullscreen(); setFullscreen(false); }
   }
-  useEffect(() => {
-    const h = () => setFullscreen(!!document.fullscreenElement);
-    document.addEventListener("fullscreenchange", h);
-    return () => document.removeEventListener("fullscreenchange", h);
-  }, []);
+  useEffect(()=>{
+    const h=()=>setFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange",h);
+    return ()=>document.removeEventListener("fullscreenchange",h);
+  },[]);
 
   if (loading) return (
-    <div className="flex items-center justify-center h-screen" style={{ background:"var(--bg-1)" }}>
-      <div className="text-center">
-        <div className="inline-block w-12 h-12 rounded-full border-4 animate-spin mb-4"
-          style={{ borderColor:"var(--cyan)", borderTopColor:"transparent" }} />
-        <p className="text-2xl" style={{ color:"var(--text-3)" }}>데이터 로딩 중…</p>
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:BG }}>
+      <div style={{ textAlign:"center" }}>
+        <div style={{ width:48, height:48, borderRadius:"50%", border:"4px solid #00C2CC", borderTopColor:"transparent", animation:"spin 1s linear infinite", margin:"0 auto 16px" }} />
+        <p style={{ fontSize:24, color:TEXT3 }}>데이터 로딩 중…</p>
       </div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 
   const slide = slides[current];
+  const now = new Date();
 
   return (
-    <div ref={containerRef} className="flex flex-col h-screen" style={{ background:"var(--bg-1)" }}
+    <div ref={containerRef} style={{ display:"flex", flexDirection:"column", height:"100vh", background:BG }}
       onMouseEnter={()=>setPaused(true)} onMouseLeave={()=>setPaused(false)}>
 
-      {/* 상단 컨트롤 */}
-      <div className="flex items-center justify-between px-8 py-4 shrink-0"
-        style={{ background:"var(--bg-2)", borderBottom:"1px solid var(--border)" }}>
-        <div className="flex items-center gap-4">
-          <span className="text-2xl font-bold tracking-widest uppercase" style={{ color:"var(--text-1)" }}>
-            Task<span style={{ color:"var(--cyan)" }}>Flow</span>
+      {/* 컨트롤 바 */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 24px", background:BG3, borderBottom:`1px solid ${BORDER}`, flexShrink:0 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:16 }}>
+          <span style={{ fontSize:22, fontWeight:700, letterSpacing:3, color:TEXT1 }}>
+            Task<span style={{ color:"#00C2CC" }}>Flow</span>
           </span>
-          <span className="text-lg px-3 py-1 rounded-full" style={{ background:"var(--cyan-bg)", color:"var(--cyan)" }}>
-            전체 현황
+          <span style={{ fontSize:16, background:"rgba(0,194,204,0.15)", color:"#00C2CC", borderRadius:20, padding:"4px 14px" }}>전체 현황</span>
+          <span style={{ fontSize:15, color:TEXT3 }}>
+            {lastRefreshed.toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"})} 갱신
           </span>
         </div>
 
-        <div className="flex items-center gap-4">
-          {/* 슬라이드 인디케이터 */}
-          <div className="flex gap-2">
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          {/* 인디케이터 */}
+          <div style={{ display:"flex", gap:6, alignItems:"center" }}>
             {slides.map((_,i)=>(
               <button key={i} onClick={()=>{ setCurrent(i); setProgress(0); }}
-                className="rounded-full transition-all"
-                style={{ width:i===current?24:8, height:8, background:i===current?"var(--cyan)":"var(--bg-4)" }} />
+                style={{ width:i===current?20:7, height:7, borderRadius:4, background:i===current?"#00C2CC":"rgba(255,255,255,0.2)", border:"none", cursor:"pointer", transition:"all 0.3s" }} />
             ))}
           </div>
-          <span className="text-lg" style={{ color:"var(--text-3)" }}>{current+1} / {slides.length}</span>
+          <span style={{ fontSize:17, color:TEXT3 }}>{current+1}/{slides.length}</span>
 
-          {/* 속도 */}
-          <div className="flex items-center gap-2">
-            <span className="text-lg" style={{ color:"var(--text-3)" }}>전환</span>
-            {[15,30,60].map(d=>(
-              <button key={d} onClick={()=>setDuration(d)}
-                className="rounded-lg px-3 py-1.5 text-lg"
-                style={{ background:duration===d?"var(--cyan-bg)":"var(--bg-3)", color:duration===d?"var(--cyan)":"var(--text-3)" }}>
-                {d}s
-              </button>
-            ))}
-          </div>
+          {/* 전환 속도 */}
+          {[15,30,60].map(d=>(
+            <button key={d} onClick={()=>setDuration(d)}
+              style={{ background:duration===d?"rgba(0,194,204,0.2)":"rgba(255,255,255,0.05)", color:duration===d?"#00C2CC":TEXT3, border:`1px solid ${duration===d?"#00C2CC33":BORDER}`, borderRadius:10, padding:"6px 14px", fontSize:16, cursor:"pointer" }}>
+              {d}s
+            </button>
+          ))}
 
-          {/* 이전/다음/정지 */}
+          {/* 이전/정지/다음 */}
           <button onClick={()=>{ setCurrent(c=>(c-1+slides.length)%slides.length); setProgress(0); }}
-            className="rounded-xl px-4 py-2 text-2xl" style={{ background:"var(--bg-3)", color:"var(--text-2)" }}>‹</button>
+            style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${BORDER}`, borderRadius:10, padding:"6px 16px", fontSize:22, color:TEXT2, cursor:"pointer" }}>‹</button>
           <button onClick={()=>setPaused(v=>!v)}
-            className="rounded-xl px-4 py-2 text-lg" style={{ background:"var(--bg-3)", color:"var(--text-2)" }}>
-            {paused?"▶ 재생":"⏸ 정지"}
+            style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${BORDER}`, borderRadius:10, padding:"6px 16px", fontSize:17, color:TEXT2, cursor:"pointer" }}>
+            {paused?"▶":"⏸"}
           </button>
           <button onClick={()=>{ setCurrent(c=>(c+1)%slides.length); setProgress(0); }}
-            className="rounded-xl px-4 py-2 text-2xl" style={{ background:"var(--bg-3)", color:"var(--text-2)" }}>›</button>
+            style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${BORDER}`, borderRadius:10, padding:"6px 16px", fontSize:22, color:TEXT2, cursor:"pointer" }}>›</button>
 
           {/* 새로고침 */}
-          <div className="flex items-center gap-2 pl-3" style={{ borderLeft:"1px solid var(--border)" }}>
-            {[60,300,600].map(s=>(
-              <button key={s} onClick={()=>setRefreshInterval(s)}
-                className="rounded-lg px-3 py-1.5 text-lg"
-                style={{ background:refreshInterval===s?"var(--cyan-bg)":"var(--bg-3)", color:refreshInterval===s?"var(--cyan)":"var(--text-3)" }}>
-                {s<60?`${s}s`:`${s/60}분`}
-              </button>
-            ))}
-            <button onClick={()=>{ load(); }}
-              className="rounded-xl px-4 py-2 text-xl" style={{ background:"var(--bg-3)", color:"var(--text-2)" }}>🔄</button>
-          </div>
+          {[60,300].map(s=>(
+            <button key={s} onClick={()=>setRefreshInterval(s)}
+              style={{ background:refreshInterval===s?"rgba(0,194,204,0.2)":"rgba(255,255,255,0.05)", color:refreshInterval===s?"#00C2CC":TEXT3, border:`1px solid ${refreshInterval===s?"#00C2CC33":BORDER}`, borderRadius:10, padding:"6px 12px", fontSize:15, cursor:"pointer" }}>
+              {s<60?`${s}s`:`${s/60}분`}
+            </button>
+          ))}
+          <button onClick={load}
+            style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${BORDER}`, borderRadius:10, padding:"6px 14px", fontSize:18, color:TEXT2, cursor:"pointer" }}>🔄</button>
 
           {/* 전체화면 */}
           <button onClick={toggleFullscreen}
-            className="rounded-xl px-4 py-2 text-lg" style={{ background:"var(--bg-3)", color:"var(--text-2)" }}>
+            style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${BORDER}`, borderRadius:10, padding:"6px 14px", fontSize:16, color:TEXT2, cursor:"pointer" }}>
             {fullscreen?"⊡ 나가기":"⊞ 전체화면"}
           </button>
         </div>
       </div>
 
       {/* 슬라이드 */}
-      <div className="flex-1 overflow-hidden" style={{ background:"var(--bg-1)" }}>
+      <div style={{ flex:1, overflow:"hidden" }}>
         {slide?.type==="dashboard" && <DashboardSlide projects={projects} tasks={allTasks} users={users} />}
-        {slide?.type==="project" && (() => {
-          const proj = projects.find(p=>p.id===slide.id);
-          return proj ? <ProjectSlide project={proj} tasks={proj.tasks??[]} /> : null;
-        })()}
+        {slide?.type==="project" && (()=>{ const proj=projects.find(p=>p.id===slide.id); return proj?<ProjectSlide project={proj} tasks={proj.tasks??[]} />:null; })()}
         {slide?.type==="calendar" && <CalendarSlide events={events} tasks={allTasks.filter((t:any)=>t.due_date)} />}
       </div>
 
-      {/* 하단 진행 바 */}
-      <div style={{ height:5, background:"var(--bg-4)" }}>
-        <div style={{ height:"100%", width:`${progress}%`, background:"var(--cyan)", transition:paused?"none":"width 0.1s linear" }} />
+      {/* 진행 바 */}
+      <div style={{ height:4, background:"rgba(255,255,255,0.08)" }}>
+        <div style={{ height:"100%", width:`${progress}%`, background:"#00C2CC", transition:paused?"none":"width 0.1s linear" }} />
       </div>
     </div>
   );
