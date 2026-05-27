@@ -211,13 +211,6 @@ export default function ProjectDetailPage() {
             )}
           </div>
         </div>
-        <div className="mt-4">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs" style={{ color: "var(--text-3)" }}>전체 진행률</span>
-            <span className="text-xs font-bold tabular-nums" style={{ color: health.color }}>{completionRate}%</span>
-          </div>
-          <ProgressBar value={completionRate} color={health.color} />
-        </div>
         <div className="grid grid-cols-4 gap-3 mt-4">
           {[
             { label: "전체",    value: total,   color: "#7BA7C8" },

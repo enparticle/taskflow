@@ -55,6 +55,8 @@ export default function ProjectsPage() {
     const rate = total > 0 ? Math.round((done / total) * 100) : 0;
     const hc = HEALTH_CONFIG[p.health] ?? HEALTH_CONFIG.good;
 
+    const doing = (p.tasks ?? []).filter((t: any) => t.status === "doing").length;
+    const blocked = (p.tasks ?? []).filter((t: any) => t.status === "blocked").length;
     return (
       <div className="rounded-2xl p-5 transition-all"
         style={{ background: "var(--bg-2)", border: `1px solid ${completed ? "var(--border)" : `${hc.color}33`}`, opacity: completed ? 0.85 : 1 }}>
@@ -99,12 +101,18 @@ export default function ProjectsPage() {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div style={{ flex: 1, height: 5, background: "var(--bg-4)", borderRadius: 3, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${rate}%`, background: completed ? "#34d399" : hc.color, borderRadius: 3 }} />
-          </div>
-          <span className="text-xs font-bold shrink-0" style={{ color: completed ? "#34d399" : hc.color }}>{rate}%</span>
-          <span className="text-xs shrink-0" style={{ color: "var(--text-3)" }}>{done}/{total}건</span>
+        {/* 업무 현황 카운트 */}
+        <div className="flex items-center gap-4 flex-wrap">
+          {[
+            { label: "전체",    value: total,   color: "var(--text-3)" },
+            { label: "진행 중", value: doing,   color: "#2E86FF" },
+            { label: "완료",    value: done,    color: "#34d399" },
+            ...(blocked > 0 ? [{ label: "Blocked", value: blocked, color: "#f87171" }] : []),
+          ].map((s, i) => (
+            <span key={i} className="text-xs" style={{ color: s.color }}>
+              {s.label} <span className="font-bold tabular-nums">{s.value}</span>
+            </span>
+          ))}
         </div>
       </div>
     );

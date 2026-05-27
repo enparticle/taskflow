@@ -204,10 +204,18 @@ export default function DashboardPage() {
                             {hc.label}
                           </span>
                         </div>
-                        {/* 진행률 바 */}
-                        <div className="flex items-center gap-2">
-                          <div style={{ flex: 1 }}><MiniProgress value={rate} color={hc.color} /></div>
-                          <span className="text-xs font-bold shrink-0" style={{ color: hc.color }}>{rate}%</span>
+                        {/* 업무 현황 */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {[
+                            { label: "진행", value: doing, color: "#2E86FF" },
+                            { label: "완료", value: done, color: "#34d399" },
+                            { label: "전체", value: total, color: "var(--text-3)" },
+                            ...(blocked > 0 ? [{ label: "Blocked", value: blocked, color: "#f87171" }] : []),
+                          ].map((s, i) => (
+                            <span key={i} className="text-xs" style={{ color: s.color }}>
+                              {s.label} <span className="font-bold">{s.value}</span>
+                            </span>
+                          ))}
                         </div>
                       </div>
                       {/* D-day */}
