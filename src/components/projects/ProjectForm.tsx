@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase";
 const fieldStyle = {
   background: "var(--bg-3)", border: "1px solid var(--border-2)",
   color: "var(--text-1)", borderRadius: "8px", padding: "8px 12px",
-  fontSize: "13px", width: "100%", outline: "none",
+  fontSize: "13px", width: "100%", outline: "none", colorScheme: "dark" as const,
 };
 
 interface Props {
@@ -19,6 +19,7 @@ export default function ProjectForm({ project, onClose, onSaved }: Props) {
   const supabase = createClient();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [completing, setCompleting] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
     name:        project?.name        ?? "",
@@ -43,8 +44,7 @@ export default function ProjectForm({ project, onClose, onSaved }: Props) {
     setDrafting(true);
     try {
       const res = await fetch("/api/project-draft", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: form.name }),
       });
       const data = await res.json();
@@ -58,24 +58,37 @@ export default function ProjectForm({ project, onClose, onSaved }: Props) {
     e.preventDefault();
     if (!form.name.trim()) { setError("프로젝트명을 입력해주세요"); return; }
     setLoading(true); setError("");
-
     const payload = {
-      name:        form.name.trim(),
-      description: form.description || null,
-      owner_id:    form.owner_id    || null,
-      priority:    form.priority,
-      health:      form.health,
-      start_date:  form.start_date  || null,
-      end_date:    form.end_date    || null,
-      status:      "active",
+      name: form.name.trim(), description: form.description || null,
+      owner_id: form.owner_id || null, priority: form.priority, health: form.health,
+      start_date: form.start_date || null, end_date: form.end_date || null,
+      status: "active",
     };
-
     const { error: err } = project
       ? await supabase.from("projects").update(payload).eq("id", project.id)
       : await supabase.from("projects").insert(payload);
-
     setLoading(false);
     if (err) { setError(err.message); return; }
+    onSaved();
+  }
+
+  async function handleComplete() {
+    if (!project) return;
+    if (!confirm(`"${project.name}" 프로젝트를 완료 처리할까요?\n\n완료된 프로젝트는 대시보드와 뷰어에서 숨겨지고, 프로젝트 목록의 완료 탭에서 확인할 수 있습니다.`)) return;
+    setCompleting(true);
+    await supabase.from("projects").update({
+      status: "completed",
+      health: "good",
+      end_date: new Date().toISOString().slice(0, 10),
+    }).eq("id", project.id);
+    setCompleting(false);
+    onSaved();
+  }
+
+  async function handleDelete() {
+    if (!project) return;
+    if (!confirm(`"${project.name}" 프로젝트를 삭제할까요?\n관련된 모든 업무와 데이터가 삭제됩니다.`)) return;
+    await supabase.from("projects").delete().eq("id", project.id);
     onSaved();
   }
 
@@ -83,13 +96,11 @@ export default function ProjectForm({ project, onClose, onSaved }: Props) {
     <div className="fixed inset-0 z-50 flex items-center justify-center"
       style={{ background: "rgba(7,13,24,0.85)", backdropFilter: "blur(4px)" }}>
       <div className="w-full max-w-lg rounded-2xl p-6 shadow-2xl"
-        style={{ background: "var(--bg-2)", border: "1px solid var(--border-2)",
-          boxShadow: "0 0 40px rgba(0,194,204,0.08), 0 20px 60px rgba(0,0,0,0.6)" }}>
+        style={{ background: "var(--bg-2)", border: "1px solid var(--border-2)", boxShadow: "0 0 40px rgba(0,194,204,0.08), 0 20px 60px rgba(0,0,0,0.6)" }}>
 
         <div className="mb-5 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full"
-              style={{ background: "var(--cyan)", boxShadow: "0 0 6px var(--cyan)" }} />
+            <div className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--cyan)", boxShadow: "0 0 6px var(--cyan)" }} />
             <h2 className="text-sm font-bold" style={{ color: "var(--text-1)" }}>
               {project ? "프로젝트 수정" : "새 프로젝트 추가"}
             </h2>
@@ -113,7 +124,7 @@ export default function ProjectForm({ project, onClose, onSaved }: Props) {
           <div>
             <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-3)" }}>설명</label>
             <textarea value={form.description} onChange={e => set("description", e.target.value)}
-              placeholder="예: 팜 카트리지 압력-유량 예측 모델 개발 및 서비스화. 목표: 실측 대비 오차 5% 이내" rows={3} style={{ ...fieldStyle, resize: "none" }} />
+              placeholder="프로젝트 목표와 범위를 간략히 작성해주세요" rows={3} style={{ ...fieldStyle, resize: "none" }} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -136,7 +147,7 @@ export default function ProjectForm({ project, onClose, onSaved }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-3)" }}>시작일</label>
-              <input type="date" value={form.start_date} onChange={e => set("start_date", e.target.value)} style={fieldStyle} placeholder="시작일 (선택)" />
+              <input type="date" value={form.start_date} onChange={e => set("start_date", e.target.value)} style={fieldStyle} />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium" style={{ color: "var(--text-3)" }}>마감일</label>
@@ -149,11 +160,11 @@ export default function ProjectForm({ project, onClose, onSaved }: Props) {
               <label className="mb-2 block text-xs font-medium" style={{ color: "var(--text-3)" }}>프로젝트 상태</label>
               <div className="grid grid-cols-5 gap-2">
                 {[
-                  { value: "good",      label: "🟢 정상",     color: "#34d399" },
+                  { value: "good",      label: "✅ 정상",     color: "#34d399" },
                   { value: "reviewing", label: "🔵 검토 필요", color: "#60a5fa" },
-                  { value: "at_risk",   label: "🟡 주의",     color: "#fbbf24" },
+                  { value: "at_risk",   label: "⚠ 주의",     color: "#fbbf24" },
                   { value: "critical",  label: "🔴 위험",     color: "#f87171" },
-                  { value: "suspended", label: "⚫ 중단",     color: "#71717a" },
+                  { value: "suspended", label: "⏸ 중단",     color: "#71717a" },
                 ].map(h => (
                   <button key={h.value} type="button" onClick={() => set("health", h.value)}
                     className="rounded-lg py-2 text-xs font-semibold transition-all"
@@ -169,24 +180,25 @@ export default function ProjectForm({ project, onClose, onSaved }: Props) {
             </div>
           )}
 
-          {error && <p className="text-xs" style={{ color: "var(--red)" }}>{error}</p>}
+          {error && <p className="text-xs" style={{ color: "#f87171" }}>{error}</p>}
 
           <div className="flex justify-between gap-2 pt-2">
-            <div>
+            <div className="flex gap-2">
               {project && (
-                <button type="button"
-                  onClick={async () => {
-                    if (!confirm(`"${project.name}" 프로젝트를 삭제할까요?\n연결된 업무의 프로젝트 정보가 해제됩니다.`)) return;
-                    await import("@/lib/supabase").then(async ({ createClient }) => {
-                      const sb = createClient();
-                      await sb.from("projects").delete().eq("id", project.id);
-                    });
-                    onSaved();
-                  }}
-                  className="rounded-lg px-4 py-2 text-xs font-medium transition-all"
-                  style={{ background: "var(--red-bg)", color: "var(--red)", border: "1px solid var(--red)33" }}>
-                  삭제
-                </button>
+                <>
+                  {/* 완료 처리 버튼 */}
+                  <button type="button" onClick={handleComplete} disabled={completing}
+                    className="rounded-lg px-4 py-2 text-xs font-semibold disabled:opacity-40 transition-all"
+                    style={{ background: "rgba(52,211,153,0.12)", color: "#34d399", border: "1px solid rgba(52,211,153,0.3)" }}>
+                    {completing ? "처리 중…" : "✓ 프로젝트 완료"}
+                  </button>
+                  {/* 삭제 버튼 */}
+                  <button type="button" onClick={handleDelete}
+                    className="rounded-lg px-3 py-2 text-xs font-medium transition-all"
+                    style={{ background: "rgba(248,113,113,0.08)", color: "#f87171", border: "1px solid rgba(248,113,113,0.2)" }}>
+                    삭제
+                  </button>
+                </>
               )}
             </div>
             <div className="flex gap-2">
@@ -197,8 +209,7 @@ export default function ProjectForm({ project, onClose, onSaved }: Props) {
               </button>
               <button type="submit" disabled={loading}
                 className="rounded-lg px-4 py-2 text-xs font-semibold disabled:opacity-40"
-                style={{ background: "linear-gradient(135deg, #00C2CC, #2E86FF)", color: "#fff",
-                  boxShadow: loading ? "none" : "0 0 16px rgba(0,194,204,0.3)" }}>
+                style={{ background: "linear-gradient(135deg, #00C2CC, #2E86FF)", color: "#fff", boxShadow: loading ? "none" : "0 0 16px rgba(0,194,204,0.3)" }}>
                 {loading ? "저장 중…" : project ? "수정" : "추가"}
               </button>
             </div>
