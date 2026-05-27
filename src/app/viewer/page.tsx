@@ -410,8 +410,12 @@ export default function ViewerPage() {
   const [duration, setDuration] = useState(SLIDE_DURATION);
   const [fullscreen, setFullscreen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [refreshInterval, setRefreshInterval] = useState(300); // 5분(초)
+  const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
   const timerRef = useRef<any>(null);
   const progressRef = useRef<any>(null);
+  const refreshRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -438,6 +442,16 @@ export default function ViewerPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // 자동 새로고침
+  useEffect(() => {
+    if (!autoRefresh) { clearInterval(refreshRef.current); return; }
+    refreshRef.current = setInterval(() => {
+      load();
+      setLastRefreshed(new Date());
+    }, refreshInterval * 1000);
+    return () => clearInterval(refreshRef.current);
+  }, [autoRefresh, refreshInterval, load]);
 
   // 자동 슬라이드
   useEffect(() => {
@@ -548,6 +562,26 @@ export default function ViewerPage() {
           <button onClick={() => { setCurrent(c => (c + 1) % slides.length); setProgress(0); }}
             className="rounded-lg px-3 py-1.5 text-sm"
             style={{ background: "var(--bg-3)", color: "var(--text-2)" }}>›</button>
+
+          {/* 자동 새로고침 */}
+          <div className="flex items-center gap-1.5 border-l pl-3" style={{ borderColor: "var(--border)" }}>
+            <span className="text-xs" style={{ color: "var(--text-3)" }}>새로고침</span>
+            {[60, 300, 600].map(s => (
+              <button key={s} onClick={() => setRefreshInterval(s)}
+                className="rounded px-2 py-0.5 text-xs"
+                style={{ background: refreshInterval === s ? "var(--cyan-bg)" : "var(--bg-3)", color: refreshInterval === s ? "var(--cyan)" : "var(--text-3)" }}>
+                {s < 60 ? `${s}s` : `${s/60}분`}
+              </button>
+            ))}
+            <button onClick={() => { load(); setLastRefreshed(new Date()); }}
+              className="rounded-lg px-2 py-1 text-xs"
+              style={{ background: "var(--bg-3)", color: "var(--text-2)" }}>🔄</button>
+          </div>
+          {lastRefreshed && (
+            <span className="text-xs" style={{ color: "var(--text-3)" }}>
+              {lastRefreshed.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 갱신
+            </span>
+          )}
 
           {/* 풀스크린 */}
           <button onClick={toggleFullscreen}

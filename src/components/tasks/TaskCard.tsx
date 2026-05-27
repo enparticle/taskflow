@@ -29,19 +29,11 @@ const PRIORITY: Record<string, { label: string; color: string }> = {
 };
 const STATUS_LIST = ["backlog","todo","doing","blocked","review","done"] as TaskStatus[];
 
-// 사용자 ID 기반 고정 색상 (항상 같은 색상)
 function getUserColor(userId: string): string {
-  const COLORS = [
-    "#60a5fa", "#34d399", "#fbbf24", "#f87171", "#a78bfa",
-    "#fb923c", "#22d3ee", "#e879f9", "#4ade80", "#f43f5e",
-    "#818cf8", "#2dd4bf",
-  ];
+  const COLORS = ["#60a5fa","#34d399","#fbbf24","#f87171","#a78bfa","#fb923c","#22d3ee","#e879f9","#4ade80","#f43f5e","#818cf8","#2dd4bf"];
   if (!userId) return COLORS[0];
   let hash = 0;
-  for (let i = 0; i < userId.length; i++) {
-    hash = ((hash << 5) - hash) + userId.charCodeAt(i);
-    hash |= 0;
-  }
+  for (let i = 0; i < userId.length; i++) { hash = ((hash << 5) - hash) + userId.charCodeAt(i); hash |= 0; }
   return COLORS[Math.abs(hash) % COLORS.length];
 }
 
@@ -56,7 +48,6 @@ function AssigneeStack({ task }: { task: T }) {
     ? task.assignees
     : task.assignee ? [task.assignee] : [];
   if (list.length === 0) return null;
-
   return (
     <div className="flex items-center shrink-0">
       {list.slice(0, 4).map((u, i) => {
@@ -64,13 +55,7 @@ function AssigneeStack({ task }: { task: T }) {
         return (
           <span key={(u as any).id ?? i}
             className="flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold"
-            style={{
-              background: `${color}22`,
-              color,
-              border: `1.5px solid var(--bg-2)`,
-              marginLeft: i > 0 ? -6 : 0,
-              zIndex: list.length - i,
-            }}
+            style={{ background: `${color}22`, color, border: `1.5px solid var(--bg-2)`, marginLeft: i > 0 ? -6 : 0, zIndex: list.length - i }}
             title={u.name}>
             {u.name[0]}
           </span>
@@ -94,28 +79,46 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
   const [loading, setLoading] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const [commentCount, setCommentCount] = useState<number>(task.comment_count ?? 0);
-  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
+  const [localStatus, setLocalStatus] = useState(task.status);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (task.comment_count !== undefined) {
-      setCommentCount(task.comment_count);
-      return;
-    }
+    if (task.comment_count !== undefined) { setCommentCount(task.comment_count); return; }
     supabase.from("task_comments").select("id", { count: "exact", head: true })
       .eq("task_id", task.id)
       .then(({ count }) => { if (count != null) setCommentCount(count); });
   }, [task.id]);
 
-  const [localStatus, setLocalStatus] = useState(task.status);
+  // 외부 클릭 시 닫기
+  useEffect(() => {
+    if (!open && !showBlocked) return;
+    function handleClick(e: MouseEvent) {
+      if (btnRef.current && !btnRef.current.closest("[data-dropdown]")?.contains(e.target as Node)) {
+        setOpen(false); setShowBlocked(false); setMenuPos(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open, showBlocked]);
+
   const s = STATUS[localStatus] ?? { label: localStatus, color: "#7BA7C8", bg: "rgba(123,167,200,0.12)" };
   const p = PRIORITY[task.priority] ?? { label: task.priority, color: "#7BA7C8" };
   const overdue = task.due_date && task.status !== "done" && new Date(task.due_date) < new Date();
 
+  function openMenu() {
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setMenuPos({ top: rect.bottom + 4, left: rect.left });
+    }
+    setOpen(true);
+    setShowBlocked(false);
+  }
+
   async function changeStatus(newStatus: TaskStatus, blockedReason?: string) {
     setLoading(true);
-    setLocalStatus(newStatus); // 낙관적 업데이트
-    setOpen(false); setShowBlocked(false); setReason("");
+    setLocalStatus(newStatus);
+    setOpen(false); setShowBlocked(false); setReason(""); setMenuPos(null);
     await supabase.from("tasks").update({
       status: newStatus,
       blocked_reason: newStatus === "blocked" ? (blockedReason ?? null) : null,
@@ -133,62 +136,17 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
         onClick={() => setShowDetail(true)}>
 
         {/* 상태 버튼 */}
-        <div className="relative shrink-0" onClick={e => e.stopPropagation()}>
-          <button ref={btnRef} onClick={() => {
-            if (!open && btnRef.current) {
-              const rect = btnRef.current.getBoundingClientRect();
-              setDropdownPos({ top: rect.bottom + 4, left: rect.left });
-            }
-            setOpen(!open); setShowBlocked(false);
-          }} disabled={loading}
+        <div data-dropdown className="relative shrink-0" onClick={e => e.stopPropagation()}>
+          <button ref={btnRef} onClick={openMenu} disabled={loading}
             className="rounded-md px-2.5 py-1 text-xs font-semibold"
             style={{ background: s.bg, color: s.color }}>
             {loading ? "…" : s.label} ▾
           </button>
-
-          {open && !showBlocked && dropdownPos && (
-            <div className="fixed z-[9999] w-32 rounded-xl overflow-hidden shadow-2xl"
-              style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)", top: dropdownPos.top, left: dropdownPos.left }}>
-              {STATUS_LIST.map(sv => (
-                <button key={sv}
-                  onClick={() => sv === "blocked" ? setShowBlocked(true) : changeStatus(sv)}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-xs font-medium"
-                  style={{ color: sv === task.status ? STATUS[sv].color : "var(--text-2)", background: sv === task.status ? STATUS[sv].bg : "transparent" }}
-                  onMouseEnter={e => { if (sv !== task.status) (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-4)"; }}
-                  onMouseLeave={e => { if (sv !== task.status) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}>
-                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: STATUS[sv].color }} />
-                  {STATUS[sv].label}
-                </button>
-              ))}
-              <button onClick={() => { setOpen(false); setDropdownPos(null); }} className="w-full px-3 py-2 text-xs text-center"
-                style={{ borderTop: "1px solid var(--border)", color: "var(--text-3)" }}>닫기</button>
-            </div>
-          )}
-
-          {showBlocked && dropdownPos && (
-            <div className="fixed z-[9999] w-64 rounded-xl p-3 shadow-2xl"
-              style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)", top: dropdownPos.top, left: dropdownPos.left }}>
-              <p className="mb-2 text-xs font-semibold" style={{ color: "var(--text-1)" }}>Blocked 사유 *</p>
-              <textarea value={reason} onChange={e => setReason(e.target.value)}
-                placeholder="왜 막혔는지 입력해주세요" rows={2} autoFocus
-                className="w-full rounded-lg px-2.5 py-1.5 text-xs resize-none focus:outline-none"
-                style={{ background: "var(--bg-4)", border: "1px solid var(--border-2)", color: "var(--text-1)" }} />
-              <div className="mt-2 flex gap-2">
-                <button onClick={() => changeStatus("blocked", reason)} disabled={!reason.trim()}
-                  className="flex-1 rounded-lg py-1.5 text-xs font-semibold disabled:opacity-30"
-                  style={{ background: "#f87171", color: "#fff" }}>확인</button>
-                <button onClick={() => { setShowBlocked(false); setOpen(false); }}
-                  className="flex-1 rounded-lg py-1.5 text-xs"
-                  style={{ background: "var(--bg-4)", color: "var(--text-2)" }}>취소</button>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* 업무명 + 댓글 수 */}
         <span className="flex-1 truncate text-sm font-medium flex items-center gap-1.5 min-w-0"
-          style={{ color: task.status === "done" ? "var(--text-3)" : "var(--text-1)",
-            textDecoration: task.status === "done" ? "line-through" : undefined }}>
+          style={{ color: localStatus === "done" ? "var(--text-3)" : "var(--text-1)", textDecoration: localStatus === "done" ? "line-through" : undefined }}>
           <span className="truncate">{task.title}</span>
           {commentCount > 0 && (
             <span className="shrink-0 text-xs px-1.5 py-0.5 rounded-full font-medium"
@@ -221,6 +179,46 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
         )}
         <span className="shrink-0 text-xs font-semibold" style={{ color: p.color }}>{p.label}</span>
       </div>
+
+      {/* 상태 드롭다운 - fixed 포지션으로 잘림 방지 */}
+      {open && !showBlocked && menuPos && (
+        <div className="fixed z-[9999] w-32 rounded-xl overflow-hidden shadow-2xl"
+          style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)", top: menuPos.top, left: menuPos.left }}>
+          {STATUS_LIST.map(sv => (
+            <button key={sv}
+              onClick={() => sv === "blocked" ? setShowBlocked(true) : changeStatus(sv)}
+              className="flex items-center gap-2 w-full px-3 py-2 text-xs font-medium"
+              style={{ color: sv === localStatus ? STATUS[sv].color : "var(--text-2)", background: sv === localStatus ? STATUS[sv].bg : "transparent" }}
+              onMouseEnter={e => { if (sv !== localStatus) (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-4)"; }}
+              onMouseLeave={e => { if (sv !== localStatus) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}>
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: STATUS[sv].color }} />
+              {STATUS[sv].label}
+            </button>
+          ))}
+          <button onClick={() => { setOpen(false); setMenuPos(null); }} className="w-full px-3 py-2 text-xs text-center"
+            style={{ borderTop: "1px solid var(--border)", color: "var(--text-3)" }}>닫기</button>
+        </div>
+      )}
+
+      {/* Blocked 사유 입력 - fixed */}
+      {showBlocked && menuPos && (
+        <div className="fixed z-[9999] w-64 rounded-xl p-3 shadow-2xl"
+          style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)", top: menuPos.top, left: menuPos.left }}>
+          <p className="mb-2 text-xs font-semibold" style={{ color: "var(--text-1)" }}>Blocked 사유 *</p>
+          <textarea value={reason} onChange={e => setReason(e.target.value)}
+            placeholder="왜 막혔는지 입력해주세요" rows={2} autoFocus
+            className="w-full rounded-lg px-2.5 py-1.5 text-xs resize-none focus:outline-none"
+            style={{ background: "var(--bg-4)", border: "1px solid var(--border-2)", color: "var(--text-1)" }} />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => changeStatus("blocked", reason)} disabled={!reason.trim()}
+              className="flex-1 rounded-lg py-1.5 text-xs font-semibold disabled:opacity-30"
+              style={{ background: "#f87171", color: "#fff" }}>확인</button>
+            <button onClick={() => { setShowBlocked(false); setOpen(false); setMenuPos(null); }}
+              className="flex-1 rounded-lg py-1.5 text-xs"
+              style={{ background: "var(--bg-4)", color: "var(--text-2)" }}>취소</button>
+          </div>
+        </div>
+      )}
 
       {showDetail && (
         <TaskDetail taskId={task.id} onClose={() => setShowDetail(false)}
