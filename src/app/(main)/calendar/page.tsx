@@ -90,7 +90,9 @@ export default function CalendarPage() {
     events.forEach(ev => {
       if (!ev.start_date) return;
       const start = new Date(ev.start_date);
-      const end = ev.end_date ? new Date(ev.end_date) : start;
+      const end = ev.end_date ? new Date(ev.end_date) : new Date(ev.start_date);
+      end.setHours(23, 59, 59, 999); // 종료일 당일 포함
+      start.setHours(0, 0, 0, 0);
       if (isSameDay(date, start) || dateInRange(date, start, end)) {
         result.push({ ...ev, _type: "event" });
       }
