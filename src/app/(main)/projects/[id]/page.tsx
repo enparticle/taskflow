@@ -1,6 +1,6 @@
 // @ts-nocheck
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import TaskList from "@/components/tasks/TaskList";
@@ -45,6 +45,60 @@ function ProgressBar({ value, color }: { value: number; color: string }) {
   );
 }
 
+// 단계 상태 드롭다운
+function MilestoneStatusBadge({ milestone, canManage, onUpdate }: { milestone: any; canManage: boolean; onUpdate: () => void }) {
+  const supabase = createClient();
+  const [open, setOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const mc = MS_STATUS[milestone.status] ?? MS_STATUS.planned;
+
+  async function changeStatus(status: string) {
+    await supabase.from("milestones").update({ status }).eq("id", milestone.id);
+    setOpen(false); setMenuPos(null);
+    onUpdate();
+  }
+
+  if (!canManage) return (
+    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+      style={{ background: `${mc.color}18`, color: mc.color }}>{mc.label}</span>
+  );
+
+  return (
+    <div className="relative" onClick={e => e.stopPropagation()}>
+      <button ref={btnRef} onClick={() => {
+        if (!open && btnRef.current) {
+          const rect = btnRef.current.getBoundingClientRect();
+          setMenuPos({ top: rect.bottom + 4, left: rect.left });
+        }
+        setOpen(v => !v);
+      }}
+        className="text-xs px-2 py-0.5 rounded-full font-medium cursor-pointer"
+        style={{ background: `${mc.color}18`, color: mc.color, border: `1px solid ${mc.color}44` }}>
+        {mc.label} ▾
+      </button>
+      {open && menuPos && (
+        <div className="fixed z-[9999] w-28 rounded-xl overflow-hidden shadow-2xl"
+          style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)", top: menuPos.top, left: menuPos.left }}>
+          {Object.entries(MS_STATUS).map(([k, v]) => (
+            <button key={k} onClick={() => changeStatus(k)}
+              className="flex items-center gap-2 w-full px-3 py-2 text-xs font-medium transition-colors"
+              style={{ background: milestone.status === k ? `${v.color}18` : "transparent", color: milestone.status === k ? v.color : "var(--text-2)" }}
+              onMouseEnter={e => { if (milestone.status !== k) (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-4)"; }}
+              onMouseLeave={e => { if (milestone.status !== k) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}>
+              <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: v.color }} />
+              {v.label}
+            </button>
+          ))}
+          <button onClick={() => { setOpen(false); setMenuPos(null); }}
+            className="w-full px-3 py-1.5 text-xs text-center"
+            style={{ borderTop: "1px solid var(--border)", color: "var(--text-3)" }}>닫기</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 type Tab = "overview" | "tasks" | "members";
 
 export default function ProjectDetailPage() {
@@ -82,7 +136,6 @@ export default function ProjectDetailPage() {
       .select("*").eq("project_id", id).neq("status", "cancelled").order("sort_order");
     setMilestones(ms ?? []);
 
-    // 마일스톤 기본 펼침
     const exp: Record<string, boolean> = {};
     (ms ?? []).forEach((m: any) => { exp[m.id] = true; });
     exp["__unclassified__"] = true;
@@ -116,15 +169,14 @@ export default function ProjectDetailPage() {
     ...(canManage ? [{ id: "members" as Tab, label: "팀" }] : []),
   ];
 
-  // 마일스톤별 업무 그룹핑
   const tasksByMs = milestones.map(m => ({
     milestone: m,
     tasks: tasks.filter(t => t.milestone_id === m.id),
   }));
   const unclassified = tasks.filter(t => !t.milestone_id);
 
-  function toggleMs(id: string) {
-    setExpandedMs(prev => ({ ...prev, [id]: !prev[id] }));
+  function toggleMs(msId: string) {
+    setExpandedMs(prev => ({ ...prev, [msId]: !prev[msId] }));
   }
 
   return (
@@ -200,14 +252,10 @@ export default function ProjectDetailPage() {
       {/* 개요 탭 */}
       {tab === "overview" && (
         <div className="space-y-4">
-          {canManage && (
-            <TaskDraftPanel projectId={id} onApproved={load} />
-          )}
+          {canManage && <TaskDraftPanel projectId={id} onApproved={load} />}
           <PlanningFeedback mode="project" projectId={id} projectName={project?.name}
             onTaskClick={(tid) => setOpenDetail(tid)} />
-
           <div className="grid grid-cols-2 gap-4">
-            {/* 상태별 업무 */}
             <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
               <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-2)" }}>상태별 업무</p>
               <div className="space-y-2.5">
@@ -229,14 +277,11 @@ export default function ProjectDetailPage() {
                 })}
               </div>
             </div>
-
-            {/* 단계(마일스톤) 현황 */}
             <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-xs font-semibold" style={{ color: "var(--text-2)" }}>단계</p>
                 {canManage && (
-                  <button onClick={() => setOpenMilestone(true)}
-                    className="text-xs" style={{ color: "var(--cyan)" }}>관리 →</button>
+                  <button onClick={() => setOpenMilestone(true)} className="text-xs" style={{ color: "var(--cyan)" }}>관리 →</button>
                 )}
               </div>
               {milestones.length === 0 ? (
@@ -257,8 +302,7 @@ export default function ProjectDetailPage() {
                         <div className="flex items-center gap-2 mb-1.5">
                           <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: mc.color }} />
                           <p className="text-xs font-medium flex-1 truncate" style={{ color: "var(--text-1)" }}>{m.title}</p>
-                          <span className="text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0"
-                            style={{ background: `${mc.color}18`, color: mc.color }}>{mc.label}</span>
+                          <MilestoneStatusBadge milestone={m} canManage={canManage} onUpdate={load} />
                           <span className="text-xs shrink-0" style={{ color: mc.color }}>{mRate}%</span>
                         </div>
                         <ProgressBar value={mRate} color={mc.color} />
@@ -277,20 +321,13 @@ export default function ProjectDetailPage() {
         </div>
       )}
 
-      {/* 업무 탭 - 마일스톤별 그룹핑 */}
+      {/* 업무 탭 */}
       {tab === "tasks" && (
         <div className="space-y-3">
-          {/* 회의록 업무 검토 (Admin/Leader만) */}
-          {canManage && (
-            <TaskDraftPanel projectId={id} onApproved={load} />
-          )}
-
-          {/* 마일스톤 관리 버튼 (Admin/Leader만) */}
+          {canManage && <TaskDraftPanel projectId={id} onApproved={load} />}
           {canManage && (
             <div className="flex items-center justify-between">
-              <p className="text-xs" style={{ color: "var(--text-3)" }}>
-                단계별로 업무를 구성하세요
-              </p>
+              <p className="text-xs" style={{ color: "var(--text-3)" }}>단계별로 업무를 구성하세요</p>
               <button onClick={() => setOpenMilestone(true)}
                 className="text-xs px-3 py-1.5 rounded-lg"
                 style={{ background: "var(--bg-2)", color: "var(--cyan)", border: "1px solid var(--border)" }}>
@@ -306,11 +343,10 @@ export default function ProjectDetailPage() {
             const mRate = mTasks.length > 0 ? Math.round((mDone / mTasks.length) * 100) : 0;
             const isExpanded = expandedMs[m.id] !== false;
             return (
-              <div key={m.id} className="rounded-2xl overflow-hidden"
+              <div key={m.id} className="rounded-2xl"
                 style={{ border: `1px solid ${mc.color}33` }}>
-                {/* 마일스톤 헤더 */}
                 <div className="flex items-center gap-3 px-4 py-3 cursor-pointer"
-                  style={{ background: `${mc.color}08`, borderBottom: isExpanded ? `1px solid ${mc.color}22` : "none" }}
+                  style={{ background: `${mc.color}08`, borderBottom: isExpanded ? `1px solid ${mc.color}22` : "none", borderRadius: isExpanded ? "16px 16px 0 0" : 16 }}
                   onClick={() => toggleMs(m.id)}>
                   <span style={{ color: mc.color, fontSize: 12 }}>{isExpanded ? "▾" : "▸"}</span>
                   <div className="w-2 h-2 rounded-full shrink-0" style={{ background: mc.color }} />
@@ -320,18 +356,17 @@ export default function ProjectDetailPage() {
                       ~ {new Date(m.due_date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
                     </span>
                   )}
-                  <span className="text-xs px-2 py-0.5 rounded-full font-medium"
-                    style={{ background: `${mc.color}18`, color: mc.color }}>{mc.label}</span>
+                  <MilestoneStatusBadge milestone={m} canManage={canManage} onUpdate={load} />
                   <span className="text-xs font-semibold" style={{ color: mc.color }}>
                     {mDone}/{mTasks.length} · {mRate}%
                   </span>
                 </div>
                 {isExpanded && (
-                  <div className="p-3" style={{ background: "var(--bg-2)" }}>
+                  <div className="p-3 pb-10" style={{ background: "var(--bg-2)", borderRadius: "0 0 16px 16px" }}>
                     {mTasks.length === 0 ? (
                       <p className="text-xs text-center py-4" style={{ color: "var(--text-3)" }}>이 단계에 업무가 없습니다</p>
                     ) : (
-                      <TaskList tasks={mTasks} onRefresh={load} onTaskClick={id => setOpenDetail(id)} milestones={milestones} projects={allProjects} />
+                      <TaskList tasks={mTasks} onRefresh={load} onTaskClick={msId => setOpenDetail(msId)} milestones={milestones} projects={allProjects} />
                     )}
                   </div>
                 )}
@@ -339,11 +374,11 @@ export default function ProjectDetailPage() {
             );
           })}
 
-          {/* 미분류 업무 */}
+          {/* 미분류 */}
           {(unclassified.length > 0 || milestones.length === 0) && (
-            <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+            <div className="rounded-2xl" style={{ border: "1px solid var(--border)" }}>
               <div className="flex items-center gap-3 px-4 py-3 cursor-pointer"
-                style={{ background: "var(--bg-3)", borderBottom: expandedMs["__unclassified__"] ? "1px solid var(--border)" : "none" }}
+                style={{ background: "var(--bg-3)", borderBottom: expandedMs["__unclassified__"] ? "1px solid var(--border)" : "none", borderRadius: expandedMs["__unclassified__"] ? "16px 16px 0 0" : 16 }}
                 onClick={() => toggleMs("__unclassified__")}>
                 <span style={{ color: "var(--text-3)", fontSize: 12 }}>{expandedMs["__unclassified__"] ? "▾" : "▸"}</span>
                 <div className="w-2 h-2 rounded-full shrink-0" style={{ background: "var(--text-3)" }} />
@@ -353,11 +388,11 @@ export default function ProjectDetailPage() {
                 <span className="text-xs" style={{ color: "var(--text-3)" }}>{unclassified.length}건</span>
               </div>
               {expandedMs["__unclassified__"] && (
-                <div className="p-3" style={{ background: "var(--bg-2)" }}>
+                <div className="p-3 pb-10" style={{ background: "var(--bg-2)", borderRadius: "0 0 16px 16px" }}>
                   {unclassified.length === 0 ? (
                     <p className="text-xs text-center py-4" style={{ color: "var(--text-3)" }}>미분류 업무 없음</p>
                   ) : (
-                    <TaskList tasks={unclassified} onRefresh={load} onTaskClick={id => setOpenDetail(id)} milestones={milestones} projects={allProjects} />
+                    <TaskList tasks={unclassified} onRefresh={load} onTaskClick={msId => setOpenDetail(msId)} milestones={milestones} projects={allProjects} />
                   )}
                 </div>
               )}
@@ -379,13 +414,13 @@ export default function ProjectDetailPage() {
       {openEdit && <ProjectForm project={project} onClose={() => setOpenEdit(false)} onSaved={() => { load(); setOpenEdit(false); }} />}
       {openMilestone && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.6)" }}
-          onClick={() => setOpenMilestone(false)}>
+          onClick={() => { setOpenMilestone(false); load(); }}>
           <div className="w-full max-w-2xl max-h-[80vh] rounded-2xl overflow-hidden flex flex-col"
             style={{ background: "var(--bg-2)", border: "1px solid var(--border-2)" }}
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
               <h2 className="text-sm font-bold" style={{ color: "var(--text-1)" }}>단계 관리</h2>
-              <button onClick={() => setOpenMilestone(false)} style={{ color: "var(--text-3)" }}>✕</button>
+              <button onClick={() => { setOpenMilestone(false); load(); }} style={{ color: "var(--text-3)" }}>✕</button>
             </div>
             <div className="flex-1 overflow-y-auto p-5">
               <MilestonePanel projectId={id} />
