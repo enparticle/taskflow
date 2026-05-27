@@ -57,7 +57,7 @@ function DashboardSlide({ projects, tasks, users }: any) {
           <p style={{ fontSize:22, color:TEXT3, marginBottom:8 }}>
             {now.toLocaleDateString("ko-KR",{year:"numeric",month:"long",day:"numeric",weekday:"long"})}
           </p>
-          <h1 style={{ fontSize:52, fontWeight:700, color:TEXT1, margin:0 }}>팀 전체 현황</h1>
+          <h1 style={{ fontSize:32, fontWeight:700, color:TEXT1, margin:0 }}>팀 전체 현황</h1>
         </div>
         <div style={{ display:"flex", gap:12 }}>
           {[
@@ -66,9 +66,9 @@ function DashboardSlide({ projects, tasks, users }: any) {
             { label:"Blocked", value:blockedT, color:"#f87171" },
             { label:"마감초과", value:overdueT, color:"#fbbf24" },
           ].map(s=>(
-            <div key={s.label} style={{ background:BG2, border:`1px solid ${s.color}33`, borderRadius:20, padding:"16px 28px", textAlign:"center", minWidth:120 }}>
-              <p style={{ fontSize:52, fontWeight:700, color:s.color, margin:0, lineHeight:1 }}>{s.value}</p>
-              <p style={{ fontSize:18, color:TEXT3, margin:"8px 0 0" }}>{s.label}</p>
+            <div key={s.label} style={{ background:BG2, border:`1px solid ${s.color}33`, borderRadius:20, padding:"20px 36px", textAlign:"center", minWidth:140 }}>
+              <p style={{ fontSize:72, fontWeight:700, color:s.color, margin:0, lineHeight:1 }}>{s.value}</p>
+              <p style={{ fontSize:20, color:TEXT3, margin:"10px 0 0" }}>{s.label}</p>
             </div>
           ))}
         </div>
@@ -87,7 +87,7 @@ function DashboardSlide({ projects, tasks, users }: any) {
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
                 <div style={{ flex:1, minWidth:0 }}>
                   <span style={{ fontSize:16, background:`${hc.color}20`, color:hc.color, borderRadius:20, padding:"4px 14px", fontWeight:600 }}>{hc.label}</span>
-                  <h3 style={{ fontSize:28, fontWeight:700, color:TEXT1, margin:"10px 0 0", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p.name}</h3>
+                  <h3 style={{ fontSize:34, fontWeight:700, color:TEXT1, margin:"10px 0 0", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p.name}</h3>
                 </div>
                 {p.end_date && (
                   <div style={{ textAlign:"right", marginLeft:12, flexShrink:0 }}>
@@ -100,7 +100,7 @@ function DashboardSlide({ projects, tasks, users }: any) {
               </div>
               <div style={{ display:"flex", gap:20, flexWrap:"wrap" }}>
                 {[{l:"진행",v:doing,c:"#60a5fa"},{l:"완료",v:done,c:"#34d399"},{l:"전체",v:total,c:TEXT3},...(blkd>0?[{l:"Blocked",v:blkd,c:"#f87171"}]:[])].map((s,i)=>(
-                  <span key={i} style={{ fontSize:18, color:s.c }}>{s.l} <b style={{ fontSize:24 }}>{s.v}</b></span>
+                  <span key={i} style={{ fontSize:20, color:s.c }}>{s.l} <b style={{ fontSize:30 }}>{s.v}</b></span>
                 ))}
               </div>
             </div>
@@ -156,8 +156,8 @@ function ProjectSlide({ project, tasks }: any) {
             <span style={{ fontSize:20, background:`${hc.color}20`, color:hc.color, borderRadius:20, padding:"4px 16px", fontWeight:600 }}>{hc.label}</span>
             {project.owner?.name && <span style={{ fontSize:20, color:TEXT3 }}>담당 · {project.owner.name}</span>}
           </div>
-          <h1 style={{ fontSize:56, fontWeight:700, color:TEXT1, margin:0, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{project.name}</h1>
-          {project.description && <p style={{ fontSize:22, color:TEXT2, margin:"8px 0 0" }}>{project.description}</p>}
+          <h1 style={{ fontSize:38, fontWeight:700, color:TEXT1, margin:0, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{project.name}</h1>
+          {project.description && <p style={{ fontSize:20, color:TEXT2, margin:"6px 0 0" }}>{project.description}</p>}
         </div>
         {daysLeft!==null && (
           <div style={{ background:BG2, border:`2px solid ${dDayColor}44`, borderRadius:20, padding:"20px 32px", textAlign:"center", flexShrink:0, marginLeft:24 }}>
@@ -165,7 +165,7 @@ function ProjectSlide({ project, tasks }: any) {
             <p style={{ fontSize:28, fontWeight:600, color:TEXT2, margin:"4px 0 0" }}>
               {new Date(project.end_date).toLocaleDateString("ko-KR",{month:"long",day:"numeric"})}
             </p>
-            <p style={{ fontSize:40, fontWeight:700, color:dDayColor, margin:"4px 0 0" }}>
+            <p style={{ fontSize:52, fontWeight:700, color:dDayColor, margin:"4px 0 0" }}>
               {daysLeft<0?`+${Math.abs(daysLeft)}일`:`D-${daysLeft}`}
             </p>
           </div>
@@ -176,26 +176,26 @@ function ProjectSlide({ project, tasks }: any) {
       <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:16 }}>
         {[{l:"전체",v:total,c:"#aabbcc"},{l:"진행 중",v:doing,c:"#60a5fa"},{l:"리뷰",v:review,c:"#fbbf24"},{l:"Blocked",v:blocked,c:"#f87171"},{l:"완료",v:done,c:"#34d399"}].map(s=>(
           <div key={s.l} style={{ background:BG2, border:`1px solid ${s.c}33`, borderRadius:18, padding:"20px 16px", textAlign:"center" }}>
-            <p style={{ fontSize:56, fontWeight:700, color:s.c, margin:0, lineHeight:1 }}>{s.v}</p>
-            <p style={{ fontSize:19, color:TEXT3, margin:"8px 0 0" }}>{s.l}</p>
+            <p style={{ fontSize:72, fontWeight:700, color:s.c, margin:0, lineHeight:1 }}>{s.v}</p>
+            <p style={{ fontSize:22, color:TEXT3, margin:"10px 0 0" }}>{s.l}</p>
           </div>
         ))}
       </div>
 
       {/* 업무 목록 */}
       <div style={{ flex:1, overflow:"hidden" }}>
-        <p style={{ fontSize:20, color:TEXT3, marginBottom:12 }}>진행 중 업무</p>
+        <p style={{ fontSize:22, color:TEXT3, marginBottom:12 }}>진행 중 업무</p>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
           {activeTasks.map((t:any)=>{
             const sc = STATUS_CONFIG[t.status]??STATUS_CONFIG.todo;
             const overdue = t.due_date&&new Date(t.due_date)<now&&t.status!=="done";
             return (
               <div key={t.id} style={{ background:BG2, borderLeft:`4px solid ${sc.color}`, borderRadius:"0 12px 12px 0", padding:"12px 18px", display:"flex", alignItems:"center", gap:12 }}>
-                <span style={{ fontSize:14, background:`${sc.color}20`, color:sc.color, borderRadius:8, padding:"4px 12px", fontWeight:600, flexShrink:0 }}>{sc.label}</span>
-                <span style={{ flex:1, fontSize:20, color:TEXT1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.title}</span>
-                {t.assignee?.name && <span style={{ fontSize:17, color:TEXT3, flexShrink:0 }}>{t.assignee.name}</span>}
+                <span style={{ fontSize:17, background:`${sc.color}20`, color:sc.color, borderRadius:8, padding:"6px 14px", fontWeight:600, flexShrink:0 }}>{sc.label}</span>
+                <span style={{ flex:1, fontSize:24, color:TEXT1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.title}</span>
+                {t.assignee?.name && <span style={{ fontSize:20, color:TEXT3, flexShrink:0 }}>{t.assignee.name}</span>}
                 {t.due_date && (
-                  <span style={{ fontSize:17, color:overdue?"#f87171":TEXT3, flexShrink:0, fontWeight:overdue?600:400 }}>
+                  <span style={{ fontSize:20, color:overdue?"#f87171":TEXT3, flexShrink:0, fontWeight:overdue?600:400 }}>
                     {overdue?"⚠ ":""}{new Date(t.due_date).toLocaleDateString("ko-KR",{month:"numeric",day:"numeric"})}
                   </span>
                 )}
@@ -237,7 +237,7 @@ function CalendarSlide({ events, tasks }: any) {
   return (
     <div style={{ height:"100%", display:"flex", flexDirection:"column", padding:"40px 48px", gap:24, background:BG }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <h1 style={{ fontSize:52, fontWeight:700, color:TEXT1, margin:0 }}>일정</h1>
+        <h1 style={{ fontSize:32, fontWeight:700, color:TEXT1, margin:0 }}>일정</h1>
         <div style={{ display:"flex", gap:20 }}>
           {Object.entries(EVENT_TYPE_CONFIG).map(([k,v])=>(
             <div key={k} style={{ display:"flex", alignItems:"center", gap:8 }}>
@@ -252,7 +252,7 @@ function CalendarSlide({ events, tasks }: any) {
         {/* 요일 헤더 */}
         <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", background:BG3, borderBottom:`1px solid ${BORDER}` }}>
           {DAYS.map((d,i)=>(
-            <div key={i} style={{ padding:"16px 0", textAlign:"center", fontSize:24, fontWeight:600, color:i===0?"#f87171":i===6?"#60a5fa":TEXT2 }}>{d}</div>
+            <div key={i} style={{ padding:"18px 0", textAlign:"center", fontSize:28, fontWeight:700, color:i===0?"#f87171":i===6?"#60a5fa":TEXT2 }}>{d}</div>
           ))}
         </div>
 
@@ -275,19 +275,19 @@ function CalendarSlide({ events, tasks }: any) {
                   const isPast = d<thisWeekStart;
                   return (
                     <div key={i} style={{ background:isToday?"rgba(34,211,238,0.07)":isPast?"rgba(0,0,0,0.15)":BG2, borderRight:col<6?`1px solid ${BORDER}`:"none", padding:"8px 10px", paddingTop:34, opacity:isPast?0.6:1 }}>
-                      <div style={{ width:36, height:36, borderRadius:"50%", background:isToday?"#00C2CC":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, fontWeight:600, color:isToday?"#0D1B2E":col===0?"#f87171":col===6?"#60a5fa":TEXT1, marginBottom:4 }}>
+                      <div style={{ width:40, height:40, borderRadius:"50%", background:isToday?"#00C2CC":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:26, fontWeight:700, color:isToday?"#0D1B2E":col===0?"#f87171":col===6?"#60a5fa":TEXT1, marginBottom:4 }}>
                         {d.getDate()}
                       </div>
                       {dayEvs.slice(0,3).map((ev,j)=>{
                         const cfg = EVENT_TYPE_CONFIG[ev.type]??EVENT_TYPE_CONFIG.personal;
                         const color = ev.color||cfg.color;
                         return (
-                          <div key={j} style={{ background:`${color}22`, color, fontSize:16, fontWeight:500, borderRadius:6, padding:"3px 8px", marginBottom:3, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis", border:`1px solid ${color}44` }}>
+                          <div key={j} style={{ background:`${color}22`, color, fontSize:18, fontWeight:500, borderRadius:6, padding:"4px 10px", marginBottom:4, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis", border:`1px solid ${color}44` }}>
                             {ev._type==="task"?"📌 ":""}{ev.title}
                           </div>
                         );
                       })}
-                      {dayEvs.length>3 && <p style={{fontSize:14,color:TEXT3,margin:0}}>+{dayEvs.length-3}개</p>}
+                      {dayEvs.length>3 && <p style={{fontSize:16,color:TEXT3,margin:0}}>+{dayEvs.length-3}개</p>}
                     </div>
                   );
                 })}
