@@ -75,7 +75,7 @@ function DashboardSlide({ projects, tasks, users }: any) {
       </div>
 
       {/* 프로젝트 카드들 */}
-      <div style={{ flex:1, display:"grid", gap:16, gridTemplateColumns:"repeat(3,1fr)", gridAutoRows:"1fr" }}>
+      <div style={{ flex:1, display:"grid", gap:16, gridTemplateColumns:"repeat(3,1fr)", gridTemplateRows:"1fr 1fr", alignItems:"stretch" }}>
         {projects.slice(0,6).map((p:any)=>{
           const hc = HEALTH_CONFIG[p.health]??HEALTH_CONFIG.good;
           const total = p.tasks?.length??0;
@@ -83,11 +83,11 @@ function DashboardSlide({ projects, tasks, users }: any) {
           const doing = (p.tasks??[]).filter((t:any)=>t.status==="doing").length;
           const blkd  = (p.tasks??[]).filter((t:any)=>t.status==="blocked").length;
           return (
-            <div key={p.id} style={{ background:BG2, border:`1.5px solid ${hc.color}44`, borderRadius:20, padding:"24px 28px", display:"flex", flexDirection:"column", gap:16 }}>
+            <div key={p.id} style={{ background:BG2, border:`1.5px solid ${hc.color}44`, borderRadius:20, padding:"24px 28px", display:"flex", flexDirection:"column", gap:16, overflow:"hidden", minHeight:0 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
                 <div style={{ flex:1, minWidth:0 }}>
                   <span style={{ fontSize:16, background:`${hc.color}20`, color:hc.color, borderRadius:20, padding:"4px 14px", fontWeight:600 }}>{hc.label}</span>
-                  <h3 style={{ fontSize:34, fontWeight:700, color:TEXT1, margin:"10px 0 0", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p.name}</h3>
+                  <h3 style={{ fontSize:32, fontWeight:700, color:TEXT1, margin:"8px 0 0", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:"100%" }}>{p.name}</h3>
                 </div>
                 {p.end_date && (
                   <div style={{ textAlign:"right", marginLeft:12, flexShrink:0 }}>
