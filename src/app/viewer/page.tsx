@@ -52,12 +52,12 @@ function DashboardSlide({ projects, tasks, users }: any) {
   return (
     <div style={{ height:"100%", display:"flex", flexDirection:"column", padding:"40px 48px", gap:28, background:BG }}>
       {/* 헤더 */}
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <div>
-          <p style={{ fontSize:22, color:TEXT3, marginBottom:8 }}>
+          <p style={{ fontSize:18, color:TEXT3, marginBottom:6 }}>
             {now.toLocaleDateString("ko-KR",{year:"numeric",month:"long",day:"numeric",weekday:"long"})}
           </p>
-          <h1 style={{ fontSize:32, fontWeight:700, color:TEXT1, margin:0 }}>팀 전체 현황</h1>
+          <h1 style={{ fontSize:30, fontWeight:700, color:TEXT1, margin:0 }}>팀 전체 현황</h1>
         </div>
         <div style={{ display:"flex", gap:12 }}>
           {[
@@ -66,16 +66,16 @@ function DashboardSlide({ projects, tasks, users }: any) {
             { label:"Blocked", value:blockedT, color:"#f87171" },
             { label:"마감초과", value:overdueT, color:"#fbbf24" },
           ].map(s=>(
-            <div key={s.label} style={{ background:BG2, border:`1px solid ${s.color}33`, borderRadius:20, padding:"20px 36px", textAlign:"center", minWidth:140 }}>
-              <p style={{ fontSize:72, fontWeight:700, color:s.color, margin:0, lineHeight:1 }}>{s.value}</p>
-              <p style={{ fontSize:20, color:TEXT3, margin:"10px 0 0" }}>{s.label}</p>
+            <div key={s.label} style={{ background:BG2, border:`1px solid ${s.color}33`, borderRadius:16, padding:"14px 28px", textAlign:"center", minWidth:110 }}>
+              <p style={{ fontSize:48, fontWeight:700, color:s.color, margin:0, lineHeight:1 }}>{s.value}</p>
+              <p style={{ fontSize:17, color:TEXT3, margin:"6px 0 0" }}>{s.label}</p>
             </div>
           ))}
         </div>
       </div>
 
       {/* 프로젝트 카드들 */}
-      <div style={{ flex:1, display:"grid", gap:20, gridTemplateColumns:`repeat(${Math.min(projects.length,3)},1fr)` }}>
+      <div style={{ flex:1, display:"grid", gap:16, gridTemplateColumns:"repeat(3,1fr)", gridAutoRows:"1fr" }}>
         {projects.slice(0,6).map((p:any)=>{
           const hc = HEALTH_CONFIG[p.health]??HEALTH_CONFIG.good;
           const total = p.tasks?.length??0;
@@ -160,12 +160,12 @@ function ProjectSlide({ project, tasks }: any) {
           {project.description && <p style={{ fontSize:20, color:TEXT2, margin:"6px 0 0" }}>{project.description}</p>}
         </div>
         {daysLeft!==null && (
-          <div style={{ background:BG2, border:`2px solid ${dDayColor}44`, borderRadius:20, padding:"20px 32px", textAlign:"center", flexShrink:0, marginLeft:24 }}>
-            <p style={{ fontSize:18, color:TEXT3, margin:0 }}>마감일</p>
-            <p style={{ fontSize:28, fontWeight:600, color:TEXT2, margin:"4px 0 0" }}>
+          <div style={{ background:BG2, border:`2px solid ${dDayColor}44`, borderRadius:16, padding:"16px 24px", textAlign:"center", flexShrink:0, marginLeft:20 }}>
+            <p style={{ fontSize:16, color:TEXT3, margin:0 }}>마감일</p>
+            <p style={{ fontSize:22, fontWeight:600, color:TEXT2, margin:"4px 0 0" }}>
               {new Date(project.end_date).toLocaleDateString("ko-KR",{month:"long",day:"numeric"})}
             </p>
-            <p style={{ fontSize:52, fontWeight:700, color:dDayColor, margin:"4px 0 0" }}>
+            <p style={{ fontSize:38, fontWeight:700, color:dDayColor, margin:"4px 0 0" }}>
               {daysLeft<0?`+${Math.abs(daysLeft)}일`:`D-${daysLeft}`}
             </p>
           </div>
