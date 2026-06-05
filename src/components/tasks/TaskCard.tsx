@@ -1,7 +1,6 @@
 ﻿// @ts-nocheck
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase";
 import type { Task, User, Project } from "@/types/database";
 type TaskStatus = string;
@@ -46,7 +45,8 @@ function fmt(d: string | null) {
 
 function AssigneeStack({ task }: { task: T }) {
   const list = task.assignees && task.assignees.length > 0
-    ? task.assignees : task.assignee ? [task.assignee] : [];
+    ? task.assignees
+    : task.assignee ? [task.assignee] : [];
   if (list.length === 0) return null;
   return (
     <div className="flex items-center shrink-0">
@@ -56,7 +56,9 @@ function AssigneeStack({ task }: { task: T }) {
           <span key={(u as any).id ?? i}
             className="flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold"
             style={{ background: `${color}22`, color, border: `1.5px solid var(--bg-2)`, marginLeft: i > 0 ? -6 : 0, zIndex: list.length - i }}
-            title={u.name}>{u.name[0]}</span>
+            title={u.name}>
+            {u.name[0]}
+          </span>
         );
       })}
       {list.length > 4 && (
@@ -80,9 +82,6 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
   const [localStatus, setLocalStatus] = useState(task.status);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     if (task.comment_count !== undefined) { setCommentCount(task.comment_count); return; }
@@ -91,10 +90,11 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
       .then(({ count }) => { if (count != null) setCommentCount(count); });
   }, [task.id]);
 
+  // 외부 클릭 시 닫기
   useEffect(() => {
     if (!open && !showBlocked) return;
     function handleClick(e: MouseEvent) {
-      if (btnRef.current && !btnRef.current.contains(e.target as Node)) {
+      if (btnRef.current && !btnRef.current.closest("[data-dropdown]")?.contains(e.target as Node)) {
         setOpen(false); setShowBlocked(false); setMenuPos(null);
       }
     }
@@ -135,7 +135,8 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
         onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "var(--bg-2)"; }}
         onClick={() => setShowDetail(true)}>
 
-        <div className="relative shrink-0" onClick={e => e.stopPropagation()}>
+        {/* 상태 버튼 */}
+        <div data-dropdown className="relative shrink-0" onClick={e => e.stopPropagation()}>
           <button ref={btnRef} onClick={openMenu} disabled={loading}
             className="rounded-md px-2.5 py-1 text-xs font-semibold"
             style={{ background: s.bg, color: s.color }}>
@@ -143,6 +144,7 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
           </button>
         </div>
 
+        {/* 업무명 + 댓글 수 */}
         <span className="flex-1 truncate text-sm font-medium flex items-center gap-1.5 min-w-0"
           style={{ color: localStatus === "done" ? "var(--text-3)" : "var(--text-1)", textDecoration: localStatus === "done" ? "line-through" : undefined }}>
           <span className="truncate">{task.title}</span>
@@ -166,7 +168,9 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
             {task.project.name}
           </span>
         )}
+
         <AssigneeStack task={task} />
+
         {task.due_date && (
           <span className="shrink-0 text-xs tabular-nums font-medium"
             style={{ color: overdue ? "#f87171" : "var(--text-3)" }}>
@@ -176,61 +180,44 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
         <span className="shrink-0 text-xs font-semibold" style={{ color: p.color }}>{p.label}</span>
       </div>
 
-      {/* 상태 드롭다운 - Portal */}
-      {mounted && open && !showBlocked && menuPos && createPortal(
-        <div style={{
-          position: "fixed", zIndex: 9999, width: 128,
-          top: menuPos.top, left: menuPos.left,
-          background: "var(--bg-3)", border: "1px solid var(--border-2)",
-          borderRadius: 12, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.4)"
-        }}>
+      {/* 상태 드롭다운 - fixed 포지션으로 잘림 방지 */}
+      {open && !showBlocked && menuPos && (
+        <div className="fixed z-[9999] w-32 rounded-xl overflow-hidden shadow-2xl"
+          style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)", top: menuPos.top, left: menuPos.left }}>
           {STATUS_LIST.map(sv => (
             <button key={sv}
-              onClick={e => { e.stopPropagation(); sv === "blocked" ? setShowBlocked(true) : changeStatus(sv); }}
-              style={{
-                display: "flex", alignItems: "center", gap: 8, width: "100%",
-                padding: "8px 12px", fontSize: 12, fontWeight: 500, cursor: "pointer", border: "none",
-                color: sv === localStatus ? STATUS[sv].color : "var(--text-2)",
-                background: sv === localStatus ? STATUS[sv].bg : "transparent",
-              }}
+              onClick={() => sv === "blocked" ? setShowBlocked(true) : changeStatus(sv)}
+              className="flex items-center gap-2 w-full px-3 py-2 text-xs font-medium"
+              style={{ color: sv === localStatus ? STATUS[sv].color : "var(--text-2)", background: sv === localStatus ? STATUS[sv].bg : "transparent" }}
               onMouseEnter={e => { if (sv !== localStatus) (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-4)"; }}
               onMouseLeave={e => { if (sv !== localStatus) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: STATUS[sv].color, flexShrink: 0 }} />
+              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: STATUS[sv].color }} />
               {STATUS[sv].label}
             </button>
           ))}
-          <button onClick={e => { e.stopPropagation(); setOpen(false); setMenuPos(null); }}
-            style={{ width: "100%", padding: "8px 12px", fontSize: 12, textAlign: "center", cursor: "pointer", border: "none", borderTop: "1px solid var(--border)", color: "var(--text-3)", background: "transparent" }}>
-            닫기
-          </button>
-        </div>,
-        document.body
+          <button onClick={() => { setOpen(false); setMenuPos(null); }} className="w-full px-3 py-2 text-xs text-center"
+            style={{ borderTop: "1px solid var(--border)", color: "var(--text-3)" }}>닫기</button>
+        </div>
       )}
 
-      {/* Blocked 사유 - Portal */}
-      {mounted && showBlocked && menuPos && createPortal(
-        <div style={{
-          position: "fixed", zIndex: 9999, width: 256,
-          top: menuPos.top, left: menuPos.left,
-          background: "var(--bg-3)", border: "1px solid var(--border-2)",
-          borderRadius: 12, padding: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.4)"
-        }}>
-          <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-1)", marginBottom: 8 }}>Blocked 사유 *</p>
+      {/* Blocked 사유 입력 - fixed */}
+      {showBlocked && menuPos && (
+        <div className="fixed z-[9999] w-64 rounded-xl p-3 shadow-2xl"
+          style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)", top: menuPos.top, left: menuPos.left }}>
+          <p className="mb-2 text-xs font-semibold" style={{ color: "var(--text-1)" }}>Blocked 사유 *</p>
           <textarea value={reason} onChange={e => setReason(e.target.value)}
             placeholder="왜 막혔는지 입력해주세요" rows={2} autoFocus
-            style={{ width: "100%", borderRadius: 8, padding: "6px 10px", fontSize: 12, resize: "none", outline: "none", background: "var(--bg-4)", border: "1px solid var(--border-2)", color: "var(--text-1)", boxSizing: "border-box" }} />
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <button onClick={e => { e.stopPropagation(); changeStatus("blocked", reason); }} disabled={!reason.trim()}
-              style={{ flex: 1, borderRadius: 8, padding: "6px 0", fontSize: 12, fontWeight: 600, cursor: "pointer", border: "none", background: "#f87171", color: "#fff", opacity: reason.trim() ? 1 : 0.3 }}>
-              확인
-            </button>
-            <button onClick={e => { e.stopPropagation(); setShowBlocked(false); setOpen(false); setMenuPos(null); }}
-              style={{ flex: 1, borderRadius: 8, padding: "6px 0", fontSize: 12, cursor: "pointer", border: "none", background: "var(--bg-4)", color: "var(--text-2)" }}>
-              취소
-            </button>
+            className="w-full rounded-lg px-2.5 py-1.5 text-xs resize-none focus:outline-none"
+            style={{ background: "var(--bg-4)", border: "1px solid var(--border-2)", color: "var(--text-1)" }} />
+          <div className="mt-2 flex gap-2">
+            <button onClick={() => changeStatus("blocked", reason)} disabled={!reason.trim()}
+              className="flex-1 rounded-lg py-1.5 text-xs font-semibold disabled:opacity-30"
+              style={{ background: "#f87171", color: "#fff" }}>확인</button>
+            <button onClick={() => { setShowBlocked(false); setOpen(false); setMenuPos(null); }}
+              className="flex-1 rounded-lg py-1.5 text-xs"
+              style={{ background: "var(--bg-4)", color: "var(--text-2)" }}>취소</button>
           </div>
-        </div>,
-        document.body
+        </div>
       )}
 
       {showDetail && (
