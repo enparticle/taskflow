@@ -1,4 +1,4 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase";
@@ -6,28 +6,28 @@ import { createClient } from "@/lib/supabase";
 const SLIDE_DURATION = 30;
 
 const HEALTH_CONFIG: Record<string, { label: string; color: string }> = {
-  good:      { label: "정상",     color: "#34d399" },
-  reviewing: { label: "검토 필요", color: "#60a5fa" },
-  at_risk:   { label: "주의",     color: "#fbbf24" },
-  critical:  { label: "위험",     color: "#f87171" },
-  suspended: { label: "중단",     color: "#71717a" },
+  good:      { label: "?뺤긽",     color: "#34d399" },
+  reviewing: { label: "寃???꾩슂", color: "#60a5fa" },
+  at_risk:   { label: "二쇱쓽",     color: "#fbbf24" },
+  critical:  { label: "?꾪뿕",     color: "#f87171" },
+  suspended: { label: "以묐떒",     color: "#71717a" },
 };
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  backlog: { label: "백로그",  color: "#8899aa" },
-  todo:    { label: "할 일",   color: "#aabbcc" },
-  doing:   { label: "진행 중", color: "#60a5fa" },
+  backlog: { label: "諛깅줈洹?,  color: "#8899aa" },
+  todo:    { label: "????,   color: "#aabbcc" },
+  doing:   { label: "吏꾪뻾 以?, color: "#60a5fa" },
   blocked: { label: "Blocked", color: "#f87171" },
-  review:  { label: "리뷰",    color: "#fbbf24" },
-  done:    { label: "완료",    color: "#34d399" },
+  review:  { label: "由щ럭",    color: "#fbbf24" },
+  done:    { label: "?꾨즺",    color: "#34d399" },
 };
 const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
-  personal: { label: "개인",  color: "#a78bfa" },
-  vacation: { label: "연차",  color: "#34d399" },
-  holiday:  { label: "휴일",  color: "#f87171" },
-  meeting:  { label: "미팅",  color: "#60a5fa" },
-  deadline: { label: "마감",  color: "#fbbf24" },
+  personal: { label: "媛쒖씤",  color: "#a78bfa" },
+  vacation: { label: "?곗감",  color: "#34d399" },
+  holiday:  { label: "?댁씪",  color: "#f87171" },
+  meeting:  { label: "誘명똿",  color: "#60a5fa" },
+  deadline: { label: "留덇컧",  color: "#fbbf24" },
 };
-const DAYS = ["일","월","화","수","목","금","토"];
+const DAYS = ["??,"??,"??,"??,"紐?,"湲?,"??];
 const BG  = "#1a2233";
 const BG2 = "#202c3f";
 const BG3 = "#263347";
@@ -40,7 +40,7 @@ function isSameDay(a: Date, b: Date) {
   return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
 }
 
-// ── 대시보드 슬라이드 ──
+// ?? ??쒕낫???щ씪?대뱶 ??
 function DashboardSlide({ projects, tasks, users }: any) {
   const now = new Date();
   const doingT   = tasks.filter((t:any)=>t.status==="doing").length;
@@ -51,20 +51,20 @@ function DashboardSlide({ projects, tasks, users }: any) {
 
   return (
     <div style={{ height:"100%", display:"flex", flexDirection:"column", padding:"40px 48px", gap:28, background:BG }}>
-      {/* 헤더 */}
+      {/* ?ㅻ뜑 */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <div>
           <p style={{ fontSize:18, color:TEXT3, marginBottom:6 }}>
             {now.toLocaleDateString("ko-KR",{year:"numeric",month:"long",day:"numeric",weekday:"long"})}
           </p>
-          <h1 style={{ fontSize:30, fontWeight:700, color:TEXT1, margin:0 }}>팀 전체 현황</h1>
+          <h1 style={{ fontSize:30, fontWeight:700, color:TEXT1, margin:0 }}>? ?꾩껜 ?꾪솴</h1>
         </div>
         <div style={{ display:"flex", gap:12 }}>
           {[
-            { label:"진행 중", value:doingT,   color:"#60a5fa" },
-            { label:"완료",    value:doneT,    color:"#34d399" },
+            { label:"吏꾪뻾 以?, value:doingT,   color:"#60a5fa" },
+            { label:"?꾨즺",    value:doneT,    color:"#34d399" },
             { label:"Blocked", value:blockedT, color:"#f87171" },
-            { label:"마감초과", value:overdueT, color:"#fbbf24" },
+            { label:"留덇컧珥덇낵", value:overdueT, color:"#fbbf24" },
           ].map(s=>(
             <div key={s.label} style={{ background:BG2, border:`1px solid ${s.color}33`, borderRadius:16, padding:"14px 28px", textAlign:"center", minWidth:110 }}>
               <p style={{ fontSize:48, fontWeight:700, color:s.color, margin:0, lineHeight:1 }}>{s.value}</p>
@@ -74,7 +74,7 @@ function DashboardSlide({ projects, tasks, users }: any) {
         </div>
       </div>
 
-      {/* 프로젝트 카드들 */}
+      {/* ?꾨줈?앺듃 移대뱶??*/}
       <div style={{ flex:1, display:"grid", gap:16, gridTemplateColumns:"repeat(3,1fr)", gridTemplateRows:"1fr 1fr", alignItems:"stretch" }}>
         {projects.slice(0,6).map((p:any)=>{
           const hc = HEALTH_CONFIG[p.health]??HEALTH_CONFIG.good;
@@ -91,7 +91,7 @@ function DashboardSlide({ projects, tasks, users }: any) {
                 </div>
                 {p.end_date && (
                   <div style={{ textAlign:"right", marginLeft:12, flexShrink:0 }}>
-                    <p style={{ fontSize:14, color:TEXT3, margin:0 }}>마감</p>
+                    <p style={{ fontSize:14, color:TEXT3, margin:0 }}>留덇컧</p>
                     <p style={{ fontSize:20, fontWeight:600, color:TEXT2, margin:0 }}>
                       {new Date(p.end_date).toLocaleDateString("ko-KR",{month:"short",day:"numeric"})}
                     </p>
@@ -99,7 +99,7 @@ function DashboardSlide({ projects, tasks, users }: any) {
                 )}
               </div>
               <div style={{ display:"flex", gap:20, flexWrap:"wrap" }}>
-                {[{l:"진행",v:doing,c:"#60a5fa"},{l:"완료",v:done,c:"#34d399"},{l:"전체",v:total,c:TEXT3},...(blkd>0?[{l:"Blocked",v:blkd,c:"#f87171"}]:[])].map((s,i)=>(
+                {[{l:"吏꾪뻾",v:doing,c:"#60a5fa"},{l:"?꾨즺",v:done,c:"#34d399"},{l:"?꾩껜",v:total,c:TEXT3},...(blkd>0?[{l:"Blocked",v:blkd,c:"#f87171"}]:[])].map((s,i)=>(
                   <span key={i} style={{ fontSize:20, color:s.c }}>{s.l} <b style={{ fontSize:30 }}>{s.v}</b></span>
                 ))}
               </div>
@@ -108,7 +108,7 @@ function DashboardSlide({ projects, tasks, users }: any) {
         })}
       </div>
 
-      {/* 팀원 */}
+      {/* ???*/}
       {users.length>0 && (
         <div style={{ display:"flex", gap:12 }}>
           {users.slice(0,8).map((u:any,i:number)=>{
@@ -122,7 +122,7 @@ function DashboardSlide({ projects, tasks, users }: any) {
                 </div>
                 <div>
                   <p style={{ fontSize:18, fontWeight:600, color:TEXT1, margin:0 }}>{u.name}</p>
-                  <p style={{ fontSize:15, color, margin:0 }}>진행 {doing} / 전체 {total}</p>
+                  <p style={{ fontSize:15, color, margin:0 }}>吏꾪뻾 {doing} / ?꾩껜 {total}</p>
                 </div>
               </div>
             );
@@ -133,7 +133,7 @@ function DashboardSlide({ projects, tasks, users }: any) {
   );
 }
 
-// ── 프로젝트 슬라이드 ──
+// ?? ?꾨줈?앺듃 ?щ씪?대뱶 ??
 function ProjectSlide({ project, tasks }: any) {
   const now = new Date();
   const hc = HEALTH_CONFIG[project.health]??HEALTH_CONFIG.good;
@@ -148,33 +148,33 @@ function ProjectSlide({ project, tasks }: any) {
 
   return (
     <div style={{ height:"100%", display:"flex", flexDirection:"column", padding:"40px 48px", gap:28, background:BG }}>
-      {/* 헤더 */}
+      {/* ?ㅻ뜑 */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:12 }}>
             <div style={{ width:14, height:14, borderRadius:"50%", background:hc.color, flexShrink:0 }} />
             <span style={{ fontSize:20, background:`${hc.color}20`, color:hc.color, borderRadius:20, padding:"4px 16px", fontWeight:600 }}>{hc.label}</span>
-            {project.owner?.name && <span style={{ fontSize:20, color:TEXT3 }}>담당 · {project.owner.name}</span>}
+            {project.owner?.name && <span style={{ fontSize:20, color:TEXT3 }}>?대떦 쨌 {project.owner.name}</span>}
           </div>
           <h1 style={{ fontSize:38, fontWeight:700, color:TEXT1, margin:0, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{project.name}</h1>
           {project.description && <p style={{ fontSize:20, color:TEXT2, margin:"6px 0 0" }}>{project.description}</p>}
         </div>
         {daysLeft!==null && (
           <div style={{ background:BG2, border:`2px solid ${dDayColor}44`, borderRadius:16, padding:"16px 24px", textAlign:"center", flexShrink:0, marginLeft:20 }}>
-            <p style={{ fontSize:16, color:TEXT3, margin:0 }}>마감일</p>
+            <p style={{ fontSize:16, color:TEXT3, margin:0 }}>留덇컧??/p>
             <p style={{ fontSize:22, fontWeight:600, color:TEXT2, margin:"4px 0 0" }}>
               {new Date(project.end_date).toLocaleDateString("ko-KR",{month:"long",day:"numeric"})}
             </p>
             <p style={{ fontSize:38, fontWeight:700, color:dDayColor, margin:"4px 0 0" }}>
-              {daysLeft<0?`+${Math.abs(daysLeft)}일`:`D-${daysLeft}`}
+              {daysLeft<0?`+${Math.abs(daysLeft)}??:`D-${daysLeft}`}
             </p>
           </div>
         )}
       </div>
 
-      {/* 통계 */}
+      {/* ?듦퀎 */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:16 }}>
-        {[{l:"전체",v:total,c:"#aabbcc"},{l:"진행 중",v:doing,c:"#60a5fa"},{l:"리뷰",v:review,c:"#fbbf24"},{l:"Blocked",v:blocked,c:"#f87171"},{l:"완료",v:done,c:"#34d399"}].map(s=>(
+        {[{l:"?꾩껜",v:total,c:"#aabbcc"},{l:"吏꾪뻾 以?,v:doing,c:"#60a5fa"},{l:"由щ럭",v:review,c:"#fbbf24"},{l:"Blocked",v:blocked,c:"#f87171"},{l:"?꾨즺",v:done,c:"#34d399"}].map(s=>(
           <div key={s.l} style={{ background:BG2, border:`1px solid ${s.c}33`, borderRadius:18, padding:"20px 16px", textAlign:"center" }}>
             <p style={{ fontSize:72, fontWeight:700, color:s.c, margin:0, lineHeight:1 }}>{s.v}</p>
             <p style={{ fontSize:22, color:TEXT3, margin:"10px 0 0" }}>{s.l}</p>
@@ -182,9 +182,9 @@ function ProjectSlide({ project, tasks }: any) {
         ))}
       </div>
 
-      {/* 업무 목록 */}
+      {/* ?낅Т 紐⑸줉 */}
       <div style={{ flex:1, overflow:"hidden" }}>
-        <p style={{ fontSize:22, color:TEXT3, marginBottom:12 }}>진행 중 업무</p>
+        <p style={{ fontSize:22, color:TEXT3, marginBottom:12 }}>吏꾪뻾 以??낅Т</p>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
           {activeTasks.map((t:any)=>{
             const sc = STATUS_CONFIG[t.status]??STATUS_CONFIG.todo;
@@ -196,7 +196,7 @@ function ProjectSlide({ project, tasks }: any) {
                 {t.assignee?.name && <span style={{ fontSize:20, color:TEXT3, flexShrink:0 }}>{t.assignee.name}</span>}
                 {t.due_date && (
                   <span style={{ fontSize:20, color:overdue?"#f87171":TEXT3, flexShrink:0, fontWeight:overdue?600:400 }}>
-                    {overdue?"⚠ ":""}{new Date(t.due_date).toLocaleDateString("ko-KR",{month:"numeric",day:"numeric"})}
+                    {overdue?"??":""}{new Date(t.due_date).toLocaleDateString("ko-KR",{month:"numeric",day:"numeric"})}
                   </span>
                 )}
               </div>
@@ -208,7 +208,7 @@ function ProjectSlide({ project, tasks }: any) {
   );
 }
 
-// ── 캘린더 슬라이드 ──
+// ?? 罹섎┛???щ씪?대뱶 ??
 function CalendarSlide({ events, tasks }: any) {
   const now = new Date();
   const rangeStart = new Date(now);
@@ -232,12 +232,12 @@ function CalendarSlide({ events, tasks }: any) {
     return result;
   }
 
-  const WEEK_LABELS = ["지난 주","이번 주","다음 주","2주 후"];
+  const WEEK_LABELS = ["吏??二?,"?대쾲 二?,"?ㅼ쓬 二?,"2二???];
 
   return (
     <div style={{ height:"100%", display:"flex", flexDirection:"column", padding:"40px 48px", gap:24, background:BG }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <h1 style={{ fontSize:32, fontWeight:700, color:TEXT1, margin:0 }}>일정</h1>
+        <h1 style={{ fontSize:32, fontWeight:700, color:TEXT1, margin:0 }}>?쇱젙</h1>
         <div style={{ display:"flex", gap:20 }}>
           {Object.entries(EVENT_TYPE_CONFIG).map(([k,v])=>(
             <div key={k} style={{ display:"flex", alignItems:"center", gap:8 }}>
@@ -249,14 +249,14 @@ function CalendarSlide({ events, tasks }: any) {
       </div>
 
       <div style={{ flex:1, borderRadius:20, overflow:"hidden", border:`1px solid ${BORDER}` }}>
-        {/* 요일 헤더 */}
+        {/* ?붿씪 ?ㅻ뜑 */}
         <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", background:BG3, borderBottom:`1px solid ${BORDER}` }}>
           {DAYS.map((d,i)=>(
             <div key={i} style={{ padding:"18px 0", textAlign:"center", fontSize:28, fontWeight:700, color:i===0?"#f87171":i===6?"#60a5fa":TEXT2 }}>{d}</div>
           ))}
         </div>
 
-        {/* 4주 */}
+        {/* 4二?*/}
         <div style={{ display:"grid", gridTemplateRows:"repeat(4,1fr)", height:"calc(100% - 57px)" }}>
           {[0,1,2,3].map(wk=>{
             const weekDays = cells.slice(wk*7,wk*7+7);
@@ -283,11 +283,11 @@ function CalendarSlide({ events, tasks }: any) {
                         const color = ev.color||cfg.color;
                         return (
                           <div key={j} style={{ background:`${color}22`, color, fontSize:18, fontWeight:500, borderRadius:6, padding:"4px 10px", marginBottom:4, overflow:"hidden", whiteSpace:"nowrap", textOverflow:"ellipsis", border:`1px solid ${color}44` }}>
-                            {ev._type==="task"?"📌 ":""}{ev.title}
+                            {ev._type==="task"?"?뱦 ":""}{ev.title}
                           </div>
                         );
                       })}
-                      {dayEvs.length>3 && <p style={{fontSize:16,color:TEXT3,margin:0}}>+{dayEvs.length-3}개</p>}
+                      {dayEvs.length>3 && <p style={{fontSize:16,color:TEXT3,margin:0}}>+{dayEvs.length-3}媛?/p>}
                     </div>
                   );
                 })}
@@ -300,7 +300,7 @@ function CalendarSlide({ events, tasks }: any) {
   );
 }
 
-// ── 메인 ──
+// ?? 硫붿씤 ??
 export default function ViewerPage() {
   const supabase = createClient();
   const [projects, setProjects] = useState<any[]>([]);
@@ -324,7 +324,7 @@ export default function ViewerPage() {
   const load = useCallback(async () => {
     const [{ data:p },{ data:t },{ data:u },{ data:ev }] = await Promise.all([
       supabase.from("projects").select("*, owner:users!projects_owner_id_fkey(name), tasks(id,title,status,due_date,assignee_id,assignee_ids,assignee:users!tasks_assignee_id_fkey(name))").eq("status","active").order("created_at"),
-      supabase.from("tasks").select("id,title,status,due_date,assignee_id,assignee_ids,project_id").neq("status","done"),
+      supabase.from("tasks").select("id,title,status,due_date,assignee_id,assignee_ids,project_id").neq("status","done").eq("show_on_calendar",true),
       supabase.from("users").select("id,name").eq("is_active",true).neq("role","viewer"),
       supabase.from("calendar_events").select("*").order("start_date"),
     ]);
@@ -361,7 +361,7 @@ export default function ViewerPage() {
     <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:BG }}>
       <div style={{ textAlign:"center" }}>
         <div style={{ width:48, height:48, borderRadius:"50%", border:"4px solid #00C2CC", borderTopColor:"transparent", animation:"spin 1s linear infinite", margin:"0 auto 16px" }} />
-        <p style={{ fontSize:24, color:TEXT3 }}>데이터 로딩 중…</p>
+        <p style={{ fontSize:24, color:TEXT3 }}>?곗씠??濡쒕뵫 以묅?/p>
       </div>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
@@ -374,20 +374,20 @@ export default function ViewerPage() {
     <div ref={containerRef} style={{ display:"flex", flexDirection:"column", height:"100vh", background:BG }}
       onMouseEnter={()=>setPaused(true)} onMouseLeave={()=>setPaused(false)}>
 
-      {/* 컨트롤 바 */}
+      {/* 而⑦듃濡?諛?*/}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 24px", background:BG3, borderBottom:`1px solid ${BORDER}`, flexShrink:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:16 }}>
           <span style={{ fontSize:22, fontWeight:700, letterSpacing:3, color:TEXT1 }}>
             Task<span style={{ color:"#00C2CC" }}>Flow</span>
           </span>
-          <span style={{ fontSize:16, background:"rgba(0,194,204,0.15)", color:"#00C2CC", borderRadius:20, padding:"4px 14px" }}>전체 현황</span>
+          <span style={{ fontSize:16, background:"rgba(0,194,204,0.15)", color:"#00C2CC", borderRadius:20, padding:"4px 14px" }}>?꾩껜 ?꾪솴</span>
           <span style={{ fontSize:15, color:TEXT3 }}>
-            {lastRefreshed.toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"})} 갱신
+            {lastRefreshed.toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"})} 媛깆떊
           </span>
         </div>
 
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          {/* 인디케이터 */}
+          {/* ?몃뵒耳?댄꽣 */}
           <div style={{ display:"flex", gap:6, alignItems:"center" }}>
             {slides.map((_,i)=>(
               <button key={i} onClick={()=>{ setCurrent(i); setProgress(0); }}
@@ -396,7 +396,7 @@ export default function ViewerPage() {
           </div>
           <span style={{ fontSize:17, color:TEXT3 }}>{current+1}/{slides.length}</span>
 
-          {/* 전환 속도 */}
+          {/* ?꾪솚 ?띾룄 */}
           {[15,30,60].map(d=>(
             <button key={d} onClick={()=>setDuration(d)}
               style={{ background:duration===d?"rgba(0,194,204,0.2)":"rgba(255,255,255,0.05)", color:duration===d?"#00C2CC":TEXT3, border:`1px solid ${duration===d?"#00C2CC33":BORDER}`, borderRadius:10, padding:"6px 14px", fontSize:16, cursor:"pointer" }}>
@@ -404,45 +404,46 @@ export default function ViewerPage() {
             </button>
           ))}
 
-          {/* 이전/정지/다음 */}
+          {/* ?댁쟾/?뺤?/?ㅼ쓬 */}
           <button onClick={()=>{ setCurrent(c=>(c-1+slides.length)%slides.length); setProgress(0); }}
-            style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${BORDER}`, borderRadius:10, padding:"6px 16px", fontSize:22, color:TEXT2, cursor:"pointer" }}>‹</button>
+            style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${BORDER}`, borderRadius:10, padding:"6px 16px", fontSize:22, color:TEXT2, cursor:"pointer" }}>??/button>
           <button onClick={()=>setPaused(v=>!v)}
             style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${BORDER}`, borderRadius:10, padding:"6px 16px", fontSize:17, color:TEXT2, cursor:"pointer" }}>
-            {paused?"▶":"⏸"}
+            {paused?"??:"??}
           </button>
           <button onClick={()=>{ setCurrent(c=>(c+1)%slides.length); setProgress(0); }}
-            style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${BORDER}`, borderRadius:10, padding:"6px 16px", fontSize:22, color:TEXT2, cursor:"pointer" }}>›</button>
+            style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${BORDER}`, borderRadius:10, padding:"6px 16px", fontSize:22, color:TEXT2, cursor:"pointer" }}>??/button>
 
-          {/* 새로고침 */}
+          {/* ?덈줈怨좎묠 */}
           {[60,300].map(s=>(
             <button key={s} onClick={()=>setRefreshInterval(s)}
               style={{ background:refreshInterval===s?"rgba(0,194,204,0.2)":"rgba(255,255,255,0.05)", color:refreshInterval===s?"#00C2CC":TEXT3, border:`1px solid ${refreshInterval===s?"#00C2CC33":BORDER}`, borderRadius:10, padding:"6px 12px", fontSize:15, cursor:"pointer" }}>
-              {s<60?`${s}s`:`${s/60}분`}
+              {s<60?`${s}s`:`${s/60}遺?}
             </button>
           ))}
           <button onClick={load}
-            style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${BORDER}`, borderRadius:10, padding:"6px 14px", fontSize:18, color:TEXT2, cursor:"pointer" }}>🔄</button>
+            style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${BORDER}`, borderRadius:10, padding:"6px 14px", fontSize:18, color:TEXT2, cursor:"pointer" }}>?봽</button>
 
-          {/* 전체화면 */}
+          {/* ?꾩껜?붾㈃ */}
           <button onClick={toggleFullscreen}
             style={{ background:"rgba(255,255,255,0.05)", border:`1px solid ${BORDER}`, borderRadius:10, padding:"6px 14px", fontSize:16, color:TEXT2, cursor:"pointer" }}>
-            {fullscreen?"⊡ 나가기":"⊞ 전체화면"}
+            {fullscreen?"???섍?湲?:"???꾩껜?붾㈃"}
           </button>
         </div>
       </div>
 
-      {/* 슬라이드 */}
+      {/* ?щ씪?대뱶 */}
       <div style={{ flex:1, overflow:"hidden" }}>
         {slide?.type==="dashboard" && <DashboardSlide projects={projects} tasks={allTasks} users={users} />}
         {slide?.type==="project" && (()=>{ const proj=projects.find(p=>p.id===slide.id); return proj?<ProjectSlide project={proj} tasks={proj.tasks??[]} />:null; })()}
         {slide?.type==="calendar" && <CalendarSlide events={events} tasks={allTasks.filter((t:any)=>t.due_date)} />}
       </div>
 
-      {/* 진행 바 */}
+      {/* 吏꾪뻾 諛?*/}
       <div style={{ height:4, background:"rgba(255,255,255,0.08)" }}>
         <div style={{ height:"100%", width:`${progress}%`, background:"#00C2CC", transition:paused?"none":"width 0.1s linear" }} />
       </div>
     </div>
   );
 }
+
