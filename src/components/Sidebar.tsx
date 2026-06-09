@@ -17,20 +17,43 @@ export default function Sidebar() {
   const router = useRouter();
   const supabase = createClient();
   const [projects, setProjects] = useState<any[]>([]);
+  const [allProjects, setAllProjects] = useState<any[]>([]);
+  const [showAllProjects, setShowAllProjects] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [openDetail, setOpenDetail] = useState<string | null>(null);
   const [linkedName, setLinkedName] = useState<string>("");
   const [showMore, setShowMore] = useState(false);
 
+  const isMember = userRole === "member" || userRole === "reviewer";
+  const isAdmin = userRole === "admin";
+  const isLeaderOrAbove = userRole === "admin" || userRole === "leader";
+
   useEffect(() => {
-    supabase.from("projects").select("id, name, health").eq("status", "active")
-      .order("created_at").then(({ data }) => setProjects(data ?? []));
     supabase.auth.getUser().then(async ({ data }) => {
-      if (data.user) {
-        const { data: linked } = await supabase
-          .from("users").select("name, role").eq("auth_id", data.user.id).single();
-        if (linked) { setLinkedName(linked.name); setUserRole(linked.role ?? ""); }
+      if (!data.user) return;
+      const { data: linked } = await supabase
+        .from("users").select("id, name, role").eq("auth_id", data.user.id).single();
+      if (!linked) return;
+      setLinkedName(linked.name);
+      setUserRole(linked.role ?? "");
+      setUserId(linked.id);
+
+      // 전체 프로젝트
+      const { data: allProj } = await supabase.from("projects")
+        .select("id, name, health").eq("status", "active").order("created_at");
+      setAllProjects(allProj ?? []);
+
+      // Member/Reviewer: 내가 속한 프로젝트만
+      if (linked.role === "member" || linked.role === "reviewer") {
+        const { data: myMembers } = await supabase.from("project_members")
+          .select("project_id").eq("user_id", linked.id);
+        const myProjectIds = (myMembers ?? []).map((m: any) => m.project_id);
+        const myProjects = (allProj ?? []).filter(p => myProjectIds.includes(p.id));
+        setProjects(myProjects);
+      } else {
+        setProjects(allProj ?? []);
       }
     });
   }, []);
@@ -66,6 +89,8 @@ export default function Sidebar() {
     );
   }
 
+  const displayProjects = showAllProjects ? allProjects : projects;
+
   return (
     <>
       <aside className="flex w-60 shrink-0 flex-col"
@@ -74,8 +99,7 @@ export default function Sidebar() {
         {/* 로고 */}
         <div className="flex h-13 items-center gap-2 px-4 py-3"
           style={{ borderBottom: "0.5px solid var(--border)" }}>
-          <div className="w-1.5 h-1.5 rounded-full shrink-0"
-            style={{ background: "var(--cyan)" }} />
+          <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "var(--cyan)" }} />
           <span className="text-sm font-semibold tracking-widest uppercase flex-1" style={{ color: "var(--text-1)" }}>
             Task<span style={{ color: "var(--cyan)" }}>Flow</span>
           </span>
@@ -97,11 +121,8 @@ export default function Sidebar() {
           <NavLink href="/dashboard" label="대시보드" icon="▦" />
           <NavLink href="/tasks" label="업무" icon="◎" />
           <NavLink href="/calendar" label="캘린더" icon="📅" />
-          <NavLink href="/tree" label="업무 트리" icon="🌳" />
-          {/* 칸반 보드 - 비활성화 (활성화하려면 아래 주석 해제)
-          <NavLink href="/kanban" label="칸반 보드" icon="⊞" />
-          */}
-          {(userRole === "admin" || userRole === "viewer") && (
+          {!isMember && <NavLink href="/tree" label="업무 트리" icon="🌳" />}
+          {(isAdmin || userRole === "viewer") && (
             <a href="/viewer" target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium transition-all"
               style={{ color: "var(--text-2)", borderLeft: "2px solid transparent" }}
@@ -115,15 +136,25 @@ export default function Sidebar() {
           {/* 프로젝트 그룹 */}
           <GroupLabel label="프로젝트" />
           <div className="flex items-center justify-between px-3 mb-1">
-            <span style={{ fontSize: 10, color: "var(--text-3)" }} />
-            <Link href="/projects" className="text-xs transition-colors"
-              style={{ color: "var(--text-3)", fontSize: 10 }}
-              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--cyan)"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-3)"; }}>
-              전체 →
-            </Link>
+            {isMember && projects.length < allProjects.length && (
+              <button onClick={() => setShowAllProjects(v => !v)}
+                className="text-xs transition-colors"
+                style={{ color: "var(--text-3)", fontSize: 10 }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--cyan)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "var(--text-3)"; }}>
+                {showAllProjects ? "내 프로젝트만" : `전체 보기 (${allProjects.length})`}
+              </button>
+            )}
+            {!isMember && (
+              <Link href="/projects" className="text-xs transition-colors ml-auto"
+                style={{ color: "var(--text-3)", fontSize: 10 }}
+                onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--cyan)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-3)"; }}>
+                전체 →
+              </Link>
+            )}
           </div>
-          {projects.map(p => {
+          {displayProjects.map(p => {
             const active = pathname === `/projects/${p.id}`;
             const hColor = HEALTH_COLOR[p.health] ?? "#52525b";
             return (
@@ -139,21 +170,40 @@ export default function Sidebar() {
               </Link>
             );
           })}
-          {projects.length === 0 && (
-            <p className="px-3 py-1 text-xs" style={{ color: "var(--text-3)" }}>프로젝트 없음</p>
+          {displayProjects.length === 0 && (
+            <p className="px-3 py-1 text-xs" style={{ color: "var(--text-3)" }}>
+              {isMember ? "배정된 프로젝트 없음" : "프로젝트 없음"}
+            </p>
+          )}
+          {/* Member: 전체 프로젝트 목록 링크 */}
+          {isMember && (
+            <Link href="/projects" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs transition-all mt-1"
+              style={{ color: "var(--text-3)", borderLeft: "2px solid transparent" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--cyan)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-3)"; }}>
+              <span style={{ fontSize: 10 }}>＋</span> 전체 프로젝트 목록
+            </Link>
           )}
 
-          {/* AI 그룹 */}
-          <GroupLabel label="AI" />
-          <NavLink href="/project-assistant" label="프로젝트 등록" icon="✦" />
-          <NavLink href="/meeting-note" label="회의록 분석" icon="📝" />
+          {/* AI 그룹 - Leader 이상만 */}
+          {isLeaderOrAbove && (
+            <>
+              <GroupLabel label="AI" />
+              <NavLink href="/project-assistant" label="프로젝트 등록" icon="✦" />
+              <NavLink href="/meeting-note" label="회의록 분석" icon="📝" />
+            </>
+          )}
 
-          {/* 분석 그룹 */}
-          <GroupLabel label="분석" />
-          <NavLink href="/reports" label="리포트" icon="📊" />
-          <NavLink href="/team" label="팀 현황" icon="◈" />
-          {userRole === "admin" && (
-            <NavLink href="/report-export" label="외부용 보고서" icon="📋" />
+          {/* 분석 그룹 - Leader 이상만 */}
+          {isLeaderOrAbove && (
+            <>
+              <GroupLabel label="분석" />
+              <NavLink href="/reports" label="리포트" icon="📊" />
+              <NavLink href="/team" label="팀 현황" icon="◈" />
+              {isAdmin && (
+                <NavLink href="/report-export" label="외부용 보고서" icon="📋" />
+              )}
+            </>
           )}
 
           {/* 더보기 */}
@@ -170,7 +220,7 @@ export default function Sidebar() {
               <div className="mt-0.5">
                 <NavLink href="/settings" label="설정" icon="⚙" />
                 <NavLink href="/guide" label="사용 가이드" icon="📖" />
-                <NavLink href="/recurring" label="반복 업무" icon="🔄" />
+                {isLeaderOrAbove && <NavLink href="/recurring" label="반복 업무" icon="🔄" />}
               </div>
             )}
           </div>
@@ -186,7 +236,7 @@ export default function Sidebar() {
               )}
               <div className="flex items-center gap-1.5 mt-0.5">
                 <div className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--green)" }} />
-                <p className="text-xs" style={{ color: "var(--text-3)" }}>v1.2</p>
+                <p className="text-xs" style={{ color: "var(--text-3)" }}>v1.3</p>
               </div>
             </div>
             <button onClick={handleLogout}

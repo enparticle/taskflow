@@ -32,7 +32,7 @@ const PRIORITY: Record<string, { label: string; color: string }> = {
 const DIFFICULTY: Record<string, string> = { low: "낮음", medium: "보통", high: "높음", very_high: "매우 높음" };
 const TYPE_LABEL: Record<string, string> = {
   planning: "기획", design: "디자인", development: "개발", qa: "QA",
-  operation: "운영", documentation: "문서화", meeting: "회의",
+  operation: "운영", documentation: "문서화", meeting: "미팅",
   research: "리서치", customer: "고객 대응", other: "기타",
 };
 const STATUS_LIST = ["backlog","todo","doing","blocked","review","done"] as TaskStatus[];
@@ -94,6 +94,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
   const [meetingNotes, setMeetingNotes] = useState<any[]>([]);
   const [showNotePicker, setShowNotePicker] = useState(false);
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [showOnCalendar, setShowOnCalendar] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const assigneeRef = useRef<HTMLDivElement>(null);
 
@@ -141,7 +142,6 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
       setMilestones(ms ?? []);
     }
 
-    // 변경 이력 - 수정자 이름 포함
     const { data: evs } = await supabase.from("task_events")
       .select("*, changed_by_user:users!task_events_changed_by_fkey(name)")
       .eq("task_id", taskId)
@@ -150,6 +150,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
 
     setTask(data);
     setAssigneeIds((data as any)?.assignee_ids ?? ((data as any)?.assignee_id ? [(data as any).assignee_id] : []));
+    setShowOnCalendar((data as any)?.show_on_calendar ?? false);
 
     const authUser = await getAuthUser();
     if (authUser) {
@@ -160,9 +161,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
       const ids = (data as any)?.assignee_ids ?? [];
       const isAssignee = ids.includes(authUser.userId) || (data as any)?.assignee_id === authUser.userId;
       setCanDelete(canDeleteTask(authUser.role, projRole));
-      // Admin/Leader만 전체 수정 가능
       setCanEdit(authUser.role === "admin" || projRole === "leader");
-      // 상태 변경은 Admin/Leader + 본인 업무 담당자
       setCanChangeStatus(authUser.role === "admin" || projRole === "leader" || isAssignee);
     }
     setLoading(false);
@@ -187,7 +186,6 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
       });
     }
 
-    // 마감일 변경 시 담당자에게 알림
     if (field === "due_date" && prev !== value && assigneeIds.length > 0) {
       const newDate = value ? new Date(value).toLocaleDateString("ko-KR", { month: "short", day: "numeric" }) : "미정";
       for (const uid of assigneeIds) {
@@ -202,6 +200,12 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
     }
 
     await loadTask(); setEditing(null);
+  }
+
+  async function toggleCalendar() {
+    const newVal = !showOnCalendar;
+    setShowOnCalendar(newVal);
+    await supabase.from("tasks").update({ show_on_calendar: newVal }).eq("id", taskId);
   }
 
   async function updateAssignees(ids: string[]) {
@@ -311,7 +315,6 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
                 {canEdit && <span className="text-xs ml-1" style={{ color: "var(--text-3)" }}>✎</span>}
               </h2>
             )}
-            {/* 최종 수정자 표시 */}
             {(task as any).last_updated_user?.name && (
               <p className="text-xs mt-1" style={{ color: "var(--text-3)" }}>
                 최종 수정: <span style={{ color: "var(--text-2)" }}>{(task as any).last_updated_user.name}</span>
@@ -353,10 +356,10 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
             </button>
           )}
 
-          {/* 미팅 일정 투표 */}
+          {/* 미팅 일정 선택 */}
           {isMeeting && (
             <div className="rounded-xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-              <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-3)" }}>🗳️ 일정 투표</p>
+              <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-3)" }}>미팅 일정 선택</p>
               <MeetingPoll taskId={taskId} />
             </div>
           )}
@@ -385,13 +388,13 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
                       <button onClick={async () => {
                         const { data } = await supabase.storage.from("meeting-recordings").download(meetingNote.audio_path);
                         if (data) { const url = URL.createObjectURL(data); window.open(url); }
-                      }} className="text-xs" style={{ color: "#7BA7C8" }}>🎙️ 녹음 듣기</button>
+                      }} className="text-xs" style={{ color: "#7BA7C8" }}>🎙 녹음 파일 듣기</button>
                     )}
                     {meetingNote.input_text && (
                       <button onClick={() => {
                         const w = window.open("", "_blank");
                         if (w) { w.document.write(`<pre style="font-family:sans-serif;padding:20px;white-space:pre-wrap">${meetingNote.input_text}</pre>`); }
-                      }} className="text-xs" style={{ color: "var(--text-3)" }}>📄 텍스트 보기</button>
+                      }} className="text-xs" style={{ color: "var(--text-3)" }}>원문 텍스트 보기</button>
                     )}
                     <button onClick={() => linkMeetingNote(null)} className="text-xs" style={{ color: "#f87171" }}>연결 해제</button>
                   </div>
@@ -415,7 +418,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
                         </p>
                         <p className="text-xs mt-0.5" style={{ color: "var(--text-3)" }}>
                           {new Date(n.updated_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                          {n.audio_path && " · 🎙️ 녹음 있음"}
+                          {n.audio_path && " · 녹음 있음"}
                         </p>
                       </div>
                     </button>
@@ -489,7 +492,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
               className={`w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left ${canEdit ? "" : "cursor-default"}`}
               style={{ background: "var(--bg-3)", border: "1px solid var(--border)", minHeight: 40 }}>
               {selectedUsers.length === 0 ? (
-                <span style={{ color: "var(--text-3)", fontSize: 12 }}>담당자 선택</span>
+                <span style={{ color: "var(--text-3)", fontSize: 12 }}>담당자 없음</span>
               ) : (
                 <div className="flex flex-wrap gap-1.5 flex-1">
                   {selectedUsers.map(u => {
@@ -539,7 +542,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
             )}
           </div>
 
-          {/* 세부 필드 */}
+          {/* 세부 정보 */}
           <Section title="세부 정보" defaultOpen={true}>
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
@@ -561,14 +564,14 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
             </div>
             {milestones.length > 0 && (
               <div className="rounded-xl p-3 col-span-2" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
-                <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>마일스톤</p>
+                <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>단계</p>
                 <select value={(task as any).milestone_id ?? ""} onChange={e => canEdit && update("milestone_id", e.target.value || null)}
                   disabled={!canEdit}
                   className="w-full text-xs focus:outline-none" style={{ background: "transparent", color: canEdit ? "#E8F4FF" : "var(--text-3)", border: "none", colorScheme: "dark" }}>
                   <option value="">미분류</option>
                   {milestones.map((m: any) => (
                     <option key={m.id} value={m.id}>
-                      {m.status === "completed" ? "✓ " : m.status === "in_progress" ? "▶ " : "○ "}{m.title}
+                      {m.status === "completed" ? "✅" : m.status === "in_progress" ? "🔵" : "⭕"}{m.title}
                     </option>
                   ))}
                 </select>
@@ -591,40 +594,31 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
                 className="w-full text-xs focus:outline-none"
                 style={{ background: "transparent", color: isOverdue ? "#f87171" : canEdit ? "var(--text-1)" : "var(--text-3)", border: "none", colorScheme: "dark" }} />
             </div>
-            <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
-              <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>예상 시간</p>
-              {editing === "estimated_hours" ? (
-                <input autoFocus type="number" value={editVal} onChange={e => setEditVal(e.target.value)}
-                  onBlur={() => update("estimated_hours", editVal ? Number(editVal) : null)}
-                  onKeyDown={e => { if (e.key === "Enter") update("estimated_hours", editVal ? Number(editVal) : null); }}
-                  min="0.5" step="0.5" className="w-full text-xs focus:outline-none"
-                  style={{ background: "transparent", color: "#E8F4FF", border: "none", colorScheme: "dark" }} />
-              ) : (
-                <p className="text-xs cursor-pointer"
-                  style={{ color: (task as any).estimated_hours ? "var(--text-1)" : "var(--text-3)", cursor: canEdit ? "pointer" : "default" }}
-                  onClick={() => { if (canEdit) { setEditing("estimated_hours"); setEditVal(String((task as any).estimated_hours ?? "")); } }}>
-                  {(task as any).estimated_hours ? `${(task as any).estimated_hours}시간` : "미정 — 클릭해서 입력"}
-                </p>
-              )}
-            </div>
-            {!isMeeting && (
-              <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
-                <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>실제 소요 시간</p>
-                {editing === "actual_hours" ? (
-                  <input autoFocus type="number" value={editVal} onChange={e => setEditVal(e.target.value)}
-                    onBlur={() => update("actual_hours", editVal ? Number(editVal) : null)}
-                    onKeyDown={e => { if (e.key === "Enter") update("actual_hours", editVal ? Number(editVal) : null); }}
-                    min="0.5" step="0.5" className="w-full text-xs focus:outline-none"
-                    style={{ background: "transparent", color: "#E8F4FF", border: "none", colorScheme: "dark" }} />
-                ) : (
-                  <p className="text-xs cursor-pointer"
-                    style={{ color: (task as any).actual_hours ? "var(--text-1)" : "var(--text-3)" }}
-                    onClick={() => { setEditing("actual_hours"); setEditVal(String((task as any).actual_hours ?? "")); }}>
-                    {(task as any).actual_hours ? `${(task as any).actual_hours}시간` : "미정 — 클릭해서 입력"}
+
+            {/* 캘린더 표시 토글 */}
+            <div className="rounded-xl p-3 col-span-2" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium" style={{ color: "var(--text-2)" }}>📅 캘린더에 표시</p>
+                  <p className="text-xs mt-0.5" style={{ color: "var(--text-3)" }}>
+                    {showOnCalendar ? "이 업무가 캘린더에 표시됩니다" : "캘린더에 표시되지 않습니다 (기본값)"}
                   </p>
-                )}
+                </div>
+                <button onClick={toggleCalendar}
+                  className="relative rounded-full transition-all shrink-0"
+                  style={{
+                    width: 44, height: 24,
+                    background: showOnCalendar ? "var(--cyan)" : "var(--bg-4)",
+                    border: `1px solid ${showOnCalendar ? "var(--cyan)" : "var(--border-2)"}`,
+                  }}>
+                  <div style={{
+                    position: "absolute", top: 2, width: 18, height: 18, borderRadius: "50%",
+                    background: "#fff", transition: "left 0.2s",
+                    left: showOnCalendar ? 22 : 2,
+                  }} />
+                </button>
               </div>
-            )}
+            </div>
           </div>
           </Section>
 

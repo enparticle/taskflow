@@ -20,7 +20,6 @@ const DAYS = ["일","월","화","수","목","금","토"];
 function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
-
 function dateInRange(date: Date, start: Date, end: Date) {
   return date >= start && date <= end;
 }
@@ -49,14 +48,11 @@ export default function CalendarPage() {
     const viewer = u?.role === "viewer";
     setIsViewer(viewer);
 
-    // 캘린더 이벤트
     if (viewer) {
-      // 뷰어: 전체 공개 일정만
       const { data } = await supabase.from("calendar_events")
         .select("*, user:users(name)").eq("is_public", true).order("start_date");
       setEvents(data ?? []);
     } else {
-      // 일반 사용자: 내 일정 + 공개 일정
       const { data } = await supabase.from("calendar_events")
         .select("*, user:users(name)")
         .or(`user_id.eq.${u?.userId},is_public.eq.true`)
@@ -64,23 +60,13 @@ export default function CalendarPage() {
       setEvents(data ?? []);
     }
 
-    // 업무 마감일
-    if (viewer) {
-      // 뷰어: 전체 업무
-      const { data } = await supabase.from("tasks")
-        .select("id, title, status, due_date, task_type, project:projects(name)")
-        .not("due_date", "is", null).neq("status", "done");
-      setTasks(data ?? []);
-    } else {
-      // 일반: 내 담당 업무만
-      const { data } = await supabase.from("tasks")
-        .select("id, title, status, due_date, task_type, project:projects(name), assignee_ids, assignee_id")
-        .not("due_date", "is", null).neq("status", "done");
-      const myTasks = (data ?? []).filter(t =>
-        t.assignee_id === u?.userId || (t.assignee_ids ?? []).includes(u?.userId)
-      );
-      setTasks(myTasks);
-    }
+    // show_on_calendar = true인 업무만 표시
+    const { data } = await supabase.from("tasks")
+      .select("id, title, status, due_date, task_type, project:projects(name)")
+      .not("due_date", "is", null)
+      .neq("status", "done")
+      .eq("show_on_calendar", true);
+    setTasks(data ?? []);
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -91,7 +77,7 @@ export default function CalendarPage() {
       if (!ev.start_date) return;
       const start = new Date(ev.start_date);
       const end = ev.end_date ? new Date(ev.end_date) : new Date(ev.start_date);
-      end.setHours(23, 59, 59, 999); // 종료일 당일 포함
+      end.setHours(23, 59, 59, 999);
       start.setHours(0, 0, 0, 0);
       if (isSameDay(date, start) || dateInRange(date, start, end)) {
         result.push({ ...ev, _type: "event" });
@@ -184,7 +170,6 @@ export default function CalendarPage() {
     );
   }
 
-  // ── 주별 뷰 ──
   function WeekView() {
     const s = new Date(current); s.setDate(current.getDate() - current.getDay());
     const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(s); d.setDate(s.getDate() + i); return d; });
@@ -218,7 +203,6 @@ export default function CalendarPage() {
     );
   }
 
-  // ── 월별 뷰 ──
   function MonthView() {
     const year = current.getFullYear(), month = current.getMonth();
     const firstDay = new Date(year,month,1).getDay();
@@ -262,7 +246,6 @@ export default function CalendarPage() {
 
   return (
     <div className="max-w-6xl space-y-4">
-      {/* 헤더 */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2">
           <div className="w-1 h-5 rounded-full" style={{background:"var(--cyan)"}} />
@@ -295,7 +278,6 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* 범례 */}
       <div className="flex items-center gap-3 flex-wrap">
         {Object.entries(EVENT_TYPE_CONFIG).map(([k,v])=>(
           <div key={k} className="flex items-center gap-1.5">
@@ -303,20 +285,18 @@ export default function CalendarPage() {
             <span className="text-xs" style={{color:"var(--text-3)"}}>{v.label}</span>
           </div>
         ))}
+        <span className="text-xs" style={{color:"var(--text-3)"}}>· 업무는 상세에서 캘린더 표시 설정 가능</span>
       </div>
 
       {view==="week" ? <WeekView /> : <MonthView />}
 
-      {/* 일정 입력 모달 (뷰어 제외) */}
       {showForm && !isViewer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background:"rgba(0,0,0,0.6)"}} onClick={closeForm}>
           <div className="w-full max-w-md rounded-2xl p-6 space-y-4"
             style={{background:"var(--bg-2)",border:"1px solid var(--border-2)"}}
             onClick={e=>e.stopPropagation()}>
             <h2 className="text-sm font-bold" style={{color:"var(--text-1)"}}>{editEvent?"일정 수정":"새 일정"}</h2>
-
             <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="일정 제목" style={FS} />
-
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs mb-1 block" style={{color:"var(--text-3)"}}>유형</label>
@@ -334,7 +314,6 @@ export default function CalendarPage() {
                   style={{background:"var(--bg-3)",border:"1px solid var(--border-2)",padding:2}} />
               </div>
             </div>
-
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs mb-1 block" style={{color:"var(--text-3)"}}>시작일</label>
@@ -345,7 +324,6 @@ export default function CalendarPage() {
                 <input type="date" value={form.end_date} onChange={e=>setForm(f=>({...f,end_date:e.target.value}))} style={FS} />
               </div>
             </div>
-
             <div className="flex items-center gap-4">
               <label className="flex items-center gap-2 cursor-pointer text-xs" style={{color:"var(--text-2)"}}>
                 <input type="checkbox" checked={form.all_day} onChange={e=>setForm(f=>({...f,all_day:e.target.checked}))} />
@@ -356,7 +334,6 @@ export default function CalendarPage() {
                 팀 공개
               </label>
             </div>
-
             {!form.all_day && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -369,10 +346,8 @@ export default function CalendarPage() {
                 </div>
               </div>
             )}
-
             <textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))}
               placeholder="메모 (선택)" rows={2} style={{...FS,resize:"none"}} />
-
             <div className="flex gap-2">
               <button onClick={saveEvent} disabled={!form.title.trim()||!form.start_date}
                 className="flex-1 rounded-xl py-2.5 text-sm font-semibold disabled:opacity-40"
