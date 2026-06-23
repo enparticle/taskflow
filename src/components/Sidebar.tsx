@@ -262,3 +262,10 @@ export default function Sidebar() {
     </>
   );
 }
+{/* Admin 전용 */}
+{isAdmin && (
+  <>
+    <GroupLabel label="Admin" />
+    <NavLink href="/admin" label="팀원 프로필 관리" icon="🧠" />
+  </>
+)}
