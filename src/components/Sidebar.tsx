@@ -193,6 +193,13 @@ export default function Sidebar() {
               <NavLink href="/meeting-note" label="회의록 분석" icon="📝" />
             </>
           )}
+	{/* Admin 전용 */}
+	{isAdmin && (
+	  <>
+	    <GroupLabel label="Admin" />
+	    <NavLink href="/admin" label="팀원 프로필 관리" icon="🧠" />
+	  </>
+	)}
 
           {/* 분석 그룹 - Leader 이상만 */}
           {isLeaderOrAbove && (
@@ -262,10 +269,3 @@ export default function Sidebar() {
     </>
   );
 }
-{/* Admin 전용 */}
-{isAdmin && (
-  <>
-    <GroupLabel label="Admin" />
-    <NavLink href="/admin" label="팀원 프로필 관리" icon="🧠" />
-  </>
-)}
