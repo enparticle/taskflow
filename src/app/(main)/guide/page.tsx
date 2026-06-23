@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase";
 
 type Role = "admin" | "leader" | "member" | "reviewer" | "viewer";
 
-const ROLE_CONFIG: Record<Role, { label: string; color: string; emoji: string }> = {
+const ROLE_CONFIG = {
   admin:    { label: "Admin",    color: "#f87171", emoji: "⚙" },
   leader:   { label: "Leader",   color: "#fbbf24", emoji: "★" },
   member:   { label: "Member",   color: "#60a5fa", emoji: "◎" },
@@ -13,13 +13,7 @@ const ROLE_CONFIG: Record<Role, { label: string; color: string; emoji: string }>
   viewer:   { label: "Viewer",   color: "#34d399", emoji: "👁" },
 };
 
-const GUIDES: Record<Role, {
-  summary: string;
-  daily: { title: string; steps: string[] };
-  features: { title: string; desc: string; path?: string }[];
-  tips: string[];
-  donts: string[];
-}> = {
+const GUIDES = {
   admin: {
     summary: "시스템 전체를 관리하고 팀 운영을 총괄합니다. 모든 기능에 접근할 수 있습니다.",
     daily: {
@@ -37,8 +31,7 @@ const GUIDES: Record<Role, {
       { title: "업무 관리", desc: "업무 추가/수정/삭제, 담당자 배정, 상태 변경, 일괄 처리", path: "/tasks" },
       { title: "회의록 분석", desc: "회의 녹음 또는 텍스트 입력 → AI가 업무 자동 추출 → 리더 승인 후 등록", path: "/meeting-note" },
       { title: "전체 현황 뷰어", desc: "TV 대시보드. 팀 전체 현황이 슬라이드로 자동 전환", path: "/viewer" },
-      { title: "팀 현황", desc: "팀원별 업무 현황, 역할 관리", path: "/team" },
-      { title: "외부용 보고서", desc: "외부 공유용 프로젝트 요약 보고서 생성", path: "/report-export" },
+      { title: "팀원 프로필 관리", desc: "팀원별 강점/스타일/비공개 메모 관리. Admin 전용", path: "/admin" },
     ],
     tips: [
       "프로젝트 완료 시 '✓ 프로젝트 완료' 버튼을 눌러야 대시보드에서 숨겨집니다",
@@ -123,11 +116,11 @@ const GUIDES: Record<Role, {
     features: [
       { title: "업무 상세", desc: "업무 내용, 첨부, 댓글, 변경 이력 확인" },
       { title: "댓글", desc: "리뷰 의견 작성. @이름으로 담당자에게 알림 전송 가능" },
-      { title: "상태 변경", desc: "리뷰 완료 시 '완료'로 변경 가능 (리뷰어는 상태 변경 권한 있음)" },
+      { title: "상태 변경", desc: "리뷰 완료 시 '완료'로 변경 가능" },
       { title: "캘린더", desc: "팀 일정 확인", path: "/calendar" },
     ],
     tips: [
-      "리뷰 의견은 댓글로 구체적으로 남겨주세요. 담당자가 수정 후 다시 리뷰 요청을 합니다",
+      "리뷰 의견은 댓글로 구체적으로 남겨주세요",
       "문제가 없으면 바로 '완료'로 변경해주세요",
     ],
     donts: [
@@ -152,7 +145,6 @@ const GUIDES: Record<Role, {
     tips: [
       "뷰어 페이지는 전체화면(⊞) 모드로 보면 더 보기 좋습니다",
       "마우스를 올리면 슬라이드가 멈춥니다. 자세히 볼 때 활용하세요",
-      "새로고침 주기는 1분/5분 중 선택할 수 있습니다",
     ],
     donts: [
       "업무 추가/수정 권한이 없습니다. 변경 필요시 담당 리더에게 요청하세요",
@@ -161,44 +153,37 @@ const GUIDES: Record<Role, {
 };
 
 export default function GuidePage() {
-  const [myRole, setMyRole] = useState<Role | null>(null);
-  const [selectedRole, setSelectedRole] = useState<Role>("member");
   const supabase = createClient();
+  const [myRole, setMyRole] = useState(null);
+  const [selectedRole, setSelectedRole] = useState("member");
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
       if (data.user) {
         const { data: u } = await supabase.from("users").select("role").eq("auth_id", data.user.id).single();
-        if (u?.role) {
-          const r = u.role as Role;
-          setMyRole(r);
-          setSelectedRole(r);
-        }
+        if (u?.role) { setMyRole(u.role); setSelectedRole(u.role); }
       }
     });
   }, []);
 
-  const guide = GUIDES[selectedRole];
-  const roleConfig = ROLE_CONFIG[selectedRole];
+  const guide = GUIDES[selectedRole] || GUIDES.member;
+  const roleConfig = ROLE_CONFIG[selectedRole] || ROLE_CONFIG.member;
 
   return (
     <div className="max-w-4xl space-y-6">
-      {/* 헤더 */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2">
           <div className="w-1 h-5 rounded-full" style={{ background: "var(--cyan)" }} />
           <h1 className="text-xl font-bold" style={{ color: "var(--text-1)" }}>사용 가이드</h1>
           {myRole && (
             <span className="text-xs px-2 py-0.5 rounded-full"
-              style={{ background: `${ROLE_CONFIG[myRole].color}18`, color: ROLE_CONFIG[myRole].color }}>
-              내 역할: {ROLE_CONFIG[myRole].label}
+              style={{ background: `${ROLE_CONFIG[myRole]?.color}18`, color: ROLE_CONFIG[myRole]?.color }}>
+              내 역할: {ROLE_CONFIG[myRole]?.label}
             </span>
           )}
         </div>
-
-        {/* 역할 탭 */}
         <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-          {(Object.keys(ROLE_CONFIG) as Role[]).map(role => (
+          {Object.keys(ROLE_CONFIG).map(role => (
             <button key={role} onClick={() => setSelectedRole(role)}
               className="rounded-lg px-3 py-1.5 text-xs font-medium transition-all"
               style={{
@@ -212,7 +197,6 @@ export default function GuidePage() {
         </div>
       </div>
 
-      {/* 요약 */}
       <div className="rounded-2xl p-5" style={{ background: `${roleConfig.color}10`, border: `1px solid ${roleConfig.color}33` }}>
         <div className="flex items-center gap-3 mb-2">
           <span className="text-2xl">{roleConfig.emoji}</span>
@@ -221,8 +205,7 @@ export default function GuidePage() {
         <p className="text-sm" style={{ color: "var(--text-2)" }}>{guide.summary}</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-5">
-        {/* 매일 할 일 */}
+      <div className="space-y-5">
         <div className="rounded-2xl p-5" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
           <h3 className="text-sm font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-1)" }}>
             <span style={{ color: roleConfig.color }}>✓</span> {guide.daily.title}
@@ -240,7 +223,6 @@ export default function GuidePage() {
           </div>
         </div>
 
-        {/* 주요 기능 */}
         <div className="rounded-2xl p-5" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
           <h3 className="text-sm font-bold mb-4" style={{ color: "var(--text-1)" }}>📌 주요 기능</h3>
           <div className="grid grid-cols-2 gap-3">
@@ -248,9 +230,7 @@ export default function GuidePage() {
               <div key={i} className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-xs font-semibold" style={{ color: "var(--text-1)" }}>{f.title}</p>
-                  {f.path && (
-                    <a href={f.path} className="text-xs" style={{ color: "var(--cyan)" }}>바로가기 →</a>
-                  )}
+                  {f.path && <a href={f.path} className="text-xs" style={{ color: "var(--cyan)" }}>바로가기 →</a>}
                 </div>
                 <p className="text-xs" style={{ color: "var(--text-3)" }}>{f.desc}</p>
               </div>
@@ -259,7 +239,6 @@ export default function GuidePage() {
         </div>
 
         <div className="grid grid-cols-2 gap-5">
-          {/* 팁 */}
           <div className="rounded-2xl p-5" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
             <h3 className="text-sm font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-1)" }}>
               <span style={{ color: "#34d399" }}>💡</span> 이렇게 하면 편해요
@@ -274,7 +253,6 @@ export default function GuidePage() {
             </div>
           </div>
 
-          {/* 주의사항 */}
           <div className="rounded-2xl p-5" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
             <h3 className="text-sm font-bold mb-4 flex items-center gap-2" style={{ color: "var(--text-1)" }}>
               <span style={{ color: "#f87171" }}>⚠</span> 이건 주의하세요
@@ -291,7 +269,6 @@ export default function GuidePage() {
         </div>
       </div>
 
-      {/* 문의 */}
       <div className="rounded-2xl p-4 text-center" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
         <p className="text-xs" style={{ color: "var(--text-3)" }}>
           궁금한 점이 있으면 Admin이나 담당 Leader에게 문의하세요.
