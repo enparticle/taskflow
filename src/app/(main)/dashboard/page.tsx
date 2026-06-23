@@ -107,8 +107,8 @@ export default function DashboardPage() {
     </div>
   );
 
-  const isAdmin = myUser?.role === "admin";
-  const isAdminOrLeader = myUser?.role === "admin" || myUser?.role === "leader";
+  const isAdmin = myUser?.role === "admin" || false;
+  const isAdminOrLeader = myUser?.role === "admin" || myUser?.role === "leader" || false;
   const isViewer = myUser?.role === "viewer";
 
   // 긴급 업무 (마감 3일 이내 or blocked)
