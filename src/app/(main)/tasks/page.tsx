@@ -1,4 +1,4 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
@@ -15,6 +15,11 @@ const STATUS_FILTERS = [
   { value: "review",  label: "리뷰" },
   { value: "done",    label: "완료" },
 ];
+
+const STATUS_COLOR: Record<string, string> = {
+  all: "var(--cyan)", todo: "#2563EB", doing: "#2563EB",
+  blocked: "#DC2626", review: "#D97706", done: "#16A34A",
+};
 
 export default function TasksPage() {
   const supabase = createClient();
@@ -54,50 +59,87 @@ export default function TasksPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const counts = STATUS_FILTERS.reduce((acc, f) => {
+    acc[f.value] = f.value === "all" ? tasks.length : tasks.filter(t => t.status === f.value).length;
+    return acc;
+  }, {} as Record<string, number>);
+
   return (
-    <div className="space-y-5 max-w-5xl">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <div className="w-1 h-5 rounded-full" style={{ background: "var(--cyan)" }} />
-            <h1 className="text-xl font-bold" style={{ color: "var(--text-1)" }}>업무</h1>
+    <div style={{ maxWidth: 900, display: "flex", flexDirection: "column", gap: 16 }}>
+
+      {/* 헤더 */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 3, height: 18, background: "var(--cyan)", borderRadius: 2 }} />
+            <h1 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-1)", margin: 0 }}>업무</h1>
           </div>
-          <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-            <button onClick={() => setMyOnly(false)}
-              className="rounded-lg px-3 py-1 text-xs font-medium transition-all"
-              style={{ background: !myOnly ? "var(--bg-4)" : "transparent", color: !myOnly ? "var(--text-1)" : "var(--text-3)", border: !myOnly ? "1px solid var(--border-2)" : "1px solid transparent" }}>
-              전체
-            </button>
-            <button onClick={() => setMyOnly(true)}
-              className="rounded-lg px-3 py-1 text-xs font-medium transition-all"
-              style={{ background: myOnly ? "var(--bg-4)" : "transparent", color: myOnly ? "var(--text-1)" : "var(--text-3)", border: myOnly ? "1px solid var(--border-2)" : "1px solid transparent" }}>
-              내 업무
-            </button>
+          {/* 전체 / 내 업무 토글 */}
+          <div style={{ display: "flex", gap: 2, padding: 3, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 10 }}>
+            {[{ v: false, l: "전체" }, { v: true, l: "내 업무" }].map(({ v, l }) => (
+              <button key={String(v)} onClick={() => setMyOnly(v)}
+                style={{
+                  padding: "4px 12px", borderRadius: 7, fontSize: 12, fontWeight: 500,
+                  border: "none", cursor: "pointer", transition: "all 0.15s",
+                  background: myOnly === v ? "var(--bg-4)" : "transparent",
+                  color: myOnly === v ? "var(--text-1)" : "var(--text-3)",
+                }}>
+                {l}
+              </button>
+            ))}
           </div>
         </div>
         <button onClick={() => setOpen(true)}
-          className="rounded-xl px-4 py-2 text-sm font-semibold"
-          style={{ background: "linear-gradient(135deg, var(--cyan), #2E86FF)", color: "#fff" }}>
-          + 새 업무
+          style={{ padding: "8px 16px", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer" }}>
+          + 업무 추가
         </button>
       </div>
 
-      <div className="flex gap-1.5 flex-wrap">
-        {STATUS_FILTERS.map(f => (
-          <button key={f.value} onClick={() => setFilter(f.value)}
-            className="rounded-lg px-3 py-1.5 text-xs font-medium transition-all"
-            style={{
-              background: filter === f.value ? "var(--cyan-bg)" : "var(--bg-2)",
-              color: filter === f.value ? "var(--cyan)" : "var(--text-3)",
-              border: `1px solid ${filter === f.value ? "var(--cyan)" : "var(--border)"}`,
-            }}>
-            {f.label}
-            {filter === f.value && tasks.length > 0 && <span className="ml-1.5 opacity-70">{tasks.length}</span>}
-          </button>
-        ))}
+      {/* 상태 필터 */}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {STATUS_FILTERS.map(f => {
+          const active = filter === f.value;
+          const color = STATUS_COLOR[f.value] ?? "var(--cyan)";
+          return (
+            <button key={f.value} onClick={() => setFilter(f.value)}
+              style={{
+                padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 500,
+                border: `1px solid ${active ? color : "var(--border)"}`,
+                background: active ? `${color}12` : "var(--bg-2)",
+                color: active ? color : "var(--text-3)",
+                cursor: "pointer", transition: "all 0.15s",
+                display: "flex", alignItems: "center", gap: 5,
+              }}>
+              {f.label}
+              {counts[f.value] > 0 && (
+                <span style={{
+                  fontSize: 10, fontWeight: 600,
+                  background: active ? color : "var(--bg-4)",
+                  color: active ? "#fff" : "var(--text-3)",
+                  borderRadius: 10, padding: "1px 6px",
+                }}>
+                  {counts[f.value]}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
-      <TaskList tasks={tasks} onRefresh={load} onTaskClick={(id: string) => setOpenDetail(id)} />
+      {/* 업무 목록 */}
+      {tasks.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "48px 0", background: "var(--bg-2)", border: "1px dashed var(--border)", borderRadius: 12 }}>
+          <p style={{ fontSize: 13, color: "var(--text-3)" }}>
+            {myOnly ? "담당 업무가 없습니다" : "업무가 없습니다"}
+          </p>
+          <button onClick={() => setOpen(true)}
+            style={{ marginTop: 12, padding: "7px 16px", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer" }}>
+            + 업무 추가
+          </button>
+        </div>
+      ) : (
+        <TaskList tasks={tasks} onRefresh={load} onTaskClick={(id: string) => setOpenDetail(id)} />
+      )}
 
       {open && <TaskForm onClose={() => setOpen(false)} onSaved={() => { load(); setOpen(false); }} />}
       {openDetail && <TaskDetail taskId={openDetail} onClose={() => setOpenDetail(null)} onRefresh={load} />}
