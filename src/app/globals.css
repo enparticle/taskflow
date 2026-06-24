@@ -4,41 +4,40 @@
 @tailwind utilities;
 
 :root {
-  /* C — 뉴트럴 모던 (Shadcn/Radix 스타일) */
-  --bg:        #09090b;
-  --bg-2:      #18181b;
-  --bg-3:      #1c1c1f;
-  --bg-4:      #27272a;
-  --border:    #27272a;
-  --border-2:  #3f3f46;
-  --text-1:    #f4f4f5;
-  --text-2:    #d4d4d8;
-  --text-3:    #a1a1aa;
-  --cyan:      #22d3ee;
-  --cyan-bg:   rgba(34,211,238,0.08);
-  --blue:      #60a5fa;
-  --blue-bg:   rgba(96,165,250,0.08);
-  --amber:     #fbbf24;
-  --amber-bg:  rgba(251,191,36,0.08);
-  --red:       #f87171;
-  --red-bg:    rgba(248,113,113,0.08);
-  --green:     #34d399;
-  --green-bg:  rgba(52,211,153,0.08);
-  --purple:    #a78bfa;
-  --purple-bg: rgba(167,139,250,0.08);
+  --bg:        #F5F5F4;
+  --bg-2:      #FFFFFF;
+  --bg-3:      #FAFAF9;
+  --bg-4:      #F0EFEE;
+  --border:    #E5E5E3;
+  --border-2:  #D1D1CE;
+  --text-1:    #1C1C1A;
+  --text-2:    #6B6B67;
+  --text-3:    #A8A8A4;
+  --cyan:      #2563EB;
+  --cyan-bg:   rgba(37,99,235,0.08);
+  --blue:      #2563EB;
+  --blue-bg:   rgba(37,99,235,0.08);
+  --amber:     #D97706;
+  --amber-bg:  rgba(217,119,6,0.08);
+  --red:       #DC2626;
+  --red-bg:    rgba(220,38,38,0.08);
+  --green:     #16A34A;
+  --green-bg:  rgba(22,163,74,0.08);
+  --purple:    #7C3AED;
+  --purple-bg: rgba(124,58,237,0.08);
 }
 
 * { box-sizing: border-box; }
 
-select { color-scheme: dark; }
-select option { background: #27272a; color: #f4f4f5; }
+select { color-scheme: light; }
+select option { background: #FFFFFF; color: #1C1C1A; }
 
 body {
   background: var(--bg);
   color: var(--text-1);
   font-family: 'Pretendard', -apple-system, sans-serif;
-  font-size: 17px;
-  line-height: 1.7;
+  font-size: 14px;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -50,7 +49,13 @@ body {
 .card {
   background: var(--bg-2);
   border: 0.5px solid var(--border);
-  border-radius: 12px;
+  border-radius: 10px;
   transition: border-color 0.15s;
 }
 .card:hover { border-color: var(--border-2); }
+
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"] {
+  color-scheme: light;
+}
