@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
@@ -26,48 +26,29 @@ function AIBriefing({ tasks, myUser }: { tasks: any[]; myUser: any }) {
   const [briefing, setBriefing] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [generated, setGenerated] = useState(false);
+  const [autoTriggered, setAutoTriggered] = useState(false);
+
+  useEffect(() => {
+    if (!autoTriggered && myUser) {
+      setAutoTriggered(true);
+      generate();
+    }
+  }, [myUser]);
 
   async function generate() {
     setLoading(true);
-    const now = new Date();
-    const overdue = tasks.filter(t => t.due_date && new Date(t.due_date) < now && t.status !== "done");
-    const today = tasks.filter(t => {
-      if (!t.due_date) return false;
-      const d = new Date(t.due_date);
-      return d.toDateString() === now.toDateString() && t.status !== "done";
-    });
-    const blocked = tasks.filter(t => t.status === "blocked");
-    const doing = tasks.filter(t => t.status === "doing");
-    const soon = tasks.filter(t => {
-      if (!t.due_date || t.status === "done") return false;
-      const diff = Math.ceil((new Date(t.due_date).getTime() - now.getTime()) / 86400000);
-      return diff > 0 && diff <= 3;
-    });
-
-    const prompt = `당신은 ${myUser?.name ?? "팀원"}님의 개인 업무 비서입니다.
-오늘 날짜: ${now.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" })}
-
-현재 업무 현황:
-- 진행 중: ${doing.map(t => t.title).join(", ") || "없음"}
-- 오늘 마감: ${today.map(t => t.title).join(", ") || "없음"}
-- 마감 초과: ${overdue.map(t => t.title).join(", ") || "없음"}
-- Blocked: ${blocked.map(t => `${t.title}${t.blocked_reason ? `(${t.blocked_reason})` : ""}`).join(", ") || "없음"}
-- D-3 이내 마감: ${soon.map(t => t.title).join(", ") || "없음"}
-
-위 현황을 바탕으로 오늘 집중해야 할 것과 주의사항을 2-3문장으로 간결하게 브리핑해주세요. 친근하고 명확한 한국어로 작성하고, 구체적인 업무명을 언급해주세요.`;
-
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/briefing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 300,
-          messages: [{ role: "user", content: prompt }],
+          tasks,
+          userName: myUser?.name ?? "팀원",
+          now: new Date().toISOString(),
         }),
       });
       const data = await res.json();
-      setBriefing(data.content?.[0]?.text ?? "브리핑을 생성할 수 없습니다.");
+      setBriefing(data.briefing ?? "브리핑을 생성할 수 없습니다.");
       setGenerated(true);
     } catch {
       setBriefing("브리핑 생성 중 오류가 발생했습니다.");
@@ -86,18 +67,10 @@ function AIBriefing({ tasks, myUser }: { tasks: any[]; myUser: any }) {
         </span>
       </div>
       {!generated ? (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "16px 0" }}>
-          <p style={{ fontSize: 13, color: "var(--text-3)", textAlign: "center" }}>
-            오늘의 업무 현황을 AI가 분석해드립니다
-          </p>
-          <button onClick={generate} disabled={loading}
-            style={{
-              background: loading ? "var(--bg-3)" : "var(--cyan)", color: loading ? "var(--text-3)" : "#fff",
-              border: "none", borderRadius: 8, padding: "8px 20px", fontSize: 13, fontWeight: 600,
-              cursor: loading ? "not-allowed" : "pointer",
-            }}>
-            {loading ? "분석 중..." : "✦ 브리핑 시작"}
-          </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
+          <div style={{ width: 16, height: 16, border: "2px solid var(--cyan)", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          <p style={{ fontSize: 13, color: "var(--text-3)" }}>업무 현황 분석 중...</p>
+          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
         </div>
       ) : (
         <div>
