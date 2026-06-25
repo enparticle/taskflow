@@ -1,4 +1,4 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 "use client";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -28,6 +28,7 @@ function BottomNav({ userRole }: { userRole: string }) {
     { href: "/report-export",label: "📋 외부 보고서", adminOnly: true },
     { href: "/guide",        label: "📖 사용 가이드" },
     { href: "/settings",     label: "⚙ 설정" },
+    { href: "/viewer",       label: "📺 전체 현황 뷰어", external: true },
   ].filter(item => {
     if (item.adminOnly) return userRole === "admin";
     if (item.leaderOnly) return userRole === "admin" || userRole === "leader";
@@ -51,7 +52,19 @@ function BottomNav({ userRole }: { userRole: string }) {
             borderRadius: 14, padding: "8px 6px", minWidth: 200,
             boxShadow: "0 4px 24px rgba(0,0,0,0.10)",
           }}>
-            {MORE_ITEMS.map(item => (
+            {MORE_ITEMS.map(item => item.external ? (
+              <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer"
+                onClick={() => setShowMore(false)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "9px 14px", borderRadius: 8, fontSize: 13,
+                  color: "var(--text-1)", background: "transparent", textDecoration: "none",
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = "var(--bg-3)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = "transparent"; }}>
+                {item.label}
+              </a>
+            ) : (
               <Link key={item.href} href={item.href}
                 onClick={() => setShowMore(false)}
                 style={{
