@@ -1,4 +1,4 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 "use client";
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase";
@@ -72,6 +72,11 @@ export default function PlanningFeedback({ mode = "tasks", projectId, projectNam
   useEffect(() => {
     if (tab === "history" && myUser) loadHistory();
   }, [tab, myUser]);
+
+  // 마운트 시 기록 탭 미리 로드
+  useEffect(() => {
+    if (myUser) loadHistory();
+  }, [myUser]);
 
   async function runFeedback() {
     setLoading(true); setRan(true); setTab("result");
@@ -275,8 +280,7 @@ export default function PlanningFeedback({ mode = "tasks", projectId, projectNam
       </button>
 
       {/* 결과 / 기록 탭 */}
-      {(ran || history.length > 0) && (
-        <div>
+      <div>
           <div style={{ display: "flex", gap: 2, padding: 3, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 10, marginBottom: 14, width: "fit-content" }}>
             {[{ id: "result", label: "분석 결과" }, { id: "history", label: "📋 이전 기록" }].map(t => (
               <button key={t.id} onClick={() => setTab(t.id as any)}
@@ -333,8 +337,7 @@ export default function PlanningFeedback({ mode = "tasks", projectId, projectNam
               })}
             </div>
           )}
-        </div>
-      )}
+      </div>
     </div>
   );
 }
