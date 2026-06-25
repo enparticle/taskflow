@@ -1,4 +1,4 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -29,7 +29,7 @@ export default function MorePage() {
     ] : []),
     { href: "/guide",    icon: "📖", label: "사용 가이드", desc: "역할별 TaskFlow 사용법을 안내합니다" },
     { href: "/settings", icon: "⚙",  label: "설정",        desc: "계정 및 알림 설정을 변경합니다" },
-    ...(isAdmin ? [{ href: "/viewer", icon: "📺", label: "전체 현황 뷰어", desc: "TV 대시보드를 새 탭에서 엽니다", external: true }] : []),
+    { href: "/viewer", icon: "📺", label: "전체 현황 뷰어", desc: "TV 대시보드를 새 탭에서 엽니다", external: true },
   ];
 
   return (
