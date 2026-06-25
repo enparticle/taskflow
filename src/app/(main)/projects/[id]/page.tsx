@@ -1,4 +1,4 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
@@ -13,59 +13,55 @@ import PlanningFeedback from "@/components/tasks/PlanningFeedback";
 import TaskDraftPanel from "@/components/tasks/TaskDraftPanel";
 import { getAuthUser, getProjectRole } from "@/lib/auth";
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  backlog: { label: "백로그",  color: "#4A7099", bg: "rgba(74,112,153,0.15)" },
-  todo:    { label: "할 일",   color: "#7BA7C8", bg: "rgba(123,167,200,0.12)" },
-  doing:   { label: "진행 중", color: "#2E86FF", bg: "rgba(46,134,255,0.15)" },
-  blocked: { label: "Blocked", color: "#f87171", bg: "rgba(248,113,113,0.15)" },
-  review:  { label: "리뷰",    color: "#fbbf24", bg: "rgba(251,191,36,0.15)" },
-  done:    { label: "완료",    color: "#34d399", bg: "rgba(52,211,153,0.15)" },
+const STATUS_CONFIG = {
+  backlog: { label: "백로그",  color: "#A8A8A4", bg: "rgba(168,168,164,0.12)" },
+  todo:    { label: "할 일",   color: "#2563EB", bg: "rgba(37,99,235,0.10)" },
+  doing:   { label: "진행 중", color: "#2563EB", bg: "rgba(37,99,235,0.10)" },
+  blocked: { label: "Blocked", color: "#DC2626", bg: "rgba(220,38,38,0.10)" },
+  review:  { label: "리뷰",    color: "#D97706", bg: "rgba(217,119,6,0.10)" },
+  done:    { label: "완료",    color: "#16A34A", bg: "rgba(22,163,74,0.10)" },
 };
-const HEALTH_CONFIG: Record<string, { label: string; color: string }> = {
-  good:      { label: "정상",     color: "#34d399" },
-  reviewing: { label: "검토 필요", color: "#60a5fa" },
-  at_risk:   { label: "주의",     color: "#fbbf24" },
-  critical:  { label: "위험",     color: "#f87171" },
-  suspended: { label: "중단",     color: "#71717a" },
+const HEALTH_CONFIG = {
+  good:      { label: "정상",  color: "#16A34A" },
+  reviewing: { label: "검토",  color: "#2563EB" },
+  at_risk:   { label: "주의",  color: "#D97706" },
+  critical:  { label: "위험",  color: "#DC2626" },
+  suspended: { label: "중단",  color: "#A8A8A4" },
 };
-const MS_STATUS: Record<string, { label: string; color: string }> = {
-  planned:     { label: "계획",    color: "#71717a" },
-  in_progress: { label: "진행 중", color: "#60a5fa" },
-  completed:   { label: "완료",    color: "#34d399" },
-  cancelled:   { label: "취소",    color: "#4A7099" },
+const MS_STATUS = {
+  planned:     { label: "계획",    color: "#A8A8A4" },
+  in_progress: { label: "진행 중", color: "#2563EB" },
+  completed:   { label: "완료",    color: "#16A34A" },
+  cancelled:   { label: "취소",    color: "#D97706" },
 };
 const STATUS_LIST = ["backlog","todo","doing","blocked","review","done"];
 
 function ProgressBar({ value, color }: { value: number; color: string }) {
   return (
-    <div className="rounded-full overflow-hidden" style={{ height: 6, background: "var(--bg-4)" }}>
-      <div className="h-full rounded-full transition-all"
-        style={{ width: `${Math.min(value, 100)}%`, background: color, boxShadow: `0 0 6px ${color}88` }} />
+    <div style={{ height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden" }}>
+      <div style={{ height: "100%", width: `${Math.min(value,100)}%`, background: color, borderRadius: 2, transition: "width 0.4s" }} />
     </div>
   );
 }
 
-// 단계 상태 드롭다운
-function MilestoneStatusBadge({ milestone, canManage, onUpdate }: { milestone: any; canManage: boolean; onUpdate: () => void }) {
+function MilestoneStatusBadge({ milestone, canManage, onUpdate }: any) {
   const supabase = createClient();
   const [open, setOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
-  const btnRef = useRef<HTMLButtonElement>(null);
+  const [menuPos, setMenuPos] = useState<any>(null);
+  const btnRef = useRef<any>(null);
   const mc = MS_STATUS[milestone.status] ?? MS_STATUS.planned;
 
   async function changeStatus(status: string) {
     await supabase.from("milestones").update({ status }).eq("id", milestone.id);
-    setOpen(false); setMenuPos(null);
-    onUpdate();
+    setOpen(false); setMenuPos(null); onUpdate();
   }
 
   if (!canManage) return (
-    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
-      style={{ background: `${mc.color}18`, color: mc.color }}>{mc.label}</span>
+    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, fontWeight: 600, background: `${mc.color}12`, color: mc.color, border: `1px solid ${mc.color}33` }}>{mc.label}</span>
   );
 
   return (
-    <div className="relative" onClick={e => e.stopPropagation()}>
+    <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
       <button ref={btnRef} onClick={() => {
         if (!open && btnRef.current) {
           const rect = btnRef.current.getBoundingClientRect();
@@ -73,26 +69,24 @@ function MilestoneStatusBadge({ milestone, canManage, onUpdate }: { milestone: a
         }
         setOpen(v => !v);
       }}
-        className="text-xs px-2 py-0.5 rounded-full font-medium cursor-pointer"
-        style={{ background: `${mc.color}18`, color: mc.color, border: `1px solid ${mc.color}44` }}>
+        style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, fontWeight: 600, cursor: "pointer", background: `${mc.color}12`, color: mc.color, border: `1px solid ${mc.color}33` }}>
         {mc.label} ▾
       </button>
       {open && menuPos && (
-        <div className="fixed z-[9999] w-28 rounded-xl overflow-hidden shadow-2xl"
-          style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)", top: menuPos.top, left: menuPos.left }}>
-          {Object.entries(MS_STATUS).map(([k, v]) => (
+        <div style={{ position: "fixed", zIndex: 9999, width: 120, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden", boxShadow: "0 4px 20px rgba(0,0,0,0.1)", top: menuPos.top, left: menuPos.left }}>
+          {Object.entries(MS_STATUS).map(([k, v]: any) => (
             <button key={k} onClick={() => changeStatus(k)}
-              className="flex items-center gap-2 w-full px-3 py-2 text-xs font-medium transition-colors"
-              style={{ background: milestone.status === k ? `${v.color}18` : "transparent", color: milestone.status === k ? v.color : "var(--text-2)" }}
-              onMouseEnter={e => { if (milestone.status !== k) (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-4)"; }}
-              onMouseLeave={e => { if (milestone.status !== k) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}>
-              <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: v.color }} />
+              style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 12px", fontSize: 12, border: "none", cursor: "pointer", background: milestone.status === k ? `${v.color}12` : "transparent", color: milestone.status === k ? v.color : "var(--text-2)" }}
+              onMouseEnter={e => { if (milestone.status !== k) (e.currentTarget as any).style.background = "var(--bg-3)"; }}
+              onMouseLeave={e => { if (milestone.status !== k) (e.currentTarget as any).style.background = "transparent"; }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: v.color, flexShrink: 0 }} />
               {v.label}
             </button>
           ))}
           <button onClick={() => { setOpen(false); setMenuPos(null); }}
-            className="w-full px-3 py-1.5 text-xs text-center"
-            style={{ borderTop: "1px solid var(--border)", color: "var(--text-3)" }}>닫기</button>
+            style={{ width: "100%", padding: "6px 12px", fontSize: 11, textAlign: "center", border: "none", borderTop: "1px solid var(--border)", color: "var(--text-3)", background: "transparent", cursor: "pointer" }}>
+            닫기
+          </button>
         </div>
       )}
     </div>
@@ -121,26 +115,21 @@ export default function ProjectDetailPage() {
     const { data: p } = await supabase.from("projects")
       .select("*, owner:users!projects_owner_id_fkey(name)").eq("id", id).single();
     setProject(p);
-
     const authUser = await getAuthUser();
     if (authUser) {
       setSysRole(authUser.role);
       const projRole = await getProjectRole(id, authUser.userId);
       setMyRole(projRole);
     }
-
     const { data: allProj } = await supabase.from("projects").select("id, name").eq("status", "active");
     setAllProjects(allProj ?? []);
-
     const { data: ms } = await supabase.from("milestones")
       .select("*").eq("project_id", id).neq("status", "cancelled").order("sort_order");
     setMilestones(ms ?? []);
-
     const exp: Record<string, boolean> = {};
     (ms ?? []).forEach((m: any) => { exp[m.id] = true; });
     exp["__unclassified__"] = true;
     setExpandedMs(exp);
-
     const { data: t } = await supabase.from("tasks")
       .select("*, assignee_ids, assignee:users!tasks_assignee_id_fkey(name,avatar_url), project:projects(name)")
       .eq("project_id", id).order("created_at", { ascending: true });
@@ -150,8 +139,8 @@ export default function ProjectDetailPage() {
   useEffect(() => { load(); }, [load]);
 
   if (!project) return (
-    <div className="flex items-center justify-center h-64">
-      <p style={{ color: "var(--text-3)" }}>불러오는 중…</p>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200 }}>
+      <p style={{ color: "var(--text-3)", fontSize: 13 }}>불러오는 중…</p>
     </div>
   );
 
@@ -162,6 +151,8 @@ export default function ProjectDetailPage() {
   const completionRate = total > 0 ? Math.round((done / total) * 100) : 0;
   const health = HEALTH_CONFIG[project.health] ?? HEALTH_CONFIG.good;
   const canManage = sysRole === "admin" || myRole === "leader";
+  const now = new Date();
+  const daysLeft = project.end_date ? Math.ceil((new Date(project.end_date).getTime() - now.getTime()) / 86400000) : null;
 
   const TABS: { id: Tab; label: string }[] = [
     { id: "overview", label: "개요" },
@@ -180,62 +171,81 @@ export default function ProjectDetailPage() {
   }
 
   return (
-    <div className="space-y-5 max-w-6xl">
-      {/* 헤더 */}
-      <div className="rounded-2xl p-5" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-md"
-                style={{ background: `${health.color}18`, color: health.color }}>{health.label}</span>
-              <span className="text-xs" style={{ color: "var(--text-3)" }}>담당 · {project.owner?.name ?? "미정"}</span>
+    <div style={{ maxWidth: 1000, display: "flex", flexDirection: "column", gap: 16 }}>
+
+      {/* 프로젝트 헤더 */}
+      <div style={{ background: "var(--bg-2)", border: `1px solid ${health.color}33`, borderRadius: 12, padding: 20 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 11, padding: "2px 10px", borderRadius: 20, fontWeight: 600, background: `${health.color}12`, color: health.color, border: `1px solid ${health.color}33` }}>{health.label}</span>
+              {project.owner?.name && <span style={{ fontSize: 11, color: "var(--text-3)" }}>담당 · {project.owner.name}</span>}
               {project.end_date && (
-                <span className="text-xs" style={{ color: "var(--text-3)" }}>
+                <span style={{ fontSize: 11, color: daysLeft !== null && daysLeft < 0 ? "#DC2626" : "var(--text-3)" }}>
                   마감 · {new Date(project.end_date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
+                  {daysLeft !== null && (
+                    <span style={{ marginLeft: 4, fontWeight: 600, color: daysLeft < 0 ? "#DC2626" : daysLeft <= 7 ? "#D97706" : "var(--text-3)" }}>
+                      ({daysLeft < 0 ? `${Math.abs(daysLeft)}일 초과` : `D-${daysLeft}`})
+                    </span>
+                  )}
                 </span>
               )}
             </div>
-            <h1 className="text-xl font-bold mb-1" style={{ color: "var(--text-1)" }}>{project.name}</h1>
-            {project.description && <p className="text-sm" style={{ color: "var(--text-2)" }}>{project.description}</p>}
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-1)", margin: "0 0 6px" }}>{project.name}</h1>
+            {project.description && <p style={{ fontSize: 13, color: "var(--text-2)", margin: 0 }}>{project.description}</p>}
           </div>
-          <div className="flex gap-2 shrink-0">
+          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
             {canManage && (
-              <button onClick={() => setOpenEdit(true)} className="rounded-lg px-3 py-2 text-xs font-medium"
-                style={{ background: "var(--bg-3)", color: "var(--text-2)", border: "1px solid var(--border-2)" }}>수정</button>
+              <button onClick={() => setOpenEdit(true)}
+                style={{ padding: "7px 14px", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12, color: "var(--text-2)", cursor: "pointer" }}>
+                수정
+              </button>
             )}
             {canManage && (
-              <button onClick={() => setOpenForm(true)} className="rounded-lg px-4 py-2 text-xs font-semibold"
-                style={{ background: "linear-gradient(135deg, #00C2CC, #2E86FF)", color: "#fff" }}>
-                + 새 업무
+              <button onClick={() => setOpenForm(true)}
+                style={{ padding: "7px 14px", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer" }}>
+                + 업무 추가
               </button>
             )}
           </div>
         </div>
-        <div className="grid grid-cols-4 gap-3 mt-4">
+
+        {/* 업무 통계 */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginTop: 16 }}>
           {[
-            { label: "전체",    value: total,   color: "#7BA7C8" },
-            { label: "진행 중", value: doing,   color: "#2E86FF" },
-            { label: "Blocked", value: blocked, color: "#f87171" },
-            { label: "완료",    value: done,    color: "#34d399" },
+            { label: "전체",    value: total,   color: "#A8A8A4" },
+            { label: "진행 중", value: doing,   color: "#2563EB" },
+            { label: "Blocked", value: blocked, color: "#DC2626" },
+            { label: "완료",    value: done,    color: "#16A34A" },
           ].map(s => (
-            <div key={s.label} className="rounded-xl p-3 text-center"
-              style={{ background: `${s.color}10`, border: `1px solid ${s.color}22` }}>
-              <p className="text-2xl font-bold tabular-nums" style={{ color: s.color }}>{s.value}</p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--text-3)" }}>{s.label}</p>
+            <div key={s.label} style={{ textAlign: "center", padding: "12px 8px", background: `${s.color}08`, border: `1px solid ${s.color}22`, borderRadius: 10 }}>
+              <p style={{ fontSize: 24, fontWeight: 700, color: s.color, margin: 0, lineHeight: 1 }}>{s.value}</p>
+              <p style={{ fontSize: 11, color: "var(--text-3)", margin: "4px 0 0" }}>{s.label}</p>
             </div>
           ))}
         </div>
+
+        {/* 전체 진행률 */}
+        {total > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ fontSize: 11, color: "var(--text-3)" }}>전체 완료율</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: completionRate === 100 ? "#16A34A" : "var(--text-2)" }}>{completionRate}%</span>
+            </div>
+            <ProgressBar value={completionRate} color={completionRate === 100 ? "#16A34A" : health.color} />
+          </div>
+        )}
       </div>
 
       {/* 탭 */}
-      <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
+      <div style={{ display: "flex", gap: 2, padding: 3, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 10 }}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className="flex-1 rounded-lg py-2 text-xs font-medium transition-all"
             style={{
+              flex: 1, padding: "6px 0", borderRadius: 7, fontSize: 12, fontWeight: 500,
+              border: "none", cursor: "pointer", transition: "all 0.15s",
               background: tab === t.id ? "var(--bg-4)" : "transparent",
               color: tab === t.id ? "var(--text-1)" : "var(--text-3)",
-              border: tab === t.id ? "1px solid var(--border-2)" : "1px solid transparent",
             }}>
             {t.label}
           </button>
@@ -244,25 +254,25 @@ export default function ProjectDetailPage() {
 
       {/* 개요 탭 */}
       {tab === "overview" && (
-        <div className="space-y-4">
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {canManage && <TaskDraftPanel projectId={id} onApproved={load} />}
-          <PlanningFeedback mode="project" projectId={id} projectName={project?.name}
-            onTaskClick={(tid) => setOpenDetail(tid)} />
-          <div className="grid grid-cols-2 gap-4">
-            <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-              <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-2)" }}>상태별 업무</p>
-              <div className="space-y-2.5">
+          <PlanningFeedback mode="project" projectId={id} projectName={project?.name} onTaskClick={(tid) => setOpenDetail(tid)} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            {/* 상태별 업무 */}
+            <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
+              <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-2)", marginBottom: 14 }}>상태별 업무</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {STATUS_LIST.map(s => {
                   const cnt = tasks.filter(t => t.status === s).length;
                   const cfg = STATUS_CONFIG[s];
                   return (
                     <div key={s}>
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full" style={{ background: cfg.color }} />
-                          <span className="text-xs" style={{ color: "var(--text-2)" }}>{cfg.label}</span>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <div style={{ width: 6, height: 6, borderRadius: "50%", background: cfg.color }} />
+                          <span style={{ fontSize: 12, color: "var(--text-2)" }}>{cfg.label}</span>
                         </div>
-                        <span className="text-xs font-semibold" style={{ color: cfg.color }}>{cnt}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: cfg.color }}>{cnt}</span>
                       </div>
                       <ProgressBar value={total > 0 ? (cnt / total) * 100 : 0} color={cfg.color} />
                     </div>
@@ -270,37 +280,40 @@ export default function ProjectDetailPage() {
                 })}
               </div>
             </div>
-            <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-semibold" style={{ color: "var(--text-2)" }}>단계</p>
+
+            {/* 단계 */}
+            <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-2)", margin: 0 }}>단계</p>
                 {canManage && (
-                  <button onClick={() => setOpenMilestone(true)} className="text-xs" style={{ color: "var(--cyan)" }}>관리 →</button>
+                  <button onClick={() => setOpenMilestone(true)}
+                    style={{ fontSize: 11, color: "var(--cyan)", background: "transparent", border: "none", cursor: "pointer" }}>
+                    관리 →
+                  </button>
                 )}
               </div>
               {milestones.length === 0 ? (
-                <p className="text-xs text-center py-6" style={{ color: "var(--text-3)" }}>
+                <p style={{ fontSize: 12, color: "var(--text-3)", textAlign: "center", padding: "20px 0" }}>
                   단계가 없습니다
-                  {canManage && <><br /><span style={{ color: "var(--cyan)" }}>업무 탭에서 추가하세요</span></>}
                 </p>
               ) : (
-                <div className="space-y-2">
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {milestones.map((m: any) => {
                     const mTasks = tasks.filter(t => t.milestone_id === m.id);
                     const mDone = mTasks.filter(t => t.status === "done").length;
                     const mRate = mTasks.length > 0 ? Math.round((mDone / mTasks.length) * 100) : 0;
                     const mc = MS_STATUS[m.status] ?? MS_STATUS.planned;
                     return (
-                      <div key={m.id} className="rounded-xl px-3 py-2.5"
-                        style={{ background: "var(--bg-3)", border: `1px solid ${mc.color}22` }}>
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: mc.color }} />
-                          <p className="text-xs font-medium flex-1 truncate" style={{ color: "var(--text-1)" }}>{m.title}</p>
+                      <div key={m.id} style={{ padding: "10px 12px", background: "var(--bg-3)", border: `1px solid ${mc.color}22`, borderRadius: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                          <div style={{ width: 6, height: 6, borderRadius: "50%", background: mc.color, flexShrink: 0 }} />
+                          <p style={{ fontSize: 12, fontWeight: 500, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-1)", margin: 0 }}>{m.title}</p>
                           <MilestoneStatusBadge milestone={m} canManage={canManage} onUpdate={load} />
-                          <span className="text-xs shrink-0" style={{ color: mc.color }}>{mRate}%</span>
+                          <span style={{ fontSize: 11, color: mc.color, fontWeight: 600 }}>{mRate}%</span>
                         </div>
                         <ProgressBar value={mRate} color={mc.color} />
                         {m.due_date && (
-                          <p className="text-xs mt-1" style={{ color: "var(--text-3)" }}>
+                          <p style={{ fontSize: 11, color: "var(--text-3)", margin: "5px 0 0" }}>
                             ~ {new Date(m.due_date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
                           </p>
                         )}
@@ -316,48 +329,43 @@ export default function ProjectDetailPage() {
 
       {/* 업무 탭 */}
       {tab === "tasks" && (
-        <div className="space-y-3">
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {canManage && <TaskDraftPanel projectId={id} onApproved={load} />}
           {canManage && (
-            <div className="flex items-center justify-between">
-              <p className="text-xs" style={{ color: "var(--text-3)" }}>단계별로 업무를 구성하세요</p>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>단계별로 업무를 관리하세요</p>
               <button onClick={() => setOpenMilestone(true)}
-                className="text-xs px-3 py-1.5 rounded-lg"
-                style={{ background: "var(--bg-2)", color: "var(--cyan)", border: "1px solid var(--border)" }}>
-                ⚙ 단계 관리
+                style={{ fontSize: 12, padding: "5px 12px", background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 7, color: "var(--cyan)", cursor: "pointer" }}>
+                + 단계 관리
               </button>
             </div>
           )}
 
-          {/* 마일스톤별 그룹 */}
+          {/* 단계별 그룹 */}
           {tasksByMs.map(({ milestone: m, tasks: mTasks }) => {
             const mc = MS_STATUS[m.status] ?? MS_STATUS.planned;
             const mDone = mTasks.filter(t => t.status === "done").length;
             const mRate = mTasks.length > 0 ? Math.round((mDone / mTasks.length) * 100) : 0;
             const isExpanded = expandedMs[m.id] !== false;
             return (
-              <div key={m.id} className="rounded-2xl"
-                style={{ border: `1px solid ${mc.color}33` }}>
-                <div className="flex items-center gap-3 px-4 py-3 cursor-pointer"
-                  style={{ background: `${mc.color}08`, borderBottom: isExpanded ? `1px solid ${mc.color}22` : "none", borderRadius: isExpanded ? "16px 16px 0 0" : 16 }}
+              <div key={m.id} style={{ border: `1px solid ${mc.color}33`, borderRadius: 12, overflow: "hidden" }}>
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", cursor: "pointer",
+                  background: `${mc.color}06`,
+                  borderBottom: isExpanded ? `1px solid ${mc.color}22` : "none",
+                }}
                   onClick={() => toggleMs(m.id)}>
-                  <span style={{ color: mc.color, fontSize: 12 }}>{isExpanded ? "▾" : "▸"}</span>
-                  <div className="w-2 h-2 rounded-full shrink-0" style={{ background: mc.color }} />
-                  <p className="text-sm font-semibold flex-1" style={{ color: "var(--text-1)" }}>{m.title}</p>
-                  {m.due_date && (
-                    <span className="text-xs" style={{ color: "var(--text-3)" }}>
-                      ~ {new Date(m.due_date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
-                    </span>
-                  )}
+                  <span style={{ fontSize: 12, color: mc.color }}>{isExpanded ? "▾" : "▸"}</span>
+                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: mc.color, flexShrink: 0 }} />
+                  <p style={{ fontSize: 13, fontWeight: 600, flex: 1, color: "var(--text-1)", margin: 0 }}>{m.title}</p>
+                  {m.due_date && <span style={{ fontSize: 11, color: "var(--text-3)" }}>~ {new Date(m.due_date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}</span>}
                   <MilestoneStatusBadge milestone={m} canManage={canManage} onUpdate={load} />
-                  <span className="text-xs font-semibold" style={{ color: mc.color }}>
-                    {mDone}/{mTasks.length} · {mRate}%
-                  </span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: mc.color }}>{mDone}/{mTasks.length} · {mRate}%</span>
                 </div>
                 {isExpanded && (
-                  <div className="p-3 pb-10" style={{ background: "var(--bg-2)", borderRadius: "0 0 16px 16px" }}>
+                  <div style={{ padding: 12, background: "var(--bg-2)" }}>
                     {mTasks.length === 0 ? (
-                      <p className="text-xs text-center py-4" style={{ color: "var(--text-3)" }}>이 단계에 업무가 없습니다</p>
+                      <p style={{ fontSize: 12, color: "var(--text-3)", textAlign: "center", padding: "16px 0" }}>이 단계에 업무가 없습니다</p>
                     ) : (
                       <TaskList tasks={mTasks} onRefresh={load} onTaskClick={msId => setOpenDetail(msId)} milestones={milestones} projects={allProjects} />
                     )}
@@ -369,21 +377,23 @@ export default function ProjectDetailPage() {
 
           {/* 미분류 */}
           {(unclassified.length > 0 || milestones.length === 0) && (
-            <div className="rounded-2xl" style={{ border: "1px solid var(--border)" }}>
-              <div className="flex items-center gap-3 px-4 py-3 cursor-pointer"
-                style={{ background: "var(--bg-3)", borderBottom: expandedMs["__unclassified__"] ? "1px solid var(--border)" : "none", borderRadius: expandedMs["__unclassified__"] ? "16px 16px 0 0" : 16 }}
+            <div style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+              <div style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", cursor: "pointer",
+                background: "var(--bg-3)", borderBottom: expandedMs["__unclassified__"] ? "1px solid var(--border)" : "none",
+              }}
                 onClick={() => toggleMs("__unclassified__")}>
-                <span style={{ color: "var(--text-3)", fontSize: 12 }}>{expandedMs["__unclassified__"] ? "▾" : "▸"}</span>
-                <div className="w-2 h-2 rounded-full shrink-0" style={{ background: "var(--text-3)" }} />
-                <p className="text-sm font-semibold flex-1" style={{ color: "var(--text-2)" }}>
+                <span style={{ fontSize: 12, color: "var(--text-3)" }}>{expandedMs["__unclassified__"] ? "▾" : "▸"}</span>
+                <div style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--text-3)", flexShrink: 0 }} />
+                <p style={{ fontSize: 13, fontWeight: 600, flex: 1, color: "var(--text-2)", margin: 0 }}>
                   {milestones.length === 0 ? "전체 업무" : "미분류"}
                 </p>
-                <span className="text-xs" style={{ color: "var(--text-3)" }}>{unclassified.length}건</span>
+                <span style={{ fontSize: 11, color: "var(--text-3)" }}>{unclassified.length}건</span>
               </div>
               {expandedMs["__unclassified__"] && (
-                <div className="p-3 pb-10" style={{ background: "var(--bg-2)", borderRadius: "0 0 16px 16px" }}>
+                <div style={{ padding: 12, background: "var(--bg-2)" }}>
                   {unclassified.length === 0 ? (
-                    <p className="text-xs text-center py-4" style={{ color: "var(--text-3)" }}>미분류 업무 없음</p>
+                    <p style={{ fontSize: 12, color: "var(--text-3)", textAlign: "center", padding: "16px 0" }}>미분류 업무 없음</p>
                   ) : (
                     <TaskList tasks={unclassified} onRefresh={load} onTaskClick={msId => setOpenDetail(msId)} milestones={milestones} projects={allProjects} />
                   )}
@@ -396,8 +406,8 @@ export default function ProjectDetailPage() {
 
       {/* 팀 탭 */}
       {tab === "members" && (
-        <div className="rounded-2xl p-5" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-          <p className="text-xs font-semibold mb-4" style={{ color: "var(--text-2)" }}>프로젝트 팀 구성</p>
+        <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 }}>
+          <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-2)", marginBottom: 16 }}>프로젝트 팀 구성</p>
           <ProjectMemberPanel projectId={id} />
         </div>
       )}
@@ -405,17 +415,18 @@ export default function ProjectDetailPage() {
       {openForm && <TaskForm onClose={() => setOpenForm(false)} onCreated={() => { load(); setOpenForm(false); }} defaultProjectId={id} />}
       {openDetail && <TaskDetail taskId={openDetail} onClose={() => setOpenDetail(null)} onRefresh={() => { setOpenDetail(null); load(); }} />}
       {openEdit && <ProjectForm project={project} onClose={() => setOpenEdit(false)} onSaved={() => { load(); setOpenEdit(false); }} />}
+
       {openMilestone && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.6)" }}
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.3)" }}
           onClick={() => { setOpenMilestone(false); load(); }}>
-          <div className="w-full max-w-2xl max-h-[80vh] rounded-2xl overflow-hidden flex flex-col"
-            style={{ background: "var(--bg-2)", border: "1px solid var(--border-2)" }}
+          <div style={{ width: "100%", maxWidth: 640, maxHeight: "80vh", background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column" }}
             onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
-              <h2 className="text-sm font-bold" style={{ color: "var(--text-1)" }}>단계 관리</h2>
-              <button onClick={() => { setOpenMilestone(false); load(); }} style={{ color: "var(--text-3)" }}>✕</button>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
+              <h2 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)", margin: 0 }}>단계 관리</h2>
+              <button onClick={() => { setOpenMilestone(false); load(); }}
+                style={{ fontSize: 18, color: "var(--text-3)", background: "transparent", border: "none", cursor: "pointer" }}>✕</button>
             </div>
-            <div className="flex-1 overflow-y-auto p-5">
+            <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
               <MilestonePanel projectId={id} />
             </div>
           </div>
