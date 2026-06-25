@@ -181,8 +181,12 @@ export default function PlanningFeedback({ mode = "tasks", projectId, projectNam
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ snapshot }),
       });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      const raw = await res.json();
+      if (raw.error) throw new Error(raw.error);
+      // 응답이 중첩 객체인 경우 정규화
+      const data = raw?.summary ? raw : (raw?.result ?? raw);
+      console.log("[AI Feedback] raw:", JSON.stringify(raw).slice(0, 200));
+      console.log("[AI Feedback] data.summary:", data?.summary);
       setResult(data);
 
       // 프로젝트 health 업데이트
@@ -196,7 +200,7 @@ export default function PlanningFeedback({ mode = "tasks", projectId, projectNam
           user_id: myUser.userId,
           mode: isProjectMode ? "project" : selectedMode,
           project_id: effectiveProjectId || null,
-          result: data,
+          result: data,  // 정규화된 data 저장
         });
         // 기록 갱신
         await loadHistory(myUser.userId);
@@ -225,7 +229,9 @@ export default function PlanningFeedback({ mode = "tasks", projectId, projectNam
   }
 
   function loadHistoryItem(item: any) {
-    setResult(item.result);
+    // DB에서 꺼낼 때 result 필드가 중첩될 수 있으므로 정규화
+    const r = item.result?.summary ? item.result : (item.result?.result ?? item.result);
+    setResult(r);
     setRan(true);
     setTab("result");
   }
