@@ -51,18 +51,35 @@ export default function PlanningFeedback({ mode = "tasks", projectId, projectNam
   const isProjectMode = !!projectId && !isFullMode;
 
   useEffect(() => {
-    getAuthUser().then(u => { if (u) setMyUser(u); });
-    if (isFullMode) {
-      supabase.from("projects").select("id,name").eq("status", "active").then(({ data }) => setProjects(data ?? []));
+    async function init() {
+      const u = await getAuthUser();
+      if (u) {
+        setMyUser(u);
+        // 유저 로드 후 바로 기록 로드
+        setHistoryLoading(true);
+        const { data } = await supabase.from("ai_feedback_history")
+          .select("*, project:projects(name)")
+          .eq("user_id", u.userId)
+          .order("created_at", { ascending: false })
+          .limit(20);
+        setHistory(data ?? []);
+        setHistoryLoading(false);
+      }
+      if (isFullMode) {
+        supabase.from("projects").select("id,name").eq("status", "active")
+          .then(({ data }) => setProjects(data ?? []));
+      }
     }
+    init();
   }, []);
 
-  async function loadHistory() {
-    if (!myUser) return;
+  async function loadHistory(userId?: string) {
+    const uid = userId ?? myUser?.userId;
+    if (!uid) return;
     setHistoryLoading(true);
     const { data } = await supabase.from("ai_feedback_history")
       .select("*, project:projects(name)")
-      .eq("user_id", myUser.userId)
+      .eq("user_id", uid)
       .order("created_at", { ascending: false })
       .limit(20);
     setHistory(data ?? []);
@@ -71,12 +88,7 @@ export default function PlanningFeedback({ mode = "tasks", projectId, projectNam
 
   useEffect(() => {
     if (tab === "history" && myUser) loadHistory();
-  }, [tab, myUser]);
-
-  // 마운트 시 기록 탭 미리 로드
-  useEffect(() => {
-    if (myUser) loadHistory();
-  }, [myUser]);
+  }, [tab]);
 
   async function runFeedback() {
     setLoading(true); setRan(true); setTab("result");
@@ -186,6 +198,8 @@ export default function PlanningFeedback({ mode = "tasks", projectId, projectNam
           project_id: effectiveProjectId || null,
           result: data,
         });
+        // 기록 갱신
+        await loadHistory(myUser.userId);
       }
     } catch (e: any) {
       setResult({ error: e.message });
