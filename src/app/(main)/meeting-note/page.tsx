@@ -1,4 +1,4 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
@@ -99,10 +99,6 @@ export default function MeetingNotePage() {
           const blob = new Blob(chunks, { type: "audio/webm" });
           const f = new File([blob], `seg-${segIdx}.webm`, { type: "audio/webm" });
           segIdx++;
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a"); a.href = url;
-          a.download = `meeting-part${segIdx}-${new Date().toISOString().slice(0,16).replace("T","-")}.webm`;
-          a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
           try {
             const form = new FormData(); form.append("file", f); form.append("model", "whisper-1"); form.append("language", "ko");
             const res = await fetch("https://api.openai.com/v1/audio/transcriptions", { method: "POST", headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}` }, body: form });
@@ -114,7 +110,7 @@ export default function MeetingNotePage() {
       };
       startSeg(); setRecording(true); setRecordTime(0);
       timerRef.current = setInterval(() => setRecordTime(t => t + 1), 1000);
-    } catch { alert("마이크 접근 권한이 필요합니다"); }
+    } catch { alert("마이크 접근 권한이 필요합니다."); }
   }
 
   function stopRecording() { mediaRecorder?.stop(); setRecording(false); clearInterval(timerRef.current); }
@@ -133,7 +129,7 @@ export default function MeetingNotePage() {
       const n = Math.ceil(f.size / CHUNK); const texts: string[] = [];
       for (let i = 0; i < n; i++) {
         const chunk = new File([f.slice(i*CHUNK, Math.min((i+1)*CHUNK, f.size))], `chunk-${i}.${f.name.split('.').pop()}`, { type: f.type });
-        setText(`변환 중… (${i+1}/${n})`);
+        setText(`변환 중 (${i+1}/${n})`);
         const form = new FormData(); form.append("file", chunk); form.append("model", "whisper-1"); form.append("language", "ko");
         const res = await fetch("https://api.openai.com/v1/audio/transcriptions", { method: "POST", headers: { Authorization: `Bearer ${key}` }, body: form });
         if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message); }
@@ -169,49 +165,40 @@ export default function MeetingNotePage() {
     setApplying(true);
     let count = 0;
     const selectedTasks = (result.tasks ?? []).filter((t: any) => t.selected);
-
-    // 프로젝트가 있는 업무 → task_drafts (리더 승인 필요)
-    // 프로젝트 없는 업무 → tasks 직접 등록
     for (const task of selectedTasks) {
       if (task.projectId) {
-        // task_drafts에 저장 (리더 승인 대기)
         const { error } = await supabase.from("task_drafts").insert({
-          meeting_draft_id: draftId,
-          project_id: task.projectId,
-          title: task.title,
-          task_type: task.task_type ?? "other",
-          priority: task.priority ?? "medium",
-          due_date: task.due_date ?? null,
-          assignee_id: task.assignee_id ?? null,
-          assignee_ids: task.assignee_ids ?? [],
-          is_blocked: task.is_blocked ?? false,
+          meeting_draft_id: draftId, project_id: task.projectId, title: task.title,
+          task_type: task.task_type ?? "other", priority: task.priority ?? "medium",
+          due_date: task.due_date ?? null, assignee_id: task.assignee_id ?? null,
+          assignee_ids: task.assignee_ids ?? [], is_blocked: task.is_blocked ?? false,
           blocked_reason: task.is_blocked ? task.blocked_reason : null,
-          status: "pending",
-          submitted_by: myUser?.userId ?? null,
+          status: "pending", submitted_by: myUser?.userId ?? null,
         });
         if (!error) count++;
       } else {
-        // 프로젝트 없으면 바로 등록
         const { error } = await supabase.from("tasks").insert({
           title: task.title, task_type: task.task_type ?? "other", priority: task.priority ?? "medium",
           status: task.is_blocked ? "blocked" : "todo", blocked_reason: task.is_blocked ? task.blocked_reason : null,
-          due_date: task.due_date ?? null, assignee_id: task.assignee_id ?? null, assignee_ids: task.assignee_ids ?? [],
-          project_id: null,
+          due_date: task.due_date ?? null, assignee_id: task.assignee_id ?? null,
+          assignee_ids: task.assignee_ids ?? [], project_id: null,
         });
         if (!error) count++;
       }
     }
-
     const draftCount = selectedTasks.filter((t: any) => t.projectId).length;
     const directCount = selectedTasks.filter((t: any) => !t.projectId).length;
-
     await completeDraft();
     setResult((r: any) => ({ ...r, _count: count, _draftCount: draftCount, _directCount: directCount }));
     setStep("done"); setApplying(false);
   }
 
-  function toggleTask(i: number) { setResult((r: any) => ({ ...r, tasks: r.tasks.map((t: any, j: number) => j === i ? { ...t, selected: !t.selected } : t) })); }
-  function setTaskProject(i: number, pid: string) { setResult((r: any) => ({ ...r, tasks: r.tasks.map((t: any, j: number) => j === i ? { ...t, projectId: pid } : t) })); }
+  function toggleTask(i: number) {
+    setResult((r: any) => ({ ...r, tasks: r.tasks.map((t: any, j: number) => j === i ? { ...t, selected: !t.selected } : t) }));
+  }
+  function setTaskProject(i: number, pid: string) {
+    setResult((r: any) => ({ ...r, tasks: r.tasks.map((t: any, j: number) => j === i ? { ...t, projectId: pid } : t) }));
+  }
   function resetAll() { completeDraft(); setStep("input"); setResult(null); setText(""); setFile(null); setDraftId(null); setRestored(false); setLastSaved(null); }
 
   function loadFromHistory(item: any) {
@@ -231,112 +218,117 @@ export default function MeetingNotePage() {
     setHistory(h => h.filter(x => x.id !== id));
   }
 
-  const FS = { background: "#1E2435", border: "1px solid var(--border-2)", color: "#E8F4FF", borderRadius: 8, padding: "6px 10px", fontSize: 13, width: "100%", outline: "none", colorScheme: "dark" as const };
-  const PC: Record<string, string> = { urgent: "#f87171", high: "#fbbf24", medium: "#60a5fa", low: "#4A7099" };
+  const FS = {
+    background: "var(--bg-3)", border: "1px solid var(--border)",
+    color: "var(--text-1)", borderRadius: 8, padding: "7px 10px",
+    fontSize: 13, width: "100%", outline: "none", colorScheme: "light" as const,
+  };
+
+  const PC: Record<string, string> = { urgent: "#DC2626", high: "#D97706", medium: "#2563EB", low: "#A8A8A4" };
   const PL: Record<string, string> = { urgent: "긴급", high: "높음", medium: "보통", low: "낮음" };
 
   if (view === "history") return (
-    <HistoryView
-      history={history}
-      historyLoading={historyLoading}
-      onBack={() => setView("main")}
-      onLoad={loadFromHistory}
-      onDelete={deleteHistory}
-      onRefresh={loadHistory}
-      supabase={supabase}
-    />
+    <HistoryView history={history} historyLoading={historyLoading}
+      onBack={() => setView("main")} onLoad={loadFromHistory}
+      onDelete={deleteHistory} onRefresh={loadHistory} supabase={supabase} />
   );
 
   if (step === "done") return (
-    <div className="max-w-lg mx-auto mt-20 text-center space-y-6">
-      <div className="text-5xl">✅</div>
+    <div style={{ maxWidth: 480, margin: "80px auto", textAlign: "center", display: "flex", flexDirection: "column", gap: 20, alignItems: "center" }}>
+      <div style={{ fontSize: 48 }}>✅</div>
       <div>
-        <p className="text-xl font-bold mb-2" style={{ color: "var(--text-1)" }}>업무가 제출됐습니다!</p>
+        <p style={{ fontSize: 18, fontWeight: 700, color: "var(--text-1)", marginBottom: 8 }}>업무가 등록됐습니다!</p>
         {result?._draftCount > 0 && (
-          <div className="rounded-xl px-4 py-3 mb-2" style={{ background: "rgba(96,165,250,0.08)", border: "1px solid rgba(96,165,250,0.2)" }}>
-            <p className="text-sm font-medium" style={{ color: "#60a5fa" }}>
-              📋 {result._draftCount}건 → 프로젝트 리더 승인 대기
-            </p>
-            <p className="text-xs mt-0.5" style={{ color: "var(--text-3)" }}>리더가 검토 후 프로젝트 업무에 추가합니다</p>
+          <div style={{ background: "#EEF3FF", border: "1px solid #BFDBFE", borderRadius: 10, padding: "10px 16px", marginBottom: 8 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: "#2563EB" }}>📋 {result._draftCount}건 → 프로젝트 리더 승인 대기</p>
+            <p style={{ fontSize: 11, color: "var(--text-3)", marginTop: 3 }}>리더가 승인하면 프로젝트 업무로 등록됩니다</p>
           </div>
         )}
         {result?._directCount > 0 && (
-          <p className="text-sm" style={{ color: "var(--text-3)" }}>
-            {result._directCount}건은 바로 등록됐습니다
-          </p>
+          <p style={{ fontSize: 13, color: "var(--text-2)" }}>{result._directCount}건이 바로 등록됐습니다</p>
         )}
       </div>
-      <div className="flex gap-3 justify-center">
-        <button onClick={() => router.push("/tasks")} className="rounded-xl px-6 py-3 text-sm font-semibold" style={{ background: "linear-gradient(135deg, #00C2CC, #2E86FF)", color: "#fff" }}>업무 목록 보기 →</button>
-        <button onClick={resetAll} className="rounded-xl px-6 py-3 text-sm" style={{ background: "var(--bg-3)", color: "var(--text-2)", border: "1px solid var(--border)" }}>새 회의록 분석</button>
+      <div style={{ display: "flex", gap: 10 }}>
+        <button onClick={() => router.push("/tasks")}
+          style={{ padding: "10px 20px", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer" }}>
+          업무 목록 보기 →
+        </button>
+        <button onClick={resetAll}
+          style={{ padding: "10px 20px", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--text-2)", cursor: "pointer" }}>
+          새 회의록 분석
+        </button>
       </div>
     </div>
   );
 
   if (step === "analyzing") return (
-    <div className="max-w-lg mx-auto mt-20 text-center space-y-4">
-      <div className="inline-block w-8 h-8 rounded-full border-2 animate-spin" style={{ borderColor: "#a78bfa", borderTopColor: "transparent" }} />
-      <p className="text-sm font-medium" style={{ color: "var(--text-1)" }}>{transcribing ? "음성을 텍스트로 변환 중…" : "회의 내용을 분석 중…"}</p>
+    <div style={{ maxWidth: 480, margin: "80px auto", textAlign: "center", display: "flex", flexDirection: "column", gap: 14, alignItems: "center" }}>
+      <div style={{ width: 32, height: 32, border: "3px solid var(--cyan)", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text-1)" }}>{transcribing ? "음성을 텍스트로 변환 중…" : "회의 내용을 분석 중…"}</p>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 
   if (step === "review" && result) return (
-    <div className="max-w-3xl space-y-5">
-      <div className="flex items-center gap-3">
-        <button onClick={() => setStep("input")} className="text-xs" style={{ color: "var(--text-3)" }}>← 다시 입력</button>
+    <div style={{ maxWidth: 720, display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <button onClick={() => setStep("input")} style={{ fontSize: 12, color: "var(--text-3)", background: "transparent", border: "none", cursor: "pointer" }}>← 다시 입력</button>
         <span style={{ color: "var(--border)" }}>|</span>
-        <h1 className="text-sm font-bold" style={{ color: "var(--text-1)" }}>분석 결과 확인</h1>
-        {lastSaved && <p className="text-xs ml-auto" style={{ color: "var(--text-3)" }}>✓ {lastSaved.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 저장됨</p>}
+        <h1 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)", margin: 0 }}>분석 결과 확인</h1>
+        {lastSaved && <p style={{ fontSize: 11, color: "var(--text-3)", marginLeft: "auto" }}>🕐 {lastSaved.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 저장</p>}
       </div>
 
-      <div className="rounded-2xl p-4" style={{ background: "rgba(167,139,250,0.08)", border: "1px solid rgba(167,139,250,0.2)" }}>
-        <p className="text-xs font-semibold mb-1" style={{ color: "#a78bfa" }}>회의 요약</p>
-        <p className="text-sm" style={{ color: "var(--text-1)" }}>{result.summary}</p>
-        {result.participants?.length > 0 && <p className="text-xs mt-2" style={{ color: "var(--text-3)" }}>참석자: {result.participants.join(", ")}</p>}
+      {/* 회의 요약 */}
+      <div style={{ background: "#F5F3FF", border: "1px solid #DDD6FE", borderRadius: 12, padding: 16 }}>
+        <p style={{ fontSize: 11, fontWeight: 600, color: "#7C3AED", marginBottom: 6 }}>회의 요약</p>
+        <p style={{ fontSize: 13, color: "var(--text-1)", lineHeight: 1.6 }}>{result.summary}</p>
+        {result.participants?.length > 0 && <p style={{ fontSize: 11, color: "var(--text-3)", marginTop: 8 }}>참석자: {result.participants.join(", ")}</p>}
       </div>
 
+      {/* 결정사항 */}
       {result.decisions?.length > 0 && (
-        <div className="rounded-2xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-          <p className="text-xs font-semibold mb-2" style={{ color: "var(--text-3)" }}>결정사항</p>
+        <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "var(--text-2)", marginBottom: 10 }}>결정사항</p>
           {result.decisions.map((d: string, i: number) => (
-            <div key={i} className="flex items-start gap-2 mb-1">
-              <span style={{ color: "#34d399", fontSize: 12, marginTop: 2 }}>✓</span>
-              <p className="text-sm" style={{ color: "var(--text-2)" }}>{d}</p>
+            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
+              <span style={{ color: "#16A34A", fontSize: 13, marginTop: 1 }}>✓</span>
+              <p style={{ fontSize: 13, color: "var(--text-2)", margin: 0 }}>{d}</p>
             </div>
           ))}
         </div>
       )}
 
-      <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        <div className="flex items-center justify-between px-4 py-3" style={{ background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
-          <p className="text-xs font-semibold" style={{ color: "var(--text-2)" }}>
+      {/* 업무 목록 */}
+      <div style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
+          <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-2)", margin: 0 }}>
             등록할 업무 ({result.tasks?.filter((t:any)=>t.selected).length ?? 0}/{result.tasks?.length ?? 0})
           </p>
-          <button onClick={() => setResult((r:any) => ({ ...r, tasks: r.tasks.map((t:any) => ({ ...t, selected: true })) }))} className="text-xs" style={{ color: "var(--cyan)" }}>모두 선택</button>
+          <button onClick={() => setResult((r:any) => ({ ...r, tasks: r.tasks.map((t:any) => ({ ...t, selected: true })) }))}
+            style={{ fontSize: 11, color: "var(--cyan)", background: "transparent", border: "none", cursor: "pointer" }}>
+            전체 선택
+          </button>
         </div>
         {(result.tasks ?? []).map((task: any, i: number) => (
-          <div key={i} className="px-4 py-3" style={{ background: task.selected ? "rgba(96,165,250,0.05)" : "var(--bg-2)", borderBottom: "1px solid var(--border)" }}>
-            <div className="flex items-start gap-3">
-              <div className="mt-1 w-4 h-4 rounded flex items-center justify-center shrink-0 cursor-pointer"
-                style={{ background: task.selected ? "#60a5fa" : "var(--bg-3)", border: `1px solid ${task.selected ? "#60a5fa" : "var(--border-2)"}` }}
+          <div key={i} style={{ padding: "12px 16px", background: task.selected ? "#EEF3FF" : "var(--bg-2)", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+              <div style={{ marginTop: 2, width: 16, height: 16, borderRadius: 4, flexShrink: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", background: task.selected ? "var(--cyan)" : "var(--bg-3)", border: `1px solid ${task.selected ? "var(--cyan)" : "var(--border)"}` }}
                 onClick={() => toggleTask(i)}>
                 {task.selected && <span style={{ color: "#fff", fontSize: 10 }}>✓</span>}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                  <p className="text-sm font-medium" style={{ color: "var(--text-1)" }}>{task.title}</p>
-                  <span className="text-xs font-semibold" style={{ color: PC[task.priority] ?? "#4A7099" }}>{PL[task.priority] ?? task.priority}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                  <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text-1)", margin: 0 }}>{task.title}</p>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: PC[task.priority] ?? "#A8A8A4" }}>{PL[task.priority] ?? task.priority}</span>
                 </div>
-                {/* 프로젝트 선택 - 업무별 개별 설정 */}
                 <select value={task.projectId ?? ""} onChange={e => setTaskProject(i, e.target.value)}
-                  className="text-xs rounded-lg px-2 py-1 mb-1.5"
-                  style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)", color: "var(--text-2)", colorScheme: "dark", outline: "none", width: "100%" }}>
+                  style={{ ...FS, fontSize: 12, marginBottom: 6 }}>
                   <option value="">프로젝트 없음</option>
                   {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
-                <div className="flex items-center gap-3 flex-wrap">
-                  {task.assignee_name && <span className="text-xs" style={{ color: "var(--text-3)" }}>담당: {task.assignee_name}</span>}
-                  {task.due_date && <span className="text-xs" style={{ color: "var(--text-3)" }}>마감: {task.due_date}</span>}
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  {task.assignee_name && <span style={{ fontSize: 11, color: "var(--text-3)" }}>담당: {task.assignee_name}</span>}
+                  {task.due_date && <span style={{ fontSize: 11, color: "var(--text-3)" }}>마감: {task.due_date}</span>}
                 </div>
               </div>
             </div>
@@ -344,118 +336,133 @@ export default function MeetingNotePage() {
         ))}
       </div>
 
+      {/* 이슈 */}
       {result.issues?.length > 0 && (
-        <div className="rounded-2xl p-4" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.2)" }}>
-          <p className="text-xs font-semibold mb-2" style={{ color: "#fbbf24" }}>⚠ 이슈</p>
-          {result.issues.map((issue: string, i: number) => <p key={i} className="text-sm" style={{ color: "var(--text-2)" }}>• {issue}</p>)}
+        <div style={{ background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 12, padding: 16 }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "#D97706", marginBottom: 8 }}>주요 이슈</p>
+          {result.issues.map((issue: string, i: number) => (
+            <p key={i} style={{ fontSize: 13, color: "var(--text-2)", margin: "0 0 4px" }}>· {issue}</p>
+          ))}
         </div>
       )}
 
       <button onClick={applyTasks} disabled={applying || !result.tasks?.some((t:any)=>t.selected)}
-        className="w-full rounded-xl py-3 text-sm font-semibold disabled:opacity-40"
-        style={{ background: "linear-gradient(135deg, #00C2CC, #2E86FF)", color: "#fff" }}>
+        style={{ padding: "12px 0", background: "var(--cyan)", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 600, color: "#fff", cursor: "pointer", opacity: applying || !result.tasks?.some((t:any)=>t.selected) ? 0.4 : 1 }}>
         {applying ? "등록 중…" : `선택한 업무 ${result.tasks?.filter((t:any)=>t.selected).length ?? 0}건 등록하기`}
       </button>
     </div>
   );
 
   return (
-    <div className="max-w-2xl space-y-5">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-1 h-5 rounded-full" style={{ background: "#fbbf24" }} />
-          <h1 className="text-xl font-bold" style={{ color: "var(--text-1)" }}>회의록 분석</h1>
+    <div style={{ maxWidth: 640, display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 3, height: 18, background: "#D97706", borderRadius: 2 }} />
+          <h1 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-1)", margin: 0 }}>회의 기록</h1>
         </div>
-        <div className="flex items-center gap-3">
-          {lastSaved && <p className="text-xs" style={{ color: "var(--text-3)" }}>✓ {lastSaved.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 자동 저장됨</p>}
-          <button onClick={() => setView("history")} className="rounded-lg px-3 py-1.5 text-xs font-medium" style={{ background: "var(--bg-2)", color: "var(--text-2)", border: "1px solid var(--border)" }}>📂 이전 내역</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {lastSaved && <p style={{ fontSize: 11, color: "var(--text-3)" }}>🕐 {lastSaved.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 자동 저장</p>}
+          <button onClick={() => setView("history")}
+            style={{ padding: "6px 12px", background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 7, fontSize: 12, color: "var(--text-2)", cursor: "pointer" }}>
+            📋 이전 기록
+          </button>
         </div>
       </div>
 
       {restored && text && (
-        <div className="rounded-xl px-4 py-3 flex items-center justify-between" style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)" }}>
-          <p className="text-xs" style={{ color: "#fbbf24" }}>📋 이전에 작성하던 내용이 복원됐습니다</p>
-          <button onClick={resetAll} className="text-xs ml-4" style={{ color: "var(--text-3)" }}>초기화</button>
+        <div style={{ background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 10, padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <p style={{ fontSize: 12, color: "#D97706", margin: 0 }}>🕐 이전에 작성하던 내용을 불러왔습니다</p>
+          <button onClick={resetAll} style={{ fontSize: 11, color: "var(--text-3)", background: "transparent", border: "none", cursor: "pointer" }}>지우기</button>
         </div>
       )}
 
-      <div className="flex gap-2 p-1 rounded-xl" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-        {[{ id: "text", label: "✍️ 텍스트 입력" }, { id: "file", label: "📁 파일 업로드" }, { id: "record", label: "🎙️ 녹음" }].map(m => (
-          <button key={m.id} onClick={() => setInputMode(m.id as any)} className="flex-1 rounded-lg py-2 text-xs font-medium transition-all"
-            style={{ background: inputMode === m.id ? "var(--bg-4)" : "transparent", color: inputMode === m.id ? "var(--text-1)" : "var(--text-3)", border: inputMode === m.id ? "1px solid var(--border-2)" : "1px solid transparent" }}>
+      {/* 입력 모드 탭 */}
+      <div style={{ display: "flex", gap: 2, padding: 3, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 10 }}>
+        {[{ id: "text", label: "📝 텍스트 입력" }, { id: "file", label: "🎵 파일 업로드" }, { id: "record", label: "🎙 녹음" }].map(m => (
+          <button key={m.id} onClick={() => setInputMode(m.id as any)}
+            style={{ flex: 1, padding: "6px 0", borderRadius: 7, fontSize: 12, fontWeight: 500, border: "none", cursor: "pointer", background: inputMode === m.id ? "var(--bg-4)" : "transparent", color: inputMode === m.id ? "var(--text-1)" : "var(--text-3)" }}>
             {m.label}
           </button>
         ))}
       </div>
 
+      {/* 기본 프로젝트 */}
       <div>
-        <label className="text-xs mb-1 block" style={{ color: "var(--text-3)" }}>기본 프로젝트 (분석 후 업무별로 변경 가능)</label>
+        <label style={{ fontSize: 11, color: "var(--text-3)", display: "block", marginBottom: 5 }}>기본 프로젝트 (분석 후 업무별로 변경 가능)</label>
         <select value={selectedProject} onChange={e => setSelectedProject(e.target.value)} style={FS}>
           <option value="">프로젝트 없음</option>
           {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
       </div>
 
+      {/* 텍스트 입력 */}
       {inputMode === "text" && (
         <textarea value={text} onChange={e => setText(e.target.value)}
-          placeholder={"회의록을 붙여넣거나 직접 입력해주세요\n\n예시:\n일시: 2026-05-13\n참석자: 김성훈, 진태우\n\n액션아이템\n- 보고서 작성 / 김성훈 / 5/15"}
-          rows={10} className="w-full rounded-xl px-4 py-3 text-sm resize-none focus:outline-none"
-          style={{ background: "var(--bg-2)", border: "1px solid var(--border-2)", color: "var(--text-1)" }} />
+          placeholder={"회의록을 붙여넣거나 직접 입력해주세요\n\n예시:\n일시: 2026-05-13\n참석자: 홍길동, 김철수\n\n주요내용\n- 보고서 작성 / 홍길동 / 5/15"}
+          rows={10} style={{ ...FS, resize: "vertical" }} />
       )}
 
+      {/* 파일 업로드 */}
       {inputMode === "file" && (
         <div>
-          <input ref={fileRef} type="file" accept="audio/*,.mp3,.mp4,.wav,.m4a,.webm" onChange={e => setFile(e.target.files?.[0] ?? null)} className="hidden" />
-          <div className="rounded-xl p-8 text-center cursor-pointer" style={{ background: "var(--bg-2)", border: "2px dashed var(--border-2)" }} onClick={() => fileRef.current?.click()}>
+          <input ref={fileRef} type="file" accept="audio/*,.mp3,.mp4,.wav,.m4a,.webm" onChange={e => setFile(e.target.files?.[0] ?? null)} style={{ display: "none" }} />
+          <div style={{ background: "var(--bg-2)", border: "2px dashed var(--border)", borderRadius: 12, padding: 40, textAlign: "center", cursor: "pointer" }}
+            onClick={() => fileRef.current?.click()}>
             {file ? (
-              <div><p className="text-sm font-medium mb-1" style={{ color: "var(--text-1)" }}>🎵 {file.name}</p><p className="text-xs" style={{ color: "var(--text-3)" }}>{(file.size/1024/1024).toFixed(1)} MB</p></div>
+              <div>
+                <p style={{ fontSize: 14, fontWeight: 600, color: "var(--text-1)", marginBottom: 4 }}>✓ {file.name}</p>
+                <p style={{ fontSize: 12, color: "var(--text-3)" }}>{(file.size/1024/1024).toFixed(1)} MB</p>
+              </div>
             ) : (
-              <div><p className="text-2xl mb-2">📁</p><p className="text-sm font-medium mb-1" style={{ color: "var(--text-1)" }}>클릭하여 파일 선택</p><p className="text-xs" style={{ color: "var(--text-3)" }}>mp3, mp4, wav, m4a, webm 지원</p></div>
+              <div>
+                <p style={{ fontSize: 32, marginBottom: 10 }}>🎵</p>
+                <p style={{ fontSize: 14, fontWeight: 500, color: "var(--text-1)", marginBottom: 4 }}>클릭해서 파일 선택</p>
+                <p style={{ fontSize: 12, color: "var(--text-3)" }}>mp3, mp4, wav, m4a, webm 지원</p>
+              </div>
             )}
           </div>
         </div>
       )}
 
+      {/* 녹음 */}
       {inputMode === "record" && (
-        <div className="rounded-xl p-8 text-center" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-          {!recording && !file && (
+        <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 40, textAlign: "center" }}>
+          {!recording && (
             <div>
-              <p className="text-2xl mb-3">🎙️</p>
-              <p className="text-sm mb-1" style={{ color: "var(--text-2)" }}>10분마다 자동 분할 저장됩니다</p>
-              <p className="text-xs mb-4" style={{ color: "var(--text-3)" }}>시간 제한 없이 녹음 가능</p>
-              <button onClick={startRecording} className="rounded-xl px-6 py-3 text-sm font-semibold" style={{ background: "rgba(248,113,113,0.15)", color: "#f87171", border: "1px solid rgba(248,113,113,0.3)" }}>🔴 녹음 시작</button>
+              <p style={{ fontSize: 32, marginBottom: 12 }}>🎙</p>
+              <p style={{ fontSize: 14, fontWeight: 500, color: "var(--text-1)", marginBottom: 4 }}>10분마다 자동으로 분할 저장됩니다</p>
+              <p style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 16 }}>시간 제한 없이 녹음 가능</p>
+              <button onClick={startRecording}
+                style={{ padding: "10px 24px", background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "#DC2626", cursor: "pointer" }}>
+                🔴 녹음 시작
+              </button>
             </div>
           )}
           {recording && (
             <div>
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <div className="w-3 h-3 rounded-full animate-pulse" style={{ background: "#f87171" }} />
-                <p className="text-lg font-bold tabular-nums" style={{ color: "#f87171" }}>{fmtTime(recordTime)}</p>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 }}>
+                <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#DC2626", animation: "pulse 1s infinite" }} />
+                <p style={{ fontSize: 24, fontWeight: 700, color: "#DC2626", fontVariantNumeric: "tabular-nums" }}>{fmtTime(recordTime)}</p>
               </div>
-              <p className="text-xs mb-3" style={{ color: "var(--text-3)" }}>녹음 중 — 10분마다 자동 저장</p>
-              {text && <p className="text-xs mb-3 px-3 py-2 rounded-xl text-left" style={{ background: "var(--bg-3)", color: "var(--text-2)", maxHeight: 60, overflow: "hidden" }}>{text.slice(-200)}</p>}
-              <button onClick={stopRecording} className="rounded-xl px-6 py-3 text-sm font-semibold" style={{ background: "var(--bg-3)", color: "var(--text-2)", border: "1px solid var(--border)" }}>⏹ 녹음 중지</button>
-            </div>
-          )}
-          {!recording && file && (
-            <div>
-              <p className="text-2xl mb-2">✅</p>
-              <p className="text-sm font-medium" style={{ color: "var(--text-1)" }}>녹음 완료 ({fmtTime(recordTime)})</p>
-              <button onClick={startRecording} className="text-xs mt-2" style={{ color: "var(--text-3)" }}>다시 녹음</button>
+              <p style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 12 }}>녹음 중 · 10분마다 자동 분할</p>
+              {text && <p style={{ fontSize: 11, color: "var(--text-2)", background: "var(--bg-3)", borderRadius: 8, padding: "8px 12px", textAlign: "left", maxHeight: 60, overflow: "hidden", marginBottom: 16 }}>{text.slice(-200)}</p>}
+              <button onClick={stopRecording}
+                style={{ padding: "10px 24px", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--text-2)", cursor: "pointer" }}>
+                ⏹ 녹음 중지
+              </button>
+              <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
             </div>
           )}
         </div>
       )}
 
       <button onClick={analyze} disabled={inputMode === "text" ? !text.trim() : !file}
-        className="w-full rounded-xl py-3 text-sm font-semibold disabled:opacity-40"
-        style={{ background: "linear-gradient(135deg, #fbbf24, #f87171)", color: "#fff" }}>
+        style={{ padding: "12px 0", background: inputMode === "text" && !text.trim() ? "var(--bg-3)" : "var(--cyan)", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 600, color: inputMode === "text" && !text.trim() ? "var(--text-3)" : "#fff", cursor: "pointer", opacity: (inputMode === "text" ? !text.trim() : !file) ? 0.4 : 1 }}>
         ✦ AI 분석 시작
       </button>
     </div>
   );
 }
-
 
 function HistoryView({ history, historyLoading, onBack, onLoad, onDelete, onRefresh, supabase }: any) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -463,16 +470,13 @@ function HistoryView({ history, historyLoading, onBack, onLoad, onDelete, onRefr
   const [showGroupForm, setShowGroupForm] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // 그룹별로 정리
   const groups: Record<string, any[]> = {};
   const ungrouped: any[] = [];
   history.forEach((item: any) => {
     if (item.group_id) {
       if (!groups[item.group_id]) groups[item.group_id] = [];
       groups[item.group_id].push(item);
-    } else {
-      ungrouped.push(item);
-    }
+    } else { ungrouped.push(item); }
   });
 
   async function createGroup() {
@@ -481,28 +485,19 @@ function HistoryView({ history, historyLoading, onBack, onLoad, onDelete, onRefr
     const groupId = crypto.randomUUID();
     const ids = Array.from(selected);
     for (let i = 0; i < ids.length; i++) {
-      await supabase.from("meeting_drafts").update({
-        group_id: groupId,
-        group_title: groupTitle.trim(),
-        group_order: i,
-      }).eq("id", ids[i]);
+      await supabase.from("meeting_drafts").update({ group_id: groupId, group_title: groupTitle.trim(), group_order: i }).eq("id", ids[i]);
     }
-    setSelected(new Set());
-    setGroupTitle("");
-    setShowGroupForm(false);
-    setSaving(false);
-    onRefresh();
+    setSelected(new Set()); setGroupTitle(""); setShowGroupForm(false); setSaving(false); onRefresh();
   }
 
   async function ungroup(groupId: string) {
     if (!confirm("그룹을 해제할까요?")) return;
-    await supabase.from("meeting_drafts").update({ group_id: null, group_title: null, group_order: 0 })
-      .eq("group_id", groupId);
+    await supabase.from("meeting_drafts").update({ group_id: null, group_title: null, group_order: 0 }).eq("group_id", groupId);
     onRefresh();
   }
 
   async function renameGroup(groupId: string, items: any[]) {
-    const newTitle = prompt("새 제목을 입력하세요", items[0]?.group_title ?? "");
+    const newTitle = prompt("새 이름을 입력하세요", items[0]?.group_title ?? "");
     if (!newTitle) return;
     for (const item of items) {
       await supabase.from("meeting_drafts").update({ group_title: newTitle }).eq("id", item.id);
@@ -511,46 +506,41 @@ function HistoryView({ history, historyLoading, onBack, onLoad, onDelete, onRefr
   }
 
   function toggleSelect(id: string) {
-    setSelected(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+    setSelected(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   }
 
-  const FS = { background: "var(--bg-3)", border: "1px solid var(--border-2)", color: "var(--text-1)", borderRadius: 8, padding: "6px 10px", fontSize: 13, width: "100%", outline: "none" };
-
-  function ItemCard({ item, showCheck = false }: { item: any; showCheck?: boolean }) {
+  function ItemCard({ item, showCheck = false }: any) {
     return (
-      <div className="flex items-start gap-3">
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
         {showCheck && (
           <input type="checkbox" checked={selected.has(item.id)} onChange={() => toggleSelect(item.id)}
-            className="mt-1 rounded cursor-pointer shrink-0" />
+            style={{ marginTop: 4, cursor: "pointer", flexShrink: 0 }} />
         )}
-        <div className="flex-1 min-w-0 rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                <span className="text-xs px-2 py-0.5 rounded-full font-medium"
-                  style={{ background: item.status === "completed" ? "rgba(52,211,153,0.12)" : "rgba(167,139,250,0.12)", color: item.status === "completed" ? "#34d399" : "#a78bfa" }}>
-                  {item.status === "completed" ? "완료" : "임시저장"}
+        <div style={{ flex: 1, minWidth: 0, background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 10, padding: 12 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, fontWeight: 600, background: item.status === "completed" ? "#F0FDF4" : "#F5F3FF", color: item.status === "completed" ? "#16A34A" : "#7C3AED", border: `1px solid ${item.status === "completed" ? "#BBF7D0" : "#DDD6FE"}` }}>
+                  {item.status === "completed" ? "완료" : "미완료"}
                 </span>
-                {item.project?.name && <span className="text-xs" style={{ color: "var(--text-3)" }}>{item.project.name}</span>}
-                <span className="text-xs" style={{ color: "var(--text-3)" }}>
+                {item.project?.name && <span style={{ fontSize: 11, color: "var(--text-3)" }}>{item.project.name}</span>}
+                <span style={{ fontSize: 11, color: "var(--text-3)" }}>
                   {new Date(item.updated_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                 </span>
-                {item.audio_path && <span className="text-xs" style={{ color: "#7BA7C8" }}>🎙️</span>}
+                {item.audio_path && <span style={{ fontSize: 10, color: "#2563EB" }}>🎙 녹음</span>}
               </div>
-              {item.result?.summary && <p className="text-xs" style={{ color: "var(--text-2)" }}>{item.result.summary}</p>}
-              {(item.result?.tasks?.length ?? 0) > 0 && (
-                <span className="text-xs" style={{ color: "var(--text-3)" }}>업무 {item.result.tasks.length}건</span>
-              )}
+              {item.result?.summary && <p style={{ fontSize: 12, color: "var(--text-2)", margin: 0 }}>{item.result.summary}</p>}
+              {(item.result?.tasks?.length ?? 0) > 0 && <span style={{ fontSize: 11, color: "var(--text-3)" }}>업무 {item.result.tasks.length}건</span>}
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button onClick={() => onLoad(item)} className="rounded-lg px-2.5 py-1 text-xs font-medium"
-                style={{ background: "var(--bg-4)", color: "var(--text-2)", border: "1px solid var(--border)" }}>불러오기</button>
-              <button onClick={() => onDelete(item.id)} className="rounded-lg px-2 py-1 text-xs"
-                style={{ background: "rgba(248,113,113,0.08)", color: "#f87171" }}>삭제</button>
+            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+              <button onClick={() => onLoad(item)}
+                style={{ padding: "5px 10px", background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--text-2)", cursor: "pointer" }}>
+                불러오기
+              </button>
+              <button onClick={() => onDelete(item.id)}
+                style={{ padding: "5px 10px", background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 6, fontSize: 11, color: "#DC2626", cursor: "pointer" }}>
+                삭제
+              </button>
             </div>
           </div>
         </div>
@@ -559,90 +549,79 @@ function HistoryView({ history, historyLoading, onBack, onLoad, onDelete, onRefr
   }
 
   return (
-    <div className="max-w-3xl space-y-5">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button onClick={onBack} className="text-xs" style={{ color: "var(--text-3)" }}>← 뒤로</button>
+    <div style={{ maxWidth: 720, display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={onBack} style={{ fontSize: 12, color: "var(--text-3)", background: "transparent", border: "none", cursor: "pointer" }}>← 돌아가기</button>
           <span style={{ color: "var(--border)" }}>|</span>
-          <h1 className="text-sm font-bold" style={{ color: "var(--text-1)" }}>회의록 이전 내역</h1>
+          <h1 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)", margin: 0 }}>회의 이전 기록</h1>
         </div>
         {selected.size > 0 && !showGroupForm && (
           <button onClick={() => setShowGroupForm(true)}
-            className="rounded-xl px-3 py-2 text-xs font-semibold"
-            style={{ background: "rgba(167,139,250,0.12)", color: "#a78bfa", border: "1px solid rgba(167,139,250,0.3)" }}>
-            📎 {selected.size}개 묶기
+            style={{ padding: "6px 12px", background: "#F5F3FF", border: "1px solid #DDD6FE", borderRadius: 7, fontSize: 12, fontWeight: 600, color: "#7C3AED", cursor: "pointer" }}>
+            📁 {selected.size}개 묶기
           </button>
         )}
       </div>
 
-      {/* 묶기 폼 */}
       {showGroupForm && (
-        <div className="rounded-2xl p-4 space-y-3" style={{ background: "rgba(167,139,250,0.08)", border: "1px solid rgba(167,139,250,0.3)" }}>
-          <p className="text-xs font-semibold" style={{ color: "#a78bfa" }}>📎 {selected.size}개 회의록 묶기</p>
+        <div style={{ background: "#F5F3FF", border: "1px solid #DDD6FE", borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+          <p style={{ fontSize: 12, fontWeight: 600, color: "#7C3AED", margin: 0 }}>📁 {selected.size}개 회의록 묶기</p>
           <input value={groupTitle} onChange={e => setGroupTitle(e.target.value)}
-            placeholder="회의 제목 입력 (예: 5월 3주차 주간 회의)" style={FS}
+            placeholder="그룹 이름 입력 (예: 5월 3분기 계획 회의)"
+            style={{ background: "var(--bg-2)", border: "1px solid var(--border)", color: "var(--text-1)", borderRadius: 8, padding: "7px 10px", fontSize: 13, width: "100%", outline: "none" }}
             onKeyDown={e => { if (e.key === "Enter") createGroup(); if (e.key === "Escape") setShowGroupForm(false); }} />
-          <div className="flex gap-2">
+          <div style={{ display: "flex", gap: 8 }}>
             <button onClick={createGroup} disabled={!groupTitle.trim() || saving}
-              className="rounded-xl px-4 py-2 text-xs font-semibold disabled:opacity-40"
-              style={{ background: "#a78bfa", color: "#fff" }}>
+              style={{ padding: "7px 16px", background: "#7C3AED", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer", opacity: !groupTitle.trim() || saving ? 0.4 : 1 }}>
               {saving ? "저장 중…" : "묶기"}
             </button>
             <button onClick={() => { setShowGroupForm(false); setGroupTitle(""); }}
-              className="rounded-xl px-4 py-2 text-xs"
-              style={{ background: "var(--bg-3)", color: "var(--text-2)" }}>취소</button>
+              style={{ padding: "7px 16px", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12, color: "var(--text-2)", cursor: "pointer" }}>
+              취소
+            </button>
           </div>
         </div>
       )}
 
       {historyLoading ? (
-        <div className="text-center py-12"><p className="text-sm" style={{ color: "var(--text-3)" }}>로딩 중…</p></div>
+        <div style={{ textAlign: "center", padding: "48px 0" }}>
+          <p style={{ fontSize: 13, color: "var(--text-3)" }}>불러오는 중…</p>
+        </div>
       ) : history.length === 0 ? (
-        <div className="rounded-2xl py-12 text-center" style={{ background: "var(--bg-2)", border: "1px dashed var(--border-2)" }}>
-          <p className="text-sm" style={{ color: "var(--text-3)" }}>저장된 회의록이 없습니다</p>
+        <div style={{ textAlign: "center", padding: "48px 0", background: "var(--bg-2)", border: "1px dashed var(--border)", borderRadius: 12 }}>
+          <p style={{ fontSize: 13, color: "var(--text-3)" }}>저장된 회의록이 없습니다</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {/* 그룹된 회의록 */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {Object.entries(groups).map(([gId, items]) => {
             const title = items[0]?.group_title ?? "묶음 회의록";
             const totalTasks = items.reduce((s, i) => s + (i.result?.tasks?.length ?? 0), 0);
             return (
-              <div key={gId} className="rounded-2xl overflow-hidden" style={{ border: "1px solid rgba(167,139,250,0.3)" }}>
-                <div className="flex items-center justify-between px-4 py-3"
-                  style={{ background: "rgba(167,139,250,0.08)", borderBottom: "1px solid rgba(167,139,250,0.2)" }}>
-                  <div className="flex items-center gap-2">
-                    <span style={{ color: "#a78bfa" }}>📎</span>
-                    <p className="text-sm font-semibold" style={{ color: "#a78bfa" }}>{title}</p>
-                    <span className="text-xs" style={{ color: "var(--text-3)" }}>
-                      {items.length}개 · 업무 {totalTasks}건
-                    </span>
+              <div key={gId} style={{ border: "1px solid #DDD6FE", borderRadius: 12, overflow: "hidden" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", background: "#F5F3FF", borderBottom: "1px solid #DDD6FE" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ color: "#7C3AED" }}>📁</span>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: "#7C3AED", margin: 0 }}>{title}</p>
+                    <span style={{ fontSize: 11, color: "var(--text-3)" }}>{items.length}개 · 업무 {totalTasks}건</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => renameGroup(gId, items)}
-                      className="text-xs" style={{ color: "var(--text-3)" }}>이름 변경</button>
-                    <button onClick={() => ungroup(gId)}
-                      className="text-xs" style={{ color: "#f87171" }}>그룹 해제</button>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => renameGroup(gId, items)} style={{ fontSize: 11, color: "var(--text-3)", background: "transparent", border: "none", cursor: "pointer" }}>이름 변경</button>
+                    <button onClick={() => ungroup(gId)} style={{ fontSize: 11, color: "#DC2626", background: "transparent", border: "none", cursor: "pointer" }}>그룹 해제</button>
                   </div>
                 </div>
-                <div className="p-3 space-y-2" style={{ background: "var(--bg-2)" }}>
+                <div style={{ padding: 12, background: "var(--bg-2)", display: "flex", flexDirection: "column", gap: 8 }}>
                   {items.map(item => <ItemCard key={item.id} item={item} />)}
                 </div>
               </div>
             );
           })}
-
-          {/* 미그룹 회의록 */}
           {ungrouped.length > 0 && (
-            <div className="space-y-2">
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {ungrouped.length > 1 && (
-                <p className="text-xs px-1" style={{ color: "var(--text-3)" }}>
-                  체크박스로 여러 개 선택 후 묶기 가능
-                </p>
+                <p style={{ fontSize: 11, color: "var(--text-3)", margin: "0 0 4px" }}>여러 개 선택 후 묶기 가능</p>
               )}
-              {ungrouped.map(item => (
-                <ItemCard key={item.id} item={item} showCheck={ungrouped.length > 1} />
-              ))}
+              {ungrouped.map(item => <ItemCard key={item.id} item={item} showCheck={ungrouped.length > 1} />)}
             </div>
           )}
         </div>
