@@ -1,15 +1,15 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
 import ProjectForm from "@/components/projects/ProjectForm";
 
-const HEALTH_CONFIG: Record<string, { label: string; color: string }> = {
-  good:      { label: "정상",     color: "#34d399" },
-  reviewing: { label: "검토 필요", color: "#60a5fa" },
-  at_risk:   { label: "주의",     color: "#fbbf24" },
-  critical:  { label: "위험",     color: "#f87171" },
-  suspended: { label: "중단",     color: "#71717a" },
+const HEALTH_CONFIG = {
+  good:      { label: "정상",     color: "#16A34A" },
+  reviewing: { label: "검토",     color: "#2563EB" },
+  at_risk:   { label: "주의",     color: "#D97706" },
+  critical:  { label: "위험",     color: "#DC2626" },
+  suspended: { label: "중단",     color: "#A8A8A4" },
 };
 
 export default function ProjectsPage() {
@@ -22,17 +22,13 @@ export default function ProjectsPage() {
   const [sysRole, setSysRole] = useState<string>("");
 
   const load = useCallback(async () => {
-    const { data: active } = await supabase.from("projects")
-      .select("*, owner:users!projects_owner_id_fkey(name), tasks(id,status)")
-      .eq("status", "active").order("created_at");
+    const [{ data: active }, { data: completed }, { data: { user } }] = await Promise.all([
+      supabase.from("projects").select("*, owner:users!projects_owner_id_fkey(name), tasks(id,status)").eq("status", "active").order("created_at"),
+      supabase.from("projects").select("*, owner:users!projects_owner_id_fkey(name), tasks(id,status)").eq("status", "completed").order("end_date", { ascending: false }),
+      supabase.auth.getUser(),
+    ]);
     setActiveProjects(active ?? []);
-
-    const { data: completed } = await supabase.from("projects")
-      .select("*, owner:users!projects_owner_id_fkey(name), tasks(id,status)")
-      .eq("status", "completed").order("end_date", { ascending: false });
     setCompletedProjects(completed ?? []);
-
-    const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const { data: u } = await supabase.from("users").select("role").eq("auth_id", user.id).single();
       setSysRole(u?.role ?? "");
@@ -43,132 +39,166 @@ export default function ProjectsPage() {
 
   const canManage = sysRole === "admin" || sysRole === "leader";
 
-  async function reactivate(project: any) {
-    if (!confirm(`"${project.name}"을 다시 활성화할까요?`)) return;
-    await supabase.from("projects").update({ status: "active" }).eq("id", project.id);
+  async function reactivate(p: any) {
+    if (!confirm(`"${p.name}"을 다시 활성화할까요?`)) return;
+    await supabase.from("projects").update({ status: "active" }).eq("id", p.id);
     load();
   }
 
   function ProjectCard({ p, completed = false }: { p: any; completed?: boolean }) {
-    const total = p.tasks?.length ?? 0;
-    const done = (p.tasks ?? []).filter((t: any) => t.status === "done").length;
-    const rate = total > 0 ? Math.round((done / total) * 100) : 0;
+    const tasks = p.tasks ?? [];
+    const total = tasks.length;
+    const done = tasks.filter((t: any) => t.status === "done").length;
+    const doing = tasks.filter((t: any) => t.status === "doing").length;
+    const blocked = tasks.filter((t: any) => t.status === "blocked").length;
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
     const hc = HEALTH_CONFIG[p.health] ?? HEALTH_CONFIG.good;
+    const now = new Date();
+    const daysLeft = p.end_date ? Math.ceil((new Date(p.end_date).getTime() - now.getTime()) / 86400000) : null;
 
-    const doing = (p.tasks ?? []).filter((t: any) => t.status === "doing").length;
-    const blocked = (p.tasks ?? []).filter((t: any) => t.status === "blocked").length;
     return (
-      <div className="rounded-2xl p-5 transition-all"
-        style={{ background: "var(--bg-2)", border: `1px solid ${completed ? "var(--border)" : `${hc.color}33`}`, opacity: completed ? 0.85 : 1 }}>
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              {!completed && (
-                <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
-                  style={{ background: `${hc.color}18`, color: hc.color }}>{hc.label}</span>
+      <div style={{
+        background: "var(--bg-2)", border: `1px solid ${completed ? "var(--border)" : `${hc.color}33`}`,
+        borderRadius: 12, padding: 20, opacity: completed ? 0.85 : 1, transition: "border-color 0.15s",
+      }}
+        onMouseEnter={e => { if (!completed) (e.currentTarget as HTMLDivElement).style.borderColor = `${hc.color}66`; }}
+        onMouseLeave={e => { if (!completed) (e.currentTarget as HTMLDivElement).style.borderColor = `${hc.color}33`; }}>
+
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {/* 배지 행 */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+              {completed ? (
+                <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, fontWeight: 600, background: "#F0FDF4", color: "#16A34A", border: "1px solid #BBF7D0" }}>완료</span>
+              ) : (
+                <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, fontWeight: 600, background: `${hc.color}12`, color: hc.color, border: `1px solid ${hc.color}33` }}>{hc.label}</span>
               )}
-              {completed && (
-                <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
-                  style={{ background: "rgba(52,211,153,0.12)", color: "#34d399" }}>✓ 완료</span>
-              )}
-              {p.owner?.name && (
-                <span className="text-xs" style={{ color: "var(--text-3)" }}>{p.owner.name}</span>
-              )}
+              {p.owner?.name && <span style={{ fontSize: 11, color: "var(--text-3)" }}>{p.owner.name}</span>}
               {p.end_date && (
-                <span className="text-xs" style={{ color: "var(--text-3)" }}>
+                <span style={{ fontSize: 11, color: daysLeft !== null && daysLeft < 0 ? "#DC2626" : "var(--text-3)" }}>
                   {completed ? "완료일" : "마감"} · {new Date(p.end_date).toLocaleDateString("ko-KR", { year: "numeric", month: "short", day: "numeric" })}
+                  {!completed && daysLeft !== null && (
+                    <span style={{ marginLeft: 4, fontWeight: 600, color: daysLeft < 0 ? "#DC2626" : daysLeft <= 7 ? "#D97706" : "var(--text-3)" }}>
+                      ({daysLeft < 0 ? `${Math.abs(daysLeft)}일 초과` : `D-${daysLeft}`})
+                    </span>
+                  )}
                 </span>
               )}
             </div>
-            <a href={`/projects/${p.id}`} className="text-base font-bold hover:underline"
-              style={{ color: "var(--text-1)" }}>{p.name}</a>
-            {p.description && <p className="text-xs mt-1 line-clamp-2" style={{ color: "var(--text-2)" }}>{p.description}</p>}
+
+            {/* 프로젝트명 */}
+            <a href={`/projects/${p.id}`}
+              style={{ fontSize: 15, fontWeight: 700, color: "var(--text-1)", textDecoration: "none" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--cyan)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "var(--text-1)"; }}>
+              {p.name}
+            </a>
+            {p.description && <p style={{ fontSize: 12, color: "var(--text-2)", marginTop: 4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{p.description}</p>}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+
+          {/* 버튼 */}
+          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
             {completed && canManage && (
               <button onClick={() => reactivate(p)}
-                className="text-xs px-3 py-1.5 rounded-lg"
-                style={{ background: "var(--bg-3)", color: "var(--cyan)", border: "1px solid var(--border)" }}>
+                style={{ fontSize: 11, padding: "5px 10px", borderRadius: 7, background: "var(--bg-3)", color: "var(--cyan)", border: "1px solid var(--border)", cursor: "pointer" }}>
                 재활성화
               </button>
             )}
             {!completed && canManage && (
               <button onClick={() => { setEditProject(p); setShowForm(true); }}
-                className="text-xs px-3 py-1.5 rounded-lg"
-                style={{ background: "var(--bg-3)", color: "var(--text-2)", border: "1px solid var(--border)" }}>
+                style={{ fontSize: 11, padding: "5px 10px", borderRadius: 7, background: "var(--bg-3)", color: "var(--text-2)", border: "1px solid var(--border)", cursor: "pointer" }}>
                 수정
               </button>
             )}
           </div>
         </div>
-        {/* 업무 현황 카운트 */}
-        <div className="flex items-center gap-4 flex-wrap">
-          {[
-            { label: "전체",    value: total,   color: "var(--text-3)" },
-            { label: "진행 중", value: doing,   color: "#2E86FF" },
-            { label: "완료",    value: done,    color: "#34d399" },
-            ...(blocked > 0 ? [{ label: "Blocked", value: blocked, color: "#f87171" }] : []),
-          ].map((s, i) => (
-            <span key={i} className="text-xs" style={{ color: s.color }}>
-              {s.label} <span className="font-bold tabular-nums">{s.value}</span>
-            </span>
-          ))}
-        </div>
+
+        {/* 진행률 바 */}
+        {total > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+              <div style={{ display: "flex", gap: 12 }}>
+                {[
+                  { label: "전체", value: total, color: "var(--text-3)" },
+                  { label: "진행", value: doing, color: "#2563EB" },
+                  { label: "완료", value: done, color: "#16A34A" },
+                  ...(blocked > 0 ? [{ label: "Blocked", value: blocked, color: "#DC2626" }] : []),
+                ].map((s, i) => (
+                  <span key={i} style={{ fontSize: 11, color: s.color }}>
+                    {s.label} <b>{s.value}</b>
+                  </span>
+                ))}
+              </div>
+              <span style={{ fontSize: 11, fontWeight: 600, color: pct === 100 ? "#16A34A" : "var(--text-2)" }}>{pct}%</span>
+            </div>
+            <div style={{ height: 4, background: "var(--border)", borderRadius: 2, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${pct}%`, background: pct === 100 ? "#16A34A" : hc.color, borderRadius: 2, transition: "width 0.5s" }} />
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="max-w-5xl space-y-5">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-1 h-5 rounded-full" style={{ background: "var(--cyan)" }} />
-          <h1 className="text-xl font-bold" style={{ color: "var(--text-1)" }}>프로젝트</h1>
+    <div style={{ maxWidth: 900, display: "flex", flexDirection: "column", gap: 16 }}>
+
+      {/* 헤더 */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 3, height: 18, background: "var(--cyan)", borderRadius: 2 }} />
+          <h1 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-1)", margin: 0 }}>프로젝트</h1>
         </div>
         {canManage && (
           <button onClick={() => { setEditProject(null); setShowForm(true); }}
-            className="rounded-xl px-4 py-2 text-sm font-semibold"
-            style={{ background: "linear-gradient(135deg, var(--cyan), #2E86FF)", color: "#fff" }}>
+            style={{ padding: "8px 16px", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer" }}>
             + 새 프로젝트
           </button>
         )}
       </div>
 
       {/* 탭 */}
-      <div className="flex gap-1 p-1 rounded-xl w-fit" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-        <button onClick={() => setTab("active")}
-          className="rounded-lg px-4 py-1.5 text-xs font-medium transition-all"
-          style={{ background: tab === "active" ? "var(--bg-4)" : "transparent", color: tab === "active" ? "var(--text-1)" : "var(--text-3)", border: tab === "active" ? "1px solid var(--border-2)" : "1px solid transparent" }}>
-          진행 중 {activeProjects.length}
-        </button>
-        <button onClick={() => setTab("completed")}
-          className="rounded-lg px-4 py-1.5 text-xs font-medium transition-all"
-          style={{ background: tab === "completed" ? "var(--bg-4)" : "transparent", color: tab === "completed" ? "var(--text-1)" : "var(--text-3)", border: tab === "completed" ? "1px solid var(--border-2)" : "1px solid transparent" }}>
-          완료 {completedProjects.length}
-        </button>
+      <div style={{ display: "flex", gap: 2, padding: 3, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 10, width: "fit-content" }}>
+        {[{ v: "active", l: "진행 중", count: activeProjects.length }, { v: "completed", l: "완료", count: completedProjects.length }].map(({ v, l, count }) => (
+          <button key={v} onClick={() => setTab(v as any)}
+            style={{
+              padding: "5px 14px", borderRadius: 7, fontSize: 12, fontWeight: 500,
+              border: "none", cursor: "pointer", transition: "all 0.15s",
+              background: tab === v ? "var(--bg-4)" : "transparent",
+              color: tab === v ? "var(--text-1)" : "var(--text-3)",
+              display: "flex", alignItems: "center", gap: 6,
+            }}>
+            {l}
+            <span style={{ fontSize: 10, fontWeight: 600, background: tab === v ? "var(--border)" : "transparent", padding: "1px 6px", borderRadius: 8, color: tab === v ? "var(--text-2)" : "var(--text-3)" }}>
+              {count}
+            </span>
+          </button>
+        ))}
       </div>
 
-      {/* 진행 중 프로젝트 */}
-      {tab === "active" && (
-        <div className="space-y-3">
-          {activeProjects.length === 0 ? (
-            <div className="rounded-2xl py-12 text-center" style={{ background: "var(--bg-2)", border: "1px dashed var(--border-2)" }}>
-              <p className="text-sm" style={{ color: "var(--text-3)" }}>진행 중인 프로젝트가 없습니다</p>
+      {/* 목록 */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {tab === "active" && (
+          activeProjects.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "48px 0", background: "var(--bg-2)", border: "1px dashed var(--border)", borderRadius: 12 }}>
+              <p style={{ fontSize: 13, color: "var(--text-3)" }}>진행 중인 프로젝트가 없습니다</p>
+              {canManage && (
+                <button onClick={() => { setEditProject(null); setShowForm(true); }}
+                  style={{ marginTop: 12, padding: "7px 16px", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer" }}>
+                  + 새 프로젝트
+                </button>
+              )}
             </div>
-          ) : activeProjects.map(p => <ProjectCard key={p.id} p={p} />)}
-        </div>
-      )}
-
-      {/* 완료 프로젝트 */}
-      {tab === "completed" && (
-        <div className="space-y-3">
-          {completedProjects.length === 0 ? (
-            <div className="rounded-2xl py-12 text-center" style={{ background: "var(--bg-2)", border: "1px dashed var(--border-2)" }}>
-              <p className="text-sm" style={{ color: "var(--text-3)" }}>완료된 프로젝트가 없습니다</p>
+          ) : activeProjects.map(p => <ProjectCard key={p.id} p={p} />)
+        )}
+        {tab === "completed" && (
+          completedProjects.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "48px 0", background: "var(--bg-2)", border: "1px dashed var(--border)", borderRadius: 12 }}>
+              <p style={{ fontSize: 13, color: "var(--text-3)" }}>완료된 프로젝트가 없습니다</p>
             </div>
-          ) : completedProjects.map(p => <ProjectCard key={p.id} p={p} completed />)}
-        </div>
-      )}
+          ) : completedProjects.map(p => <ProjectCard key={p.id} p={p} completed />)
+        )}
+      </div>
 
       {showForm && (
         <ProjectForm
