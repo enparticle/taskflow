@@ -22,6 +22,87 @@ const HEALTH_LABEL = {
   good: "정상", reviewing: "검토", at_risk: "주의", critical: "위험", suspended: "중단",
 };
 
+
+const STATUS_LABEL_MAP: Record<string, string> = {
+  backlog: "백로그", todo: "할 일", doing: "진행 중",
+  blocked: "Blocked", review: "리뷰", done: "완료",
+};
+const STATUS_COLOR_MAP: Record<string, string> = {
+  backlog: "#A8A8A4", todo: "#2563EB", doing: "#2563EB",
+  blocked: "#DC2626", review: "#D97706", done: "#16A34A",
+};
+
+function FocusTasks({ tasks, onRefresh }: { tasks: any[]; onRefresh: () => void }) {
+  const supabase = createClient();
+  const [changing, setChanging] = useState<string | null>(null);
+  const [localStatuses, setLocalStatuses] = useState<Record<string, string>>({});
+
+  async function changeStatus(taskId: string, newStatus: string) {
+    setChanging(taskId);
+    setLocalStatuses(prev => ({ ...prev, [taskId]: newStatus }));
+    await supabase.from("tasks").update({ status: newStatus }).eq("id", taskId);
+    setChanging(null);
+    onRefresh();
+  }
+
+  return (
+    <div style={{ background: "var(--bg-2)", border: "1.5px solid #BFDBFE", borderRadius: 12, overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", background: "#EEF3FF", borderBottom: "1px solid #BFDBFE" }}>
+        <span style={{ fontSize: 16 }}>🎯</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: "#2563EB" }}>이번 주 집중 업무</span>
+        <span style={{ fontSize: 11, color: "#2563EB", opacity: 0.7 }}>리더가 지정한 우선순위</span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        {tasks.map((task, idx) => {
+          const currentStatus = localStatuses[task.id] ?? task.status;
+          const sc = STATUS_COLOR_MAP[currentStatus] ?? "#A8A8A4";
+          const isLast = idx === tasks.length - 1;
+          const isBlocked = currentStatus === "blocked";
+          return (
+            <div key={task.id} style={{
+              display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
+              borderBottom: isLast ? "none" : "1px solid var(--border)",
+              background: isBlocked ? "#FEF2F2" : "transparent",
+            }}>
+              {/* 순서 번호 */}
+              <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#EEF3FF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#2563EB", flexShrink: 0 }}>
+                {task.priority_order}
+              </div>
+              {/* 업무 정보 */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text-1)", margin: "0 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.title}</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {task.project?.name && <span style={{ fontSize: 11, color: "var(--text-3)" }}>{task.project.name}</span>}
+                  {task.priority_note && (
+                    <span style={{ fontSize: 11, color: "#2563EB", background: "#EEF3FF", padding: "1px 6px", borderRadius: 4 }}>
+                      💬 {task.priority_note}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {/* 상태 변경 드롭다운 */}
+              <select
+                value={currentStatus}
+                onChange={e => changeStatus(task.id, e.target.value)}
+                disabled={changing === task.id}
+                style={{
+                  padding: "4px 8px", borderRadius: 7, fontSize: 12, fontWeight: 600,
+                  background: `${sc}12`, color: sc, border: `1px solid ${sc}33`,
+                  cursor: "pointer", outline: "none", flexShrink: 0,
+                  colorScheme: "light",
+                }}>
+                {Object.entries(STATUS_LABEL_MAP).map(([v, l]) => (
+                  <option key={v} value={v}>{l}</option>
+                ))}
+              </select>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function AIBriefing({ tasks, myUser }: { tasks: any[]; myUser: any }) {
   const [briefing, setBriefing] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -89,6 +170,7 @@ export default function DashboardPage() {
   const supabase = createClient();
   const [myUser, setMyUser] = useState<any>(null);
   const [myTasks, setMyTasks] = useState<any[]>([]);
+  const [priorityTasks, setPriorityTasks] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [openDetail, setOpenDetail] = useState<string | null>(null);
@@ -130,6 +212,17 @@ export default function DashboardPage() {
     }
     const { data: projData } = await q;
     setProjects(projData ?? []);
+    // 우선순위 지정 업무 로드
+    if (!isViewer && authUser) {
+      const { data: pt } = await supabase.from("tasks")
+        .select("*, project:projects(name)")
+        .or(`assignee_id.eq.${authUser.userId},assignee_ids.cs.{${authUser.userId}}`)
+        .neq("status", "done")
+        .not("priority_order", "is", null)
+        .order("priority_order", { ascending: true });
+      setPriorityTasks(pt ?? []);
+    }
+
     setLoading(false);
   }, []);
 
@@ -194,6 +287,11 @@ export default function DashboardPage() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* 🎯 집중 업무 카드 - 리더가 우선순위 지정한 경우만 표시 */}
+      {!isViewer && priorityTasks.length > 0 && (
+        <FocusTasks tasks={priorityTasks} onRefresh={load} />
       )}
 
       {/* AI 브리핑 */}
