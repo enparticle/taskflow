@@ -1,4 +1,4 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
@@ -7,18 +7,17 @@ import TaskDetail from "@/components/tasks/TaskDetail";
 
 type ViewMode = "week" | "month";
 
-const EVENT_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
-  personal:  { label: "개인",  color: "#a78bfa" },
-  vacation:  { label: "연차",  color: "#34d399" },
-  holiday:   { label: "휴일",  color: "#f87171" },
-  meeting:   { label: "미팅",  color: "#60a5fa" },
-  deadline:  { label: "마감",  color: "#fbbf24" },
+const EVENT_TYPE_CONFIG = {
+  personal: { label: "개인",  color: "#7C3AED" },
+  vacation: { label: "연차",  color: "#16A34A" },
+  holiday:  { label: "휴일",  color: "#DC2626" },
+  meeting:  { label: "미팅",  color: "#2563EB" },
+  deadline: { label: "마감",  color: "#D97706" },
 };
-
 const DAYS = ["일","월","화","수","목","금","토"];
 
 function isSameDay(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
 }
 function dateInRange(date: Date, start: Date, end: Date) {
   return date >= start && date <= end;
@@ -47,7 +46,6 @@ export default function CalendarPage() {
     setMyUser(u);
     const viewer = u?.role === "viewer";
     setIsViewer(viewer);
-
     if (viewer) {
       const { data } = await supabase.from("calendar_events")
         .select("*, user:users(name)").eq("is_public", true).order("start_date");
@@ -59,13 +57,9 @@ export default function CalendarPage() {
         .order("start_date");
       setEvents(data ?? []);
     }
-
-    // show_on_calendar = true인 업무만 표시
     const { data } = await supabase.from("tasks")
       .select("id, title, status, due_date, task_type, project:projects(name)")
-      .not("due_date", "is", null)
-      .neq("status", "done")
-      .eq("show_on_calendar", true);
+      .not("due_date", "is", null).neq("status", "done").eq("show_on_calendar", true);
     setTasks(data ?? []);
   }, []);
 
@@ -75,19 +69,13 @@ export default function CalendarPage() {
     const result: any[] = [];
     events.forEach(ev => {
       if (!ev.start_date) return;
-      const start = new Date(ev.start_date);
-      const end = ev.end_date ? new Date(ev.end_date) : new Date(ev.start_date);
-      end.setHours(23, 59, 59, 999);
-      start.setHours(0, 0, 0, 0);
-      if (isSameDay(date, start) || dateInRange(date, start, end)) {
-        result.push({ ...ev, _type: "event" });
-      }
+      const start = new Date(ev.start_date); start.setHours(0,0,0,0);
+      const end = ev.end_date ? new Date(ev.end_date) : new Date(ev.start_date); end.setHours(23,59,59,999);
+      if (isSameDay(date, start) || dateInRange(date, start, end)) result.push({ ...ev, _type: "event" });
     });
     tasks.forEach(t => {
       if (!t.due_date) return;
-      if (isSameDay(date, new Date(t.due_date))) {
-        result.push({ ...t, _type: "task", type: t.task_type === "meeting" ? "meeting" : "deadline" });
-      }
+      if (isSameDay(date, new Date(t.due_date))) result.push({ ...t, _type: "task", type: "deadline" });
     });
     return result;
   }
@@ -95,23 +83,16 @@ export default function CalendarPage() {
   async function saveEvent() {
     if (!form.title.trim() || !form.start_date) return;
     const payload = {
-      user_id: myUser?.userId,
-      title: form.title, type: form.type,
+      user_id: myUser?.userId, title: form.title, type: form.type,
       start_date: form.start_date, end_date: form.end_date || form.start_date,
       all_day: form.all_day,
       start_time: form.all_day ? null : form.start_time || null,
       end_time: form.all_day ? null : form.end_time || null,
-      description: form.description || null,
-      is_public: form.is_public,
-      color: form.color || null,
+      description: form.description || null, is_public: form.is_public, color: form.color || null,
     };
-    if (editEvent) {
-      await supabase.from("calendar_events").update(payload).eq("id", editEvent.id);
-    } else {
-      await supabase.from("calendar_events").insert(payload);
-    }
-    closeForm();
-    await load();
+    if (editEvent) await supabase.from("calendar_events").update(payload).eq("id", editEvent.id);
+    else await supabase.from("calendar_events").insert(payload);
+    closeForm(); await load();
   }
 
   async function deleteEvent(id: string) {
@@ -153,19 +134,27 @@ export default function CalendarPage() {
     return current.toLocaleDateString("ko-KR", { year: "numeric", month: "long" });
   }
 
-  const FS = { background: "var(--bg-3)", border: "1px solid var(--border-2)", color: "var(--text-1)", borderRadius: 8, padding: "6px 10px", fontSize: 13, width: "100%", outline: "none", colorScheme: "dark" as const };
+  const FS = {
+    background: "var(--bg-3)", border: "1px solid var(--border)",
+    color: "var(--text-1)", borderRadius: 8, padding: "7px 10px",
+    fontSize: 13, width: "100%", outline: "none", colorScheme: "light" as const,
+  };
 
   function EventChip({ ev, small = false }: { ev: any; small?: boolean }) {
     const cfg = EVENT_TYPE_CONFIG[ev.type] ?? EVENT_TYPE_CONFIG.personal;
     const color = ev.color || cfg.color;
     const isOwn = ev._type === "event" && ev.user_id === myUser?.userId;
     return (
-      <div className="rounded truncate cursor-pointer"
-        style={{ background: `${color}22`, color, border: `1px solid ${color}44`, padding: small ? "1px 4px" : "2px 6px", fontSize: small ? 9 : 10 }}
+      <div style={{
+        background: `${color}12`, color, border: `1px solid ${color}33`,
+        borderRadius: 4, padding: small ? "1px 5px" : "2px 6px",
+        fontSize: small ? 10 : 11, overflow: "hidden", whiteSpace: "nowrap",
+        textOverflow: "ellipsis", cursor: "pointer",
+      }}
         onClick={e => { e.stopPropagation(); ev._type === "task" ? setOpenDetail(ev.id) : openEditForm(ev); }}
         title={ev.title + (ev.user?.name && !isOwn ? ` (${ev.user.name})` : "")}>
         {ev._type === "task" ? "📌 " : ""}{ev.title}
-        {ev.user?.name && !isOwn && <span style={{ opacity: 0.7 }}> · {ev.user.name}</span>}
+        {ev.user?.name && !isOwn && <span style={{ opacity: 0.6 }}> · {ev.user.name}</span>}
       </div>
     );
   }
@@ -174,27 +163,30 @@ export default function CalendarPage() {
     const s = new Date(current); s.setDate(current.getDate() - current.getDay());
     const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(s); d.setDate(s.getDate() + i); return d; });
     return (
-      <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        <div className="grid grid-cols-7" style={{ background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
+      <div style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
           {days.map((d, i) => (
-            <div key={i} className="px-2 py-3 text-center">
-              <p className="text-xs" style={{ color: i===0?"#f87171":i===6?"#60a5fa":"var(--text-3)" }}>{DAYS[i]}</p>
-              <p className="text-sm font-bold mt-0.5 w-7 h-7 mx-auto rounded-full flex items-center justify-center"
-                style={{ background: isSameDay(d,today)?"var(--cyan)":"transparent", color: isSameDay(d,today)?"#0D1B2E":i===0?"#f87171":i===6?"#60a5fa":"var(--text-1)" }}>
-                {d.getDate()}
-              </p>
+            <div key={i} style={{ padding: "10px 8px", textAlign: "center" }}>
+              <p style={{ fontSize: 11, color: i===0?"#DC2626":i===6?"#2563EB":"var(--text-3)", marginBottom: 4 }}>{DAYS[i]}</p>
+              <div style={{ width: 28, height: 28, margin: "0 auto", borderRadius: "50%", background: isSameDay(d,today) ? "var(--cyan)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: isSameDay(d,today) ? "#fff" : i===0 ? "#DC2626" : i===6 ? "#2563EB" : "var(--text-1)" }}>{d.getDate()}</p>
+              </div>
             </div>
           ))}
         </div>
-        <div className="grid grid-cols-7">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
           {days.map((d, i) => {
             const dayEvs = getEventsForDay(d);
             return (
-              <div key={i} className="p-1.5 space-y-1 min-h-32 cursor-pointer"
-                style={{ borderRight: i<6?"1px solid var(--border)":"none", background: isSameDay(d,today)?"rgba(34,211,238,0.03)":"var(--bg-2)" }}
+              <div key={i} style={{
+                padding: 6, minHeight: 120, cursor: "pointer",
+                borderRight: i<6 ? "1px solid var(--border)" : "none",
+                background: isSameDay(d,today) ? "rgba(37,99,235,0.03)" : "var(--bg-2)",
+                display: "flex", flexDirection: "column", gap: 3,
+              }}
                 onClick={() => !isViewer && openNewForm(d.toISOString().slice(0,10))}>
                 {dayEvs.slice(0,4).map((ev,j) => <EventChip key={j} ev={ev} />)}
-                {dayEvs.length>4 && <p className="text-xs px-1" style={{color:"var(--text-3)"}}>+{dayEvs.length-4}개</p>}
+                {dayEvs.length>4 && <p style={{ fontSize: 10, color: "var(--text-3)", padding: "0 2px" }}>+{dayEvs.length-4}개</p>}
               </div>
             );
           })}
@@ -207,35 +199,36 @@ export default function CalendarPage() {
     const year = current.getFullYear(), month = current.getMonth();
     const firstDay = new Date(year,month,1).getDay();
     const daysInMonth = new Date(year,month+1,0).getDate();
-    const cells: (Date|null)[] = [
-      ...Array(firstDay).fill(null),
-      ...Array.from({length:daysInMonth},(_,i)=>new Date(year,month,i+1)),
-    ];
+    const cells: (Date|null)[] = [...Array(firstDay).fill(null), ...Array.from({length:daysInMonth},(_,i)=>new Date(year,month,i+1))];
     while (cells.length%7!==0) cells.push(null);
     return (
-      <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-        <div className="grid grid-cols-7" style={{ background:"var(--bg-3)", borderBottom:"1px solid var(--border)" }}>
-          {DAYS.map((d,i)=>(
-            <div key={i} className="px-2 py-2 text-center text-xs font-medium"
-              style={{color:i===0?"#f87171":i===6?"#60a5fa":"var(--text-3)"}}>{d}</div>
+      <div style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
+          {DAYS.map((d,i) => (
+            <div key={i} style={{ padding: "8px 0", textAlign: "center", fontSize: 11, fontWeight: 500, color: i===0?"#DC2626":i===6?"#2563EB":"var(--text-3)" }}>{d}</div>
           ))}
         </div>
-        <div className="grid grid-cols-7">
-          {cells.map((d,i)=>{
-            if (!d) return <div key={i} style={{background:"var(--bg-3)",borderRight:"1px solid var(--border)",borderBottom:"1px solid var(--border)",minHeight:80}} />;
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
+          {cells.map((d,i) => {
+            if (!d) return <div key={i} style={{ background: "var(--bg-3)", borderRight: "1px solid var(--border)", borderBottom: "1px solid var(--border)", minHeight: 80 }} />;
             const dayEvs = getEventsForDay(d);
             const col = i%7;
             const isToday = isSameDay(d,today);
             return (
-              <div key={i} className="p-1 min-h-20 cursor-pointer"
-                style={{background:isToday?"rgba(34,211,238,0.04)":"var(--bg-2)",borderRight:col<6?"1px solid var(--border)":"none",borderBottom:"1px solid var(--border)"}}
-                onClick={()=>!isViewer&&openNewForm(d.toISOString().slice(0,10))}>
-                <p className="text-xs w-5 h-5 rounded-full flex items-center justify-center mb-0.5 font-medium"
-                  style={{background:isToday?"var(--cyan)":"transparent",color:isToday?"#0D1B2E":col===0?"#f87171":col===6?"#60a5fa":"var(--text-2)"}}>
-                  {d.getDate()}
-                </p>
-                {dayEvs.slice(0,3).map((ev,j)=><EventChip key={j} ev={ev} small />)}
-                {dayEvs.length>3&&<p style={{fontSize:9,color:"var(--text-3)"}}>+{dayEvs.length-3}</p>}
+              <div key={i} style={{
+                padding: 4, minHeight: 80, cursor: "pointer",
+                background: isToday ? "rgba(37,99,235,0.03)" : "var(--bg-2)",
+                borderRight: col<6 ? "1px solid var(--border)" : "none",
+                borderBottom: "1px solid var(--border)",
+              }}
+                onClick={() => !isViewer && openNewForm(d.toISOString().slice(0,10))}>
+                <div style={{ width: 22, height: 22, borderRadius: "50%", background: isToday ? "var(--cyan)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 2 }}>
+                  <p style={{ fontSize: 11, fontWeight: 500, color: isToday ? "#fff" : col===0 ? "#DC2626" : col===6 ? "#2563EB" : "var(--text-2)" }}>{d.getDate()}</p>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  {dayEvs.slice(0,3).map((ev,j) => <EventChip key={j} ev={ev} small />)}
+                  {dayEvs.length>3 && <p style={{ fontSize: 9, color: "var(--text-3)" }}>+{dayEvs.length-3}</p>}
+                </div>
               </div>
             );
           })}
@@ -245,128 +238,130 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="max-w-6xl space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-2">
-          <div className="w-1 h-5 rounded-full" style={{background:"var(--cyan)"}} />
-          <h1 className="text-xl font-bold" style={{color:"var(--text-1)"}}>캘린더</h1>
-          <span className="text-xs px-2 py-0.5 rounded-full" style={{background:"var(--bg-3)",color:"var(--text-3)"}}>
+    <div style={{ maxWidth: 1100, display: "flex", flexDirection: "column", gap: 14 }}>
+
+      {/* 헤더 */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 3, height: 18, background: "var(--cyan)", borderRadius: 2 }} />
+          <h1 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-1)", margin: 0 }}>캘린더</h1>
+          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: "var(--bg-3)", color: "var(--text-3)", border: "1px solid var(--border)" }}>
             {isViewer ? "전체 공개 일정" : "내 일정 + 팀 공개"}
           </span>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex gap-1 p-1 rounded-xl" style={{background:"var(--bg-2)",border:"1px solid var(--border)"}}>
-            {(["week","month"] as ViewMode[]).map(v=>(
-              <button key={v} onClick={()=>setView(v)}
-                className="rounded-lg px-3 py-1.5 text-xs font-medium transition-all"
-                style={{background:view===v?"var(--bg-4)":"transparent",color:view===v?"var(--text-1)":"var(--text-3)",border:view===v?"1px solid var(--border-2)":"1px solid transparent"}}>
-                {v==="week"?"주별":"월별"}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {/* 주별/월별 토글 */}
+          <div style={{ display: "flex", gap: 2, padding: 3, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 10 }}>
+            {(["week","month"] as ViewMode[]).map(v => (
+              <button key={v} onClick={() => setView(v)}
+                style={{ padding: "4px 12px", borderRadius: 7, fontSize: 12, fontWeight: 500, border: "none", cursor: "pointer", background: view===v ? "var(--bg-4)" : "transparent", color: view===v ? "var(--text-1)" : "var(--text-3)" }}>
+                {v === "week" ? "주별" : "월별"}
               </button>
             ))}
           </div>
-          <button onClick={()=>navigate(-1)} className="rounded-lg px-3 py-1.5 text-sm" style={{background:"var(--bg-2)",color:"var(--text-2)",border:"1px solid var(--border)"}}>‹</button>
-          <button onClick={()=>setCurrent(new Date())} className="rounded-lg px-3 py-1.5 text-xs" style={{background:"var(--bg-2)",color:"var(--text-2)",border:"1px solid var(--border)"}}>오늘</button>
-          <button onClick={()=>navigate(1)} className="rounded-lg px-3 py-1.5 text-sm" style={{background:"var(--bg-2)",color:"var(--text-2)",border:"1px solid var(--border)"}}>›</button>
-          <p className="text-sm font-semibold" style={{color:"var(--text-1)"}}>{getTitle()}</p>
+          <button onClick={() => navigate(-1)} style={{ padding: "5px 12px", background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 7, fontSize: 16, color: "var(--text-2)", cursor: "pointer" }}>‹</button>
+          <button onClick={() => setCurrent(new Date())} style={{ padding: "5px 12px", background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 7, fontSize: 12, color: "var(--text-2)", cursor: "pointer" }}>오늘</button>
+          <button onClick={() => navigate(1)} style={{ padding: "5px 12px", background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 7, fontSize: 16, color: "var(--text-2)", cursor: "pointer" }}>›</button>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)" }}>{getTitle()}</span>
           {!isViewer && (
-            <button onClick={()=>openNewForm(today.toISOString().slice(0,10))}
-              className="rounded-xl px-4 py-2 text-sm font-semibold ml-1"
-              style={{background:"linear-gradient(135deg, var(--cyan), #2E86FF)",color:"#fff"}}>
+            <button onClick={() => openNewForm(today.toISOString().slice(0,10))}
+              style={{ padding: "7px 14px", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer" }}>
               + 일정 추가
             </button>
           )}
         </div>
       </div>
 
-      <div className="flex items-center gap-3 flex-wrap">
-        {Object.entries(EVENT_TYPE_CONFIG).map(([k,v])=>(
-          <div key={k} className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-sm" style={{background:v.color}} />
-            <span className="text-xs" style={{color:"var(--text-3)"}}>{v.label}</span>
+      {/* 범례 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+        {Object.entries(EVENT_TYPE_CONFIG).map(([k,v]) => (
+          <div key={k} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <div style={{ width: 10, height: 10, borderRadius: 3, background: v.color }} />
+            <span style={{ fontSize: 11, color: "var(--text-3)" }}>{v.label}</span>
           </div>
         ))}
-        <span className="text-xs" style={{color:"var(--text-3)"}}>· 업무는 상세에서 캘린더 표시 설정 가능</span>
+        <span style={{ fontSize: 11, color: "var(--text-3)" }}>· 업무는 상세에서 캘린더 표시 설정 가능</span>
       </div>
 
-      {view==="week" ? <WeekView /> : <MonthView />}
+      {view === "week" ? <WeekView /> : <MonthView />}
 
+      {/* 일정 추가/수정 모달 */}
       {showForm && !isViewer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{background:"rgba(0,0,0,0.6)"}} onClick={closeForm}>
-          <div className="w-full max-w-md rounded-2xl p-6 space-y-4"
-            style={{background:"var(--bg-2)",border:"1px solid var(--border-2)"}}
-            onClick={e=>e.stopPropagation()}>
-            <h2 className="text-sm font-bold" style={{color:"var(--text-1)"}}>{editEvent?"일정 수정":"새 일정"}</h2>
-            <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="일정 제목" style={FS} />
-            <div className="grid grid-cols-2 gap-3">
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.3)" }}
+          onClick={closeForm}>
+          <div style={{ width: "100%", maxWidth: 440, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 14, padding: 24, display: "flex", flexDirection: "column", gap: 14 }}
+            onClick={e => e.stopPropagation()}>
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)", margin: 0 }}>{editEvent ? "일정 수정" : "새 일정"}</h2>
+            <input value={form.title} onChange={e => setForm(f=>({...f,title:e.target.value}))} placeholder="일정 제목" style={FS} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
-                <label className="text-xs mb-1 block" style={{color:"var(--text-3)"}}>유형</label>
-                <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} style={FS}>
-                  {Object.entries(EVENT_TYPE_CONFIG).map(([k,v])=>(
-                    <option key={k} value={k}>{v.label}</option>
-                  ))}
+                <label style={{ fontSize: 11, color: "var(--text-3)", display: "block", marginBottom: 5 }}>유형</label>
+                <select value={form.type} onChange={e => setForm(f=>({...f,type:e.target.value}))} style={FS}>
+                  {Object.entries(EVENT_TYPE_CONFIG).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs mb-1 block" style={{color:"var(--text-3)"}}>색상</label>
-                <input type="color" value={form.color||EVENT_TYPE_CONFIG[form.type]?.color||"#60a5fa"}
-                  onChange={e=>setForm(f=>({...f,color:e.target.value}))}
-                  className="w-full h-9 rounded-lg cursor-pointer"
-                  style={{background:"var(--bg-3)",border:"1px solid var(--border-2)",padding:2}} />
+                <label style={{ fontSize: 11, color: "var(--text-3)", display: "block", marginBottom: 5 }}>색상</label>
+                <input type="color" value={form.color||EVENT_TYPE_CONFIG[form.type]?.color||"#2563EB"}
+                  onChange={e => setForm(f=>({...f,color:e.target.value}))}
+                  style={{ width: "100%", height: 36, borderRadius: 8, border: "1px solid var(--border)", padding: 2, cursor: "pointer", background: "var(--bg-3)" }} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
-                <label className="text-xs mb-1 block" style={{color:"var(--text-3)"}}>시작일</label>
-                <input type="date" value={form.start_date} onChange={e=>setForm(f=>({...f,start_date:e.target.value}))} style={FS} />
+                <label style={{ fontSize: 11, color: "var(--text-3)", display: "block", marginBottom: 5 }}>시작일</label>
+                <input type="date" value={form.start_date} onChange={e => setForm(f=>({...f,start_date:e.target.value}))} style={FS} />
               </div>
               <div>
-                <label className="text-xs mb-1 block" style={{color:"var(--text-3)"}}>종료일</label>
-                <input type="date" value={form.end_date} onChange={e=>setForm(f=>({...f,end_date:e.target.value}))} style={FS} />
+                <label style={{ fontSize: 11, color: "var(--text-3)", display: "block", marginBottom: 5 }}>종료일</label>
+                <input type="date" value={form.end_date} onChange={e => setForm(f=>({...f,end_date:e.target.value}))} style={FS} />
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 cursor-pointer text-xs" style={{color:"var(--text-2)"}}>
-                <input type="checkbox" checked={form.all_day} onChange={e=>setForm(f=>({...f,all_day:e.target.checked}))} />
+            <div style={{ display: "flex", gap: 20 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-2)", cursor: "pointer" }}>
+                <input type="checkbox" checked={form.all_day} onChange={e => setForm(f=>({...f,all_day:e.target.checked}))} />
                 하루 종일
               </label>
-              <label className="flex items-center gap-2 cursor-pointer text-xs" style={{color:"var(--text-2)"}}>
-                <input type="checkbox" checked={form.is_public} onChange={e=>setForm(f=>({...f,is_public:e.target.checked}))} />
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-2)", cursor: "pointer" }}>
+                <input type="checkbox" checked={form.is_public} onChange={e => setForm(f=>({...f,is_public:e.target.checked}))} />
                 팀 공개
               </label>
             </div>
             {!form.all_day && (
-              <div className="grid grid-cols-2 gap-3">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
-                  <label className="text-xs mb-1 block" style={{color:"var(--text-3)"}}>시작 시간</label>
-                  <input type="time" value={form.start_time} onChange={e=>setForm(f=>({...f,start_time:e.target.value}))} style={FS} />
+                  <label style={{ fontSize: 11, color: "var(--text-3)", display: "block", marginBottom: 5 }}>시작 시간</label>
+                  <input type="time" value={form.start_time} onChange={e => setForm(f=>({...f,start_time:e.target.value}))} style={FS} />
                 </div>
                 <div>
-                  <label className="text-xs mb-1 block" style={{color:"var(--text-3)"}}>종료 시간</label>
-                  <input type="time" value={form.end_time} onChange={e=>setForm(f=>({...f,end_time:e.target.value}))} style={FS} />
+                  <label style={{ fontSize: 11, color: "var(--text-3)", display: "block", marginBottom: 5 }}>종료 시간</label>
+                  <input type="time" value={form.end_time} onChange={e => setForm(f=>({...f,end_time:e.target.value}))} style={FS} />
                 </div>
               </div>
             )}
-            <textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))}
-              placeholder="메모 (선택)" rows={2} style={{...FS,resize:"none"}} />
-            <div className="flex gap-2">
+            <textarea value={form.description} onChange={e => setForm(f=>({...f,description:e.target.value}))}
+              placeholder="메모 (선택)" rows={2} style={{ ...FS, resize: "none" }} />
+            <div style={{ display: "flex", gap: 8 }}>
               <button onClick={saveEvent} disabled={!form.title.trim()||!form.start_date}
-                className="flex-1 rounded-xl py-2.5 text-sm font-semibold disabled:opacity-40"
-                style={{background:"linear-gradient(135deg, var(--cyan), #2E86FF)",color:"#fff"}}>
-                {editEvent?"수정":"저장"}
+                style={{ flex: 1, padding: "9px 0", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer", opacity: !form.title.trim()||!form.start_date ? 0.4 : 1 }}>
+                {editEvent ? "수정" : "저장"}
               </button>
               {editEvent && editEvent.user_id === myUser?.userId && (
-                <button onClick={()=>deleteEvent(editEvent.id)}
-                  className="rounded-xl px-4 py-2.5 text-sm"
-                  style={{background:"rgba(248,113,113,0.1)",color:"#f87171"}}>삭제</button>
+                <button onClick={() => deleteEvent(editEvent.id)}
+                  style={{ padding: "9px 16px", background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 8, fontSize: 13, color: "#DC2626", cursor: "pointer" }}>
+                  삭제
+                </button>
               )}
-              <button onClick={closeForm} className="rounded-xl px-4 py-2.5 text-sm"
-                style={{background:"var(--bg-3)",color:"var(--text-2)"}}>취소</button>
+              <button onClick={closeForm}
+                style={{ padding: "9px 16px", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, color: "var(--text-2)", cursor: "pointer" }}>
+                취소
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {openDetail && <TaskDetail taskId={openDetail} onClose={()=>setOpenDetail(null)} onRefresh={()=>{setOpenDetail(null);load();}} />}
+      {openDetail && <TaskDetail taskId={openDetail} onClose={() => setOpenDetail(null)} onRefresh={() => { setOpenDetail(null); load(); }} />}
     </div>
   );
 }
