@@ -1,4 +1,4 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { getAuthUser, getProjectRole, canDeleteTask } from "@/lib/auth";
@@ -18,18 +18,22 @@ type T = Task & {
 };
 
 const STATUS: Record<TaskStatus, { label: string; color: string; bg: string }> = {
-  backlog: { label: "백로그",  color: "#4A7099", bg: "rgba(74,112,153,0.15)" },
-  todo:    { label: "할 일",   color: "#7BA7C8", bg: "rgba(123,167,200,0.12)" },
-  doing:   { label: "진행 중", color: "#2E86FF", bg: "rgba(46,134,255,0.15)" },
-  blocked: { label: "Blocked", color: "#f87171", bg: "rgba(248,113,113,0.15)" },
-  review:  { label: "리뷰",    color: "#fbbf24", bg: "rgba(251,191,36,0.15)" },
-  done:    { label: "완료",    color: "#34d399", bg: "rgba(52,211,153,0.15)" },
+  backlog: { label: "백로그",  color: "#6B7280", bg: "rgba(107,114,128,0.10)" },
+  todo:    { label: "할 일",   color: "#2563EB", bg: "rgba(37,99,235,0.10)" },
+  doing:   { label: "진행 중", color: "#2563EB", bg: "rgba(37,99,235,0.10)" },
+  blocked: { label: "Blocked", color: "#DC2626", bg: "rgba(220,38,38,0.10)" },
+  review:  { label: "리뷰",    color: "#D97706", bg: "rgba(217,119,6,0.10)" },
+  done:    { label: "완료",    color: "#16A34A", bg: "rgba(22,163,74,0.10)" },
 };
 const PRIORITY: Record<string, { label: string; color: string }> = {
-  low: { label: "낮음", color: "#4A7099" }, medium: { label: "보통", color: "#7BA7C8" },
-  high: { label: "높음", color: "#fbbf24" }, urgent: { label: "긴급", color: "#f87171" },
+  low:    { label: "낮음", color: "#6B7280" },
+  medium: { label: "보통", color: "#2563EB" },
+  high:   { label: "높음", color: "#D97706" },
+  urgent: { label: "긴급", color: "#DC2626" },
 };
-const DIFFICULTY: Record<string, string> = { low: "낮음", medium: "보통", high: "높음", very_high: "매우 높음" };
+const DIFFICULTY: Record<string, string> = {
+  low: "낮음", medium: "보통", high: "높음", very_high: "매우 높음",
+};
 const TYPE_LABEL: Record<string, string> = {
   planning: "기획", design: "디자인", development: "개발", qa: "QA",
   operation: "운영", documentation: "문서화", meeting: "미팅",
@@ -37,18 +41,20 @@ const TYPE_LABEL: Record<string, string> = {
 };
 const STATUS_LIST = ["backlog","todo","doing","blocked","review","done"] as TaskStatus[];
 
+const FS = {
+  background: "var(--bg-3)", border: "1px solid var(--border)",
+  color: "var(--text-1)", borderRadius: 8, padding: "7px 10px",
+  fontSize: 13, width: "100%", outline: "none", colorScheme: "light" as const,
+};
+
 function getUserColor(userId: string): string {
-  const COLORS = ["#60a5fa","#34d399","#fbbf24","#f87171","#a78bfa","#fb923c","#22d3ee","#e879f9","#4ade80","#f43f5e","#818cf8","#2dd4bf"];
+  const COLORS = ["#2563EB","#16A34A","#D97706","#DC2626","#7C3AED","#0891B2","#D946EF","#EA580C","#65A30D","#6B7280"];
   if (!userId) return COLORS[0];
   let hash = 0;
   for (let i = 0; i < userId.length; i++) { hash = ((hash << 5) - hash) + userId.charCodeAt(i); hash |= 0; }
   return COLORS[Math.abs(hash) % COLORS.length];
 }
 
-function fmt(d: string | null) {
-  if (!d) return "-";
-  return new Date(d).toLocaleDateString("ko-KR", { year: "numeric", month: "short", day: "numeric" });
-}
 function fmtDT(d: string | null) {
   if (!d) return "-";
   return new Date(d).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -61,10 +67,9 @@ function Section({ title, defaultOpen = true, children }: { title: string; defau
   return (
     <div>
       <button onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between mb-2 py-1"
-        style={{ borderBottom: "1px solid var(--border)" }}>
-        <p className="text-xs font-semibold" style={{ color: "var(--text-3)" }}>{title}</p>
-        <span className="text-xs" style={{ color: "var(--text-3)" }}>{open ? "▾" : "▸"}</span>
+        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", marginBottom: open ? 8 : 0, borderBottom: "1px solid var(--border)", background: "transparent", border: "none", borderBottom: "1px solid var(--border)", cursor: "pointer" }}>
+        <p style={{ fontSize: 11, fontWeight: 600, color: "var(--text-3)", margin: 0, textTransform: "uppercase", letterSpacing: "0.05em" }}>{title}</p>
+        <span style={{ fontSize: 11, color: "var(--text-3)" }}>{open ? "▾" : "▸"}</span>
       </button>
       {open && children}
     </div>
@@ -144,8 +149,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
 
     const { data: evs } = await supabase.from("task_events")
       .select("*, changed_by_user:users!task_events_changed_by_fkey(name)")
-      .eq("task_id", taskId)
-      .order("changed_at", { ascending: false }).limit(10);
+      .eq("task_id", taskId).order("changed_at", { ascending: false }).limit(10);
     setEvents(evs ?? []);
 
     setTask(data);
@@ -156,8 +160,7 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
     if (authUser) {
       setMyUser(authUser);
       const projRole = (data as any)?.project_id
-        ? await getProjectRole((data as any).project_id, authUser.userId)
-        : null;
+        ? await getProjectRole((data as any).project_id, authUser.userId) : null;
       const ids = (data as any)?.assignee_ids ?? [];
       const isAssignee = ids.includes(authUser.userId) || (data as any)?.assignee_id === authUser.userId;
       setCanDelete(canDeleteTask(authUser.role, projRole));
@@ -170,22 +173,6 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
   async function update(field: string, value: any) {
     const prev = (task as any)?.[field];
     await supabase.from("tasks").update({ [field]: value, last_updated_by: myUser?.userId ?? null }).eq("id", taskId);
-
-    if (field === "task_type" && prev !== value) {
-      await supabase.from("task_events").insert({
-        task_id: taskId, event_type: "type_change",
-        changed_by: myUser?.userId ?? null,
-        metadata: { from: prev, to: value },
-      });
-    }
-    if (field === "assignee_id" && prev !== value) {
-      await supabase.from("task_events").insert({
-        task_id: taskId, event_type: "assignee_change",
-        changed_by: myUser?.userId ?? null,
-        metadata: { from: prev, to: value },
-      });
-    }
-
     if (field === "due_date" && prev !== value && assigneeIds.length > 0) {
       const newDate = value ? new Date(value).toLocaleDateString("ko-KR", { month: "short", day: "numeric" }) : "미정";
       for (const uid of assigneeIds) {
@@ -193,12 +180,10 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
         await supabase.from("notifications").insert({
           user_id: uid, type: "deadline",
           title: `마감일이 ${newDate}으로 변경됐습니다`,
-          body: (task as any)?.title ?? "업무",
-          task_id: taskId,
+          body: (task as any)?.title ?? "업무", task_id: taskId,
         });
       }
     }
-
     await loadTask(); setEditing(null);
   }
 
@@ -226,97 +211,87 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
       blocked_reason: newStatus === "blocked" ? (reason ?? null) : null,
       last_updated_by: myUser?.userId ?? null,
     }).eq("id", taskId);
-
     await supabase.from("task_events").insert({
       task_id: taskId, event_type: "status_change",
       from_status: task?.status, to_status: newStatus,
       changed_by: myUser?.userId ?? null,
       reason: newStatus === "blocked" ? reason : null,
     });
-
     await loadTask();
     setShowStatusMenu(false); setShowBlockedInput(false); setBlockedReason("");
   }
 
   if (loading || !task) {
     return (
-      <div className="fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(0,0,0,0.5)" }}>
-        <div className="h-full w-full max-w-xl flex items-center justify-center"
-          style={{ background: "var(--bg-2)", borderLeft: "1px solid var(--border)" }}>
-          <p style={{ color: "var(--text-3)" }}>불러오는 중…</p>
+      <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", justifyContent: "flex-end", background: "rgba(0,0,0,0.3)" }}>
+        <div style={{ height: "100%", width: "100%", maxWidth: 560, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg-2)", borderLeft: "1px solid var(--border)" }}>
+          <p style={{ color: "var(--text-3)", fontSize: 13 }}>불러오는 중…</p>
         </div>
       </div>
     );
   }
 
-  const s = STATUS[task.status] ?? { label: task.status, color: "#7BA7C8", bg: "rgba(123,167,200,0.12)" };
-  const p = PRIORITY[task.priority] ?? { label: task.priority, color: "#7BA7C8" };
+  const s = STATUS[task.status] ?? { label: task.status, color: "#6B7280", bg: "rgba(107,114,128,0.10)" };
+  const p = PRIORITY[task.priority] ?? { label: task.priority, color: "#6B7280" };
   const isOverdue = task.due_date && task.status !== "done" && new Date(task.due_date) < new Date();
   const selectedUsers = allUsers.filter(u => assigneeIds.includes(u.id));
 
   const EVENT_LABEL: Record<string, (ev: any) => string> = {
     status_change: ev => `상태: ${STATUS[ev.from_status]?.label ?? ev.from_status} → ${STATUS[ev.to_status]?.label ?? ev.to_status}`,
-    type_change: ev => `유형: ${TYPE_LABEL[ev.metadata?.from] ?? ev.metadata?.from} → ${TYPE_LABEL[ev.metadata?.to] ?? ev.metadata?.to}`,
+    type_change: ev => `유형 변경`,
     assignee_change: ev => "담당자 변경",
   };
 
   const panel = (
-    <div className="fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(0,0,0,0.5)" }}
+    <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", justifyContent: "flex-end", background: "rgba(0,0,0,0.25)" }}
       onClick={onClose}>
       <div ref={panelRef}
-        className="h-full w-full max-w-xl flex flex-col overflow-hidden"
-        onClick={e => e.stopPropagation()}
-        style={{ background: "var(--bg-2)", borderLeft: "1px solid var(--border-2)" }}>
+        style={{ height: "100%", width: "100%", maxWidth: 560, display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--bg-2)", borderLeft: "1px solid var(--border)" }}
+        onClick={e => e.stopPropagation()}>
 
         {/* 헤더 */}
-        <div className="flex items-center justify-between px-6 py-4 shrink-0"
-          style={{ borderBottom: "1px solid var(--border)", borderLeft: `3px solid ${s.color}` }}>
-          <div className="flex items-center gap-2">
-            <span className="text-xs px-2.5 py-1 rounded-md font-semibold" style={{ background: s.bg, color: s.color }}>{s.label}</span>
-            <span className="text-xs px-2 py-0.5 rounded-md" style={{ background: "var(--bg-3)", color: "var(--text-3)" }}>
-              {TYPE_LABEL[task.task_type] ?? task.task_type}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: "1px solid var(--border)", borderLeft: `3px solid ${s.color}`, flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 6, fontWeight: 600, background: s.bg, color: s.color }}>{s.label}</span>
+            <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, background: "var(--bg-3)", color: "var(--text-3)", border: "1px solid var(--border)" }}>
+              {TYPE_LABEL[(task as any).task_type] ?? (task as any).task_type}
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {canDelete && (
               <button onClick={async () => {
                 if (!confirm("이 업무를 삭제할까요?")) return;
                 await supabase.from("tasks").delete().eq("id", taskId);
                 onRefresh();
-              }} className="text-xs px-3 py-1.5 rounded-lg transition-all"
-                style={{ background: "rgba(248,113,113,0.08)", color: "#f87171", border: "1px solid rgba(248,113,113,0.2)" }}>
+              }} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 7, background: "#FEF2F2", color: "#DC2626", border: "1px solid #FCA5A5", cursor: "pointer" }}>
                 삭제
               </button>
             )}
-            <button onClick={onClose} className="text-lg" style={{ color: "var(--text-3)" }}>✕</button>
+            <button onClick={onClose} style={{ fontSize: 18, color: "var(--text-3)", background: "transparent", border: "none", cursor: "pointer" }}>✕</button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: 20 }}>
 
           {/* 제목 */}
           <div>
             {editing === "title" ? (
-              <div className="flex gap-2">
+              <div style={{ display: "flex", gap: 8 }}>
                 <input autoFocus value={editVal} onChange={e => setEditVal(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter") update("title", editVal); if (e.key === "Escape") setEditing(null); }}
-                  className="flex-1 rounded-lg px-3 py-2 text-base font-bold focus:outline-none"
-                  style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)", color: "var(--text-1)" }} />
-                <button onClick={() => update("title", editVal)} className="rounded-lg px-3 py-2 text-xs font-semibold"
-                  style={{ background: "var(--cyan-bg)", color: "var(--cyan)" }}>저장</button>
-                <button onClick={() => setEditing(null)} className="rounded-lg px-3 py-2 text-xs"
-                  style={{ background: "var(--bg-3)", color: "var(--text-3)" }}>취소</button>
+                  style={{ ...FS, flex: 1, fontSize: 16, fontWeight: 700 }} />
+                <button onClick={() => update("title", editVal)} style={{ padding: "6px 14px", background: "var(--cyan)", border: "none", borderRadius: 7, fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer" }}>저장</button>
+                <button onClick={() => setEditing(null)} style={{ padding: "6px 14px", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 7, fontSize: 12, color: "var(--text-2)", cursor: "pointer" }}>취소</button>
               </div>
             ) : (
-              <h2 className={`text-lg font-bold ${canEdit ? "cursor-pointer hover:opacity-80" : ""}`}
-                style={{ color: "var(--text-1)", textDecoration: task.status === "done" ? "line-through" : undefined }}
-                onClick={() => { if (canEdit) { setEditing("title"); setEditVal(task.title); } }}>
+              <h2 onClick={() => { if (canEdit) { setEditing("title"); setEditVal(task.title); } }}
+                style={{ fontSize: 18, fontWeight: 700, color: "var(--text-1)", margin: 0, cursor: canEdit ? "pointer" : "default", textDecoration: task.status === "done" ? "line-through" : undefined }}>
                 {task.title}
-                {canEdit && <span className="text-xs ml-1" style={{ color: "var(--text-3)" }}>✎</span>}
+                {canEdit && <span style={{ fontSize: 12, marginLeft: 6, color: "var(--text-3)" }}>✎</span>}
               </h2>
             )}
             {(task as any).last_updated_user?.name && (
-              <p className="text-xs mt-1" style={{ color: "var(--text-3)" }}>
+              <p style={{ fontSize: 11, color: "var(--text-3)", marginTop: 4 }}>
                 최종 수정: <span style={{ color: "var(--text-2)" }}>{(task as any).last_updated_user.name}</span>
               </p>
             )}
@@ -324,186 +299,96 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
 
           {/* 설명 */}
           <Section title="설명">
-            <div>
             {editing === "description" ? (
-              <div className="space-y-2">
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <textarea autoFocus value={descVal} onChange={e => setDescVal(e.target.value)} rows={4}
-                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none resize-none"
-                  style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)", color: "var(--text-1)" }} />
-                <div className="flex gap-2">
-                  <button onClick={() => update("description", descVal)} className="rounded-lg px-3 py-1.5 text-xs font-semibold"
-                    style={{ background: "var(--cyan-bg)", color: "var(--cyan)" }}>저장</button>
-                  <button onClick={() => setEditing(null)} className="rounded-lg px-3 py-1.5 text-xs"
-                    style={{ background: "var(--bg-3)", color: "var(--text-3)" }}>취소</button>
+                  style={{ ...FS, resize: "none" }} />
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => update("description", descVal)} style={{ padding: "6px 14px", background: "var(--cyan)", border: "none", borderRadius: 7, fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer" }}>저장</button>
+                  <button onClick={() => setEditing(null)} style={{ padding: "6px 14px", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 7, fontSize: 12, color: "var(--text-2)", cursor: "pointer" }}>취소</button>
                 </div>
               </div>
             ) : (
-              <p className={`text-sm rounded-lg px-3 py-2 ${canEdit ? "cursor-pointer hover:opacity-80" : ""}`}
-                style={{ color: task.description ? "var(--text-2)" : "var(--text-3)", background: "var(--bg-3)", border: "1px solid var(--border)" }}
-                onClick={() => { if (canEdit) { setEditing("description"); setDescVal((task as any).description ?? ""); } }}>
+              <p onClick={() => { if (canEdit) { setEditing("description"); setDescVal((task as any).description ?? ""); } }}
+                style={{ fontSize: 13, color: (task as any).description ? "var(--text-2)" : "var(--text-3)", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 12px", cursor: canEdit ? "pointer" : "default", margin: 0 }}>
                 {(task as any).description || (canEdit ? "설명 없음 — 클릭해서 입력" : "설명 없음")}
               </p>
             )}
-            </div>
           </Section>
 
           {/* 미팅 완료 버튼 */}
           {isMeeting && task.status !== "done" && canChangeStatus && (
             <button onClick={() => changeStatus("done" as any)}
-              className="w-full rounded-xl py-2.5 text-xs font-semibold transition-all"
-              style={{ background: "rgba(52,211,153,0.15)", color: "#34d399", border: "1px solid rgba(52,211,153,0.3)" }}>
+              style={{ width: "100%", padding: "10px 0", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 10, fontSize: 13, fontWeight: 600, color: "#16A34A", cursor: "pointer" }}>
               ✓ 미팅 완료 처리
             </button>
           )}
 
-          {/* 미팅 일정 선택 */}
-          {isMeeting && (
-            <div className="rounded-xl p-4" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-              <p className="text-xs font-semibold mb-3" style={{ color: "var(--text-3)" }}>미팅 일정 선택</p>
-              <MeetingPoll taskId={taskId} />
-            </div>
-          )}
-
-          {/* 회의록 연결 */}
-          {isMeeting && (
-            <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-medium" style={{ color: "var(--text-3)" }}>📝 회의록 연결</p>
-                <button onClick={() => setShowNotePicker(!showNotePicker)}
-                  className="text-xs px-2 py-1 rounded-lg"
-                  style={{ background: "var(--bg-4)", color: "var(--cyan)", border: "1px solid var(--border-2)" }}>
-                  {meetingNote ? "변경" : "+ 연결"}
-                </button>
-              </div>
-              {meetingNote ? (
-                <div className="rounded-lg p-2.5" style={{ background: "var(--bg-2)", border: "1px solid var(--border)" }}>
-                  <p className="text-xs font-medium mb-1" style={{ color: "var(--text-1)" }}>
-                    {meetingNote.result?.summary ?? "회의록"}
-                  </p>
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className="text-xs" style={{ color: "var(--text-3)" }}>
-                      {new Date(meetingNote.updated_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
-                    </span>
-                    {meetingNote.audio_path && (
-                      <button onClick={async () => {
-                        const { data } = await supabase.storage.from("meeting-recordings").download(meetingNote.audio_path);
-                        if (data) { const url = URL.createObjectURL(data); window.open(url); }
-                      }} className="text-xs" style={{ color: "#7BA7C8" }}>🎙 녹음 파일 듣기</button>
-                    )}
-                    {meetingNote.input_text && (
-                      <button onClick={() => {
-                        const w = window.open("", "_blank");
-                        if (w) { w.document.write(`<pre style="font-family:sans-serif;padding:20px;white-space:pre-wrap">${meetingNote.input_text}</pre>`); }
-                      }} className="text-xs" style={{ color: "var(--text-3)" }}>원문 텍스트 보기</button>
-                    )}
-                    <button onClick={() => linkMeetingNote(null)} className="text-xs" style={{ color: "#f87171" }}>연결 해제</button>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-xs" style={{ color: "var(--text-3)" }}>연결된 회의록이 없습니다</p>
-              )}
-              {showNotePicker && (
-                <div className="mt-2 rounded-xl overflow-hidden" style={{ border: "1px solid var(--border-2)", maxHeight: 200, overflowY: "auto" }}>
-                  {meetingNotes.length === 0 ? (
-                    <p className="text-xs p-3" style={{ color: "var(--text-3)" }}>저장된 회의록이 없습니다</p>
-                  ) : meetingNotes.map(n => (
-                    <button key={n.id} onClick={() => linkMeetingNote(n.id)}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 text-left"
-                      style={{ background: "var(--bg-2)", borderBottom: "1px solid var(--border)" }}
-                      onMouseEnter={e => { (e.currentTarget as any).style.background = "var(--bg-3)"; }}
-                      onMouseLeave={e => { (e.currentTarget as any).style.background = "var(--bg-2)"; }}>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs truncate" style={{ color: "var(--text-1)" }}>
-                          {n.result?.summary ?? n.input_text?.slice(0, 40) ?? "회의록"}
-                        </p>
-                        <p className="text-xs mt-0.5" style={{ color: "var(--text-3)" }}>
-                          {new Date(n.updated_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                          {n.audio_path && " · 녹음 있음"}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
           {/* 상태 */}
           <div>
-            <p className="text-xs font-medium mb-1.5" style={{ color: "var(--text-3)" }}>상태</p>
+            <p style={{ fontSize: 11, fontWeight: 600, color: "var(--text-3)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>상태</p>
             {canChangeStatus ? (
-              <div className="relative inline-block">
+              <div style={{ position: "relative", display: "inline-block" }}>
                 <button onClick={() => setShowStatusMenu(!showStatusMenu)}
-                  className="rounded-lg px-3 py-2 text-sm font-semibold"
-                  style={{ background: s.bg, color: s.color, border: `1px solid ${s.color}33` }}>
+                  style={{ padding: "7px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", background: s.bg, color: s.color, border: `1px solid ${s.color}33` }}>
                   {s.label} ▾
                 </button>
                 {showStatusMenu && !showBlockedInput && (
-                  <div className="absolute left-0 top-10 z-10 w-36 rounded-xl overflow-hidden shadow-2xl"
-                    style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)" }}>
+                  <div style={{ position: "absolute", left: 0, top: 40, zIndex: 10, width: 140, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden", boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
                     {STATUS_LIST.map(sv => (
                       <button key={sv} onClick={() => sv === "blocked" ? setShowBlockedInput(true) : changeStatus(sv)}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-xs font-medium"
-                        style={{ background: sv === task.status ? STATUS[sv].bg : "transparent", color: sv === task.status ? STATUS[sv].color : "var(--text-2)" }}
-                        onMouseEnter={e => { if (sv !== task.status) (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-4)"; }}
-                        onMouseLeave={e => { if (sv !== task.status) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}>
-                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: STATUS[sv].color }} />
-                        {STATUS[sv].label}
+                        style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 12px", fontSize: 12, fontWeight: 500, cursor: "pointer", border: "none", background: sv === task.status ? STATUS[sv]?.bg : "transparent", color: sv === task.status ? STATUS[sv]?.color : "var(--text-2)" }}
+                        onMouseEnter={e => { if (sv !== task.status) (e.currentTarget as any).style.background = "var(--bg-3)"; }}
+                        onMouseLeave={e => { if (sv !== task.status) (e.currentTarget as any).style.background = "transparent"; }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: STATUS[sv]?.color, flexShrink: 0 }} />
+                        {STATUS[sv]?.label}
                       </button>
                     ))}
                   </div>
                 )}
                 {showBlockedInput && (
-                  <div className="absolute left-0 top-10 z-10 w-72 rounded-xl p-3 shadow-2xl"
-                    style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)" }}>
-                    <p className="mb-2 text-xs font-semibold" style={{ color: "var(--text-1)" }}>Blocked 사유 *</p>
+                  <div style={{ position: "absolute", left: 0, top: 40, zIndex: 10, width: 280, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 10, padding: 12, boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-1)", marginBottom: 8 }}>Blocked 사유 *</p>
                     <textarea value={blockedReason} onChange={e => setBlockedReason(e.target.value)}
                       placeholder="왜 막혔는지 입력해주세요" rows={2} autoFocus
-                      className="w-full rounded-lg px-2.5 py-1.5 text-xs resize-none focus:outline-none"
-                      style={{ background: "var(--bg-4)", border: "1px solid var(--border-2)", color: "var(--text-1)" }} />
-                    <div className="mt-2 flex gap-2">
+                      style={{ ...FS, resize: "none", fontSize: 12, borderColor: "#FCA5A5" }} />
+                    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                       <button onClick={() => changeStatus("blocked", blockedReason)} disabled={!blockedReason.trim()}
-                        className="flex-1 rounded-lg py-1.5 text-xs font-semibold disabled:opacity-30"
-                        style={{ background: "#f87171", color: "#fff" }}>확인</button>
+                        style={{ flex: 1, padding: "6px 0", background: "#DC2626", border: "none", borderRadius: 7, fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer", opacity: blockedReason.trim() ? 1 : 0.3 }}>확인</button>
                       <button onClick={() => { setShowBlockedInput(false); setShowStatusMenu(false); }}
-                        className="flex-1 rounded-lg py-1.5 text-xs"
-                        style={{ background: "var(--bg-4)", color: "var(--text-2)" }}>취소</button>
+                        style={{ flex: 1, padding: "6px 0", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 7, fontSize: 12, color: "var(--text-2)", cursor: "pointer" }}>취소</button>
                     </div>
                   </div>
                 )}
               </div>
             ) : (
-              <span className="text-xs px-2.5 py-1 rounded-md font-semibold"
-                style={{ background: s.bg, color: s.color }}>{s.label}</span>
+              <span style={{ fontSize: 12, padding: "3px 10px", borderRadius: 6, fontWeight: 600, background: s.bg, color: s.color }}>{s.label}</span>
             )}
             {(task as any).blocked_reason && (
-              <p className="mt-2 text-xs px-3 py-2 rounded-lg"
-                style={{ background: "rgba(248,113,113,0.08)", color: "#f87171", border: "1px solid rgba(248,113,113,0.2)" }}>
+              <p style={{ marginTop: 8, fontSize: 12, padding: "8px 12px", borderRadius: 8, background: "#FEF2F2", color: "#DC2626", border: "1px solid #FCA5A5" }}>
                 사유: {(task as any).blocked_reason}
               </p>
             )}
           </div>
 
-          {/* 담당자 선택 */}
+          {/* 담당자 */}
           <div ref={assigneeRef}>
-            <p className="text-xs font-medium mb-1.5" style={{ color: "var(--text-3)" }}>담당자</p>
+            <p style={{ fontSize: 11, fontWeight: 600, color: "var(--text-3)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>담당자</p>
             <button type="button"
               onClick={e => { e.stopPropagation(); if (canEdit) setShowAssigneeMenu(v => !v); }}
-              className={`w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left ${canEdit ? "" : "cursor-default"}`}
-              style={{ background: "var(--bg-3)", border: "1px solid var(--border)", minHeight: 40 }}>
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, minHeight: 40, cursor: canEdit ? "pointer" : "default", textAlign: "left" }}>
               {selectedUsers.length === 0 ? (
-                <span style={{ color: "var(--text-3)", fontSize: 12 }}>담당자 없음</span>
+                <span style={{ fontSize: 12, color: "var(--text-3)" }}>담당자 없음</span>
               ) : (
-                <div className="flex flex-wrap gap-1.5 flex-1">
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, flex: 1 }}>
                   {selectedUsers.map(u => {
                     const color = getUserColor(u.id);
                     return (
-                      <span key={u.id} className="flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold"
-                        style={{ background: `${color}20`, color, border: `1px solid ${color}33` }}>
+                      <span key={u.id} style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 6, fontSize: 12, fontWeight: 600, background: `${color}12`, color, border: `1px solid ${color}30` }}>
                         {u.name}
                         {canEdit && (
                           <span onClick={e => { e.stopPropagation(); toggleAssignee(u.id); }}
-                            className="cursor-pointer hover:opacity-60 ml-0.5" style={{ fontSize: 10 }}>✕</span>
+                            style={{ cursor: "pointer", opacity: 0.6, fontSize: 10 }}>✕</span>
                         )}
                       </span>
                     );
@@ -512,28 +397,21 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
               )}
               <span style={{ color: "var(--text-3)", marginLeft: "auto", fontSize: 10 }}>▾</span>
             </button>
-
             {showAssigneeMenu && (
-              <div className="mt-1 rounded-xl overflow-hidden shadow-2xl"
-                style={{ background: "var(--bg-3)", border: "1px solid var(--border-2)" }}>
+              <div style={{ marginTop: 4, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.08)" }}>
                 {allUsers.map(u => {
                   const selected = assigneeIds.includes(u.id);
                   const color = getUserColor(u.id);
                   return (
                     <button key={u.id} type="button"
                       onClick={e => { e.stopPropagation(); toggleAssignee(u.id); }}
-                      className="flex items-center gap-3 w-full px-3 py-2.5 text-xs transition-colors"
-                      style={{ background: selected ? `${color}15` : "transparent", color: selected ? color : "var(--text-2)" }}
-                      onMouseEnter={e => { if (!selected) (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-4)"; }}
-                      onMouseLeave={e => { if (!selected) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}>
-                      <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                        style={{ background: selected ? color : "var(--bg-4)", color: selected ? "#0D1B2E" : "var(--text-2)" }}>
+                      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 12px", fontSize: 12, border: "none", cursor: "pointer", background: selected ? `${color}10` : "transparent", color: selected ? color : "var(--text-2)" }}
+                      onMouseEnter={e => { if (!selected) (e.currentTarget as any).style.background = "var(--bg-3)"; }}
+                      onMouseLeave={e => { if (!selected) (e.currentTarget as any).style.background = "transparent"; }}>
+                      <div style={{ width: 24, height: 24, borderRadius: "50%", background: selected ? color : "var(--bg-4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: selected ? "#fff" : "var(--text-2)", flexShrink: 0 }}>
                         {u.name[0]}
                       </div>
-                      <div className="flex-1 text-left">
-                        <p className="font-medium">{u.name}</p>
-                        {(u as any).level && <p style={{ color: "var(--text-3)", fontSize: 10 }}>{(u as any).level}</p>}
-                      </div>
+                      <p style={{ flex: 1, margin: 0, fontWeight: 500 }}>{u.name}</p>
                       {selected && <span style={{ color, fontSize: 12 }}>✓</span>}
                     </button>
                   );
@@ -543,176 +421,93 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
           </div>
 
           {/* 세부 정보 */}
-          <Section title="세부 정보" defaultOpen={true}>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
-              <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>프로젝트</p>
-              <select value={(task as any).project_id ?? ""} onChange={e => canEdit && update("project_id", e.target.value || null)}
-                disabled={!canEdit}
-                className="w-full text-xs focus:outline-none" style={{ background: "transparent", color: canEdit ? "#E8F4FF" : "var(--text-3)", border: "none", colorScheme: "dark" }}>
-                <option value="">없음</option>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </div>
-            <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
-              <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>우선순위</p>
-              <select value={task.priority} onChange={e => canEdit && update("priority", e.target.value)}
-                disabled={!canEdit}
-                className="w-full text-xs font-semibold focus:outline-none" style={{ background: "transparent", color: p.color, border: "none", colorScheme: "dark" }}>
-                {["low","medium","high","urgent"].map(v => <option key={v} value={v}>{PRIORITY[v].label}</option>)}
-              </select>
-            </div>
-            {milestones.length > 0 && (
-              <div className="rounded-xl p-3 col-span-2" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
-                <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>단계</p>
-                <select value={(task as any).milestone_id ?? ""} onChange={e => canEdit && update("milestone_id", e.target.value || null)}
+          <Section title="세부 정보">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div style={{ background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, padding: 12 }}>
+                <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 6 }}>프로젝트</p>
+                <select value={(task as any).project_id ?? ""} onChange={e => canEdit && update("project_id", e.target.value || null)}
                   disabled={!canEdit}
-                  className="w-full text-xs focus:outline-none" style={{ background: "transparent", color: canEdit ? "#E8F4FF" : "var(--text-3)", border: "none", colorScheme: "dark" }}>
-                  <option value="">미분류</option>
-                  {milestones.map((m: any) => (
-                    <option key={m.id} value={m.id}>
-                      {m.status === "completed" ? "✅" : m.status === "in_progress" ? "🔵" : "⭕"}{m.title}
-                    </option>
-                  ))}
+                  style={{ background: "transparent", color: "var(--text-1)", border: "none", outline: "none", fontSize: 12, width: "100%", colorScheme: "light" }}>
+                  <option value="">없음</option>
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
-            )}
-            <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
-              <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>난이도</p>
-              <select value={(task as any).difficulty ?? ""} onChange={e => canEdit && update("difficulty", e.target.value || null)}
-                disabled={!canEdit}
-                className="w-full text-xs focus:outline-none" style={{ background: "transparent", color: canEdit ? "#E8F4FF" : "var(--text-3)", border: "none", colorScheme: "dark" }}>
-                <option value="">미정</option>
-                {["low","medium","high","very_high"].map(v => <option key={v} value={v}>{DIFFICULTY[v]}</option>)}
-              </select>
-            </div>
-            <div className="rounded-xl p-3" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
-              <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>마감일</p>
-              <input type="date" value={(task as any).due_date ? (task as any).due_date.split("T")[0] : ""}
-                onChange={e => canEdit && update("due_date", e.target.value || null)}
-                disabled={!canEdit}
-                className="w-full text-xs focus:outline-none"
-                style={{ background: "transparent", color: isOverdue ? "#f87171" : canEdit ? "var(--text-1)" : "var(--text-3)", border: "none", colorScheme: "dark" }} />
-            </div>
-
-            {/* 캘린더 표시 토글 */}
-            <div className="rounded-xl p-3 col-span-2" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium" style={{ color: "var(--text-2)" }}>📅 캘린더에 표시</p>
-                  <p className="text-xs mt-0.5" style={{ color: "var(--text-3)" }}>
-                    {showOnCalendar ? "이 업무가 캘린더에 표시됩니다" : "캘린더에 표시되지 않습니다 (기본값)"}
-                  </p>
+              <div style={{ background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, padding: 12 }}>
+                <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 6 }}>우선순위</p>
+                <select value={task.priority} onChange={e => canEdit && update("priority", e.target.value)}
+                  disabled={!canEdit}
+                  style={{ background: "transparent", color: p.color, border: "none", outline: "none", fontSize: 12, fontWeight: 600, width: "100%", colorScheme: "light" }}>
+                  {["low","medium","high","urgent"].map(v => <option key={v} value={v}>{PRIORITY[v].label}</option>)}
+                </select>
+              </div>
+              {milestones.length > 0 && (
+                <div style={{ background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, padding: 12, gridColumn: "1 / -1" }}>
+                  <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 6 }}>단계</p>
+                  <select value={(task as any).milestone_id ?? ""} onChange={e => canEdit && update("milestone_id", e.target.value || null)}
+                    disabled={!canEdit}
+                    style={{ background: "transparent", color: "var(--text-1)", border: "none", outline: "none", fontSize: 12, width: "100%", colorScheme: "light" }}>
+                    <option value="">미분류</option>
+                    {milestones.map((m: any) => (
+                      <option key={m.id} value={m.id}>{m.status === "completed" ? "✅" : m.status === "in_progress" ? "🔵" : "⭕"}{m.title}</option>
+                    ))}
+                  </select>
                 </div>
-                <button onClick={toggleCalendar}
-                  className="relative rounded-full transition-all shrink-0"
-                  style={{
-                    width: 44, height: 24,
-                    background: showOnCalendar ? "var(--cyan)" : "var(--bg-4)",
-                    border: `1px solid ${showOnCalendar ? "var(--cyan)" : "var(--border-2)"}`,
-                  }}>
-                  <div style={{
-                    position: "absolute", top: 2, width: 18, height: 18, borderRadius: "50%",
-                    background: "#fff", transition: "left 0.2s",
-                    left: showOnCalendar ? 22 : 2,
-                  }} />
-                </button>
+              )}
+              <div style={{ background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, padding: 12 }}>
+                <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 6 }}>마감일</p>
+                <input type="date" value={(task as any).due_date ? (task as any).due_date.split("T")[0] : ""}
+                  onChange={e => canEdit && update("due_date", e.target.value || null)}
+                  disabled={!canEdit}
+                  style={{ background: "transparent", color: isOverdue ? "#DC2626" : "var(--text-1)", border: "none", outline: "none", fontSize: 12, width: "100%", colorScheme: "light" }} />
+              </div>
+              <div style={{ background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, padding: 12 }}>
+                <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 6 }}>난이도</p>
+                <select value={(task as any).difficulty ?? ""} onChange={e => canEdit && update("difficulty", e.target.value || null)}
+                  disabled={!canEdit}
+                  style={{ background: "transparent", color: "var(--text-1)", border: "none", outline: "none", fontSize: 12, width: "100%", colorScheme: "light" }}>
+                  <option value="">미정</option>
+                  {["low","medium","high","very_high"].map(v => <option key={v} value={v}>{DIFFICULTY[v]}</option>)}
+                </select>
+              </div>
+              {/* 캘린더 표시 토글 */}
+              <div style={{ background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, padding: 12, gridColumn: "1 / -1" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div>
+                    <p style={{ fontSize: 12, fontWeight: 500, color: "var(--text-1)", margin: 0 }}>📅 캘린더에 표시</p>
+                    <p style={{ fontSize: 11, color: "var(--text-3)", margin: "2px 0 0" }}>
+                      {showOnCalendar ? "캘린더에 표시됩니다" : "표시 안 됨 (기본값)"}
+                    </p>
+                  </div>
+                  <button onClick={toggleCalendar}
+                    style={{ position: "relative", width: 44, height: 24, borderRadius: 12, border: "none", cursor: "pointer", background: showOnCalendar ? "var(--cyan)" : "var(--border-2)", transition: "background 0.2s", flexShrink: 0 }}>
+                    <div style={{ position: "absolute", top: 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.2s", left: showOnCalendar ? 22 : 2, boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }} />
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-          </Section>
-
-          {/* 타임라인 */}
-          <Section title="타임라인" defaultOpen={false}>
-          <div className="rounded-xl p-4" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
-            <div className={`grid gap-3 text-center ${isMeeting ? "grid-cols-2" : "grid-cols-3"}`}>
-              {isMeeting ? (
-                <>
-                  <div>
-                    <p className="text-xs mb-1" style={{ color: "var(--text-3)" }}>생성</p>
-                    <p className="text-xs font-medium" style={{ color: "var(--text-2)" }}>{fmtDT((task as any).created_at)}</p>
-                  </div>
-                  <div style={{ borderLeft: "1px solid var(--border)", paddingLeft: 12 }}>
-                    <p className="text-xs mb-1" style={{ color: "var(--cyan)" }}>📅 미팅 일시</p>
-                    {(task as any).due_date ? (
-                      <>
-                        <p className="text-xs font-semibold" style={{ color: "var(--text-1)" }}>
-                          {new Date((task as any).due_date).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}
-                        </p>
-                        {canEdit ? (
-                          <input type="datetime-local" defaultValue={(task as any).due_date?.slice(0, 16)}
-                            onChange={e => update("due_date", e.target.value)}
-                            className="text-xs mt-1 rounded px-1 py-0.5 w-full focus:outline-none"
-                            style={{ background: "var(--bg-2)", border: "1px solid var(--border-2)", color: "var(--text-2)", colorScheme: "dark" }} />
-                        ) : (
-                          <p className="text-xs" style={{ color: "var(--text-3)" }}>
-                            {new Date((task as any).due_date).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}
-                          </p>
-                        )}
-                      </>
-                    ) : (
-                      canEdit ? (
-                        <input type="datetime-local" onChange={e => update("due_date", e.target.value)}
-                          className="text-xs mt-1 rounded px-1 py-0.5 w-full focus:outline-none"
-                          style={{ background: "var(--bg-2)", border: "1px solid var(--border-2)", color: "var(--text-2)", colorScheme: "dark" }} />
-                      ) : (
-                        <p className="text-xs" style={{ color: "var(--text-3)" }}>미정</p>
-                      )
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  {[
-                    { label: "생성", value: fmtDT((task as any).created_at) },
-                    { label: "시작", value: fmtDT((task as any).started_at) },
-                    { label: "완료", value: fmtDT((task as any).completed_at) },
-                  ].map(({ label, value }) => (
-                    <div key={label}>
-                      <p className="text-xs mb-1" style={{ color: "var(--text-3)" }}>{label}</p>
-                      <p className="text-xs font-medium" style={{ color: "var(--text-2)" }}>{value}</p>
-                    </div>
-                  ))}
-                </>
-              )}
-            </div>
-          </div>
           </Section>
 
           {/* 변경 이력 */}
           {events.length > 0 && (
-          <Section title="변경 이력" defaultOpen={false}>
-            <div className="rounded-xl p-4" style={{ background: "var(--bg-3)", border: "1px solid var(--border)" }}>
-              <div className="space-y-2">
+            <Section title="변경 이력" defaultOpen={false}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {events.map((ev, i) => (
-                  <div key={ev.id ?? i} className="flex items-start gap-2 text-xs">
-                    <div className="w-1.5 h-1.5 rounded-full shrink-0 mt-1"
-                      style={{ background: ev.to_status ? STATUS[ev.to_status]?.color : "var(--text-3)" }} />
-                    <div className="flex-1 min-w-0">
-                      <p style={{ color: "var(--text-2)" }}>
+                  <div key={ev.id ?? i} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0, marginTop: 4, background: ev.to_status ? STATUS[ev.to_status]?.color : "var(--text-3)" }} />
+                    <div style={{ flex: 1 }}>
+                      <p style={{ color: "var(--text-2)", margin: 0 }}>
                         {EVENT_LABEL[ev.event_type]?.(ev) ?? ev.event_type}
                         {ev.reason && <span style={{ color: "var(--text-3)" }}> — {ev.reason}</span>}
                       </p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {ev.changed_by_user?.name && (
-                          <span className="font-medium" style={{ color: "var(--cyan)" }}>{ev.changed_by_user.name}</span>
-                        )}
+                      <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
+                        {ev.changed_by_user?.name && <span style={{ color: "var(--cyan)", fontWeight: 500 }}>{ev.changed_by_user.name}</span>}
                         <span style={{ color: "var(--text-3)" }}>{fmtDT(ev.changed_at)}</span>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-          </Section>
-          )}
-
-          {/* 리뷰 */}
-          {task.status === "review" && assigneeIds.length > 0 && (
-            <div>
-              <p className="text-xs font-medium mb-2" style={{ color: "var(--text-3)" }}>리뷰어 현황</p>
-              <TaskReviews taskId={taskId} assigneeIds={assigneeIds} />
-            </div>
+            </Section>
           )}
 
           {/* 업무 의존성 */}
@@ -721,12 +516,12 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
           </Section>
 
           {/* 댓글 */}
-          <Section title="댓글" defaultOpen={true}>
+          <Section title="댓글">
             <TaskComments taskId={taskId} />
           </Section>
         </div>
       </div>
     </div>
   );
-  return typeof window !== 'undefined' ? createPortal(panel, document.body) : null;
+  return typeof window !== "undefined" ? createPortal(panel, document.body) : null;
 }
