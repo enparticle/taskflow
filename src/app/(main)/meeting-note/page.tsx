@@ -329,6 +329,73 @@ export default function MeetingNotePage() {
     setSections(prev => prev.filter(s => s.id !== sectionId));
   }
 
+  function openHistoryItem(h: any) {
+    setDraftId(h.id);
+    setView("main");
+
+    // input_text에서 기본 정보 파싱
+    const text = h.input_text ?? "";
+    const lines = text.split("
+");
+
+    const titleLine = lines.find((l: string) => l.startsWith("회의명:"));
+    const dateLine  = lines.find((l: string) => l.startsWith("일시:"));
+    const locLine   = lines.find((l: string) => l.startsWith("장소:"));
+    const attLine   = lines.find((l: string) => l.startsWith("참석자:"));
+
+    if (titleLine) setTitle(titleLine.replace("회의명:", "").trim());
+    if (locLine)   setLocation(locLine.replace("장소:", "").trim());
+    if (h.project_id) setSelectedProject(h.project_id);
+
+    if (dateLine) {
+      const dateStr = dateLine.replace("일시:", "").trim();
+      const datePart = dateStr.split(" ")[0];
+      const timePart = dateStr.split(" ")[1];
+      if (datePart) setMeetingDate(datePart);
+      if (timePart) setStartTime(timePart);
+    }
+
+    if (attLine) {
+      const names = attLine.replace("참석자:", "").trim().split(",").map((n: string) => n.trim()).filter(Boolean);
+      setAttendees(names.map((name: string) => ({ name })));
+    }
+
+    // 섹션 파싱
+    const newSections: any[] = [];
+    let currentSection: any = null;
+    const sectionMarkers: Record<string, string> = {
+      "📌 안건": "agenda",
+      "✅ 결정사항": "decision",
+      "⚠ 이슈": "issue",
+      "📝 기타 메모": "note",
+    };
+
+    for (const line of lines) {
+      const sType = sectionMarkers[line.trim()];
+      if (sType) {
+        if (currentSection) newSections.push(currentSection);
+        currentSection = { id: `s${Date.now()}_${sType}`, type: sType, items: [] };
+      } else if (currentSection && line.startsWith("- ")) {
+        currentSection.items.push(line.replace(/^- /, "").trim());
+      }
+    }
+    if (currentSection) newSections.push(currentSection);
+
+    if (newSections.length > 0) {
+      // 빈 항목 보완
+      setSections(newSections.map(s => ({ ...s, items: s.items.length > 0 ? s.items : [""] })));
+    } else {
+      setSections([{ id: "s1", type: "note", items: [text] }]);
+    }
+
+    // 분석 결과가 있으면 result도 세팅
+    if (h.result?.summary) {
+      setResult({ ...h.result, tasks: (h.result.tasks ?? []).map((t: any) => ({ ...t, selected: true, projectId: t.projectId || h.project_id || "" })) });
+    }
+
+    setLastSaved(new Date(h.updated_at));
+  }
+
   function resetAll() {
     setStep("write"); setResult(null); setDraftId(null); setLastSaved(null);
     setTitle(""); setMeetingDate(new Date().toISOString().slice(0, 10));
@@ -756,6 +823,7 @@ export default function MeetingNotePage() {
                         </div>
                         {/* 버튼 */}
                         <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }}>
+                          {/* 분석 결과가 있으면 결과 보기 */}
                           {hasResult && (
                             <button onClick={() => {
                               setResult({ ...h.result, tasks: (h.result.tasks ?? []).map((t: any) => ({ ...t, selected: true, projectId: t.projectId || h.project_id || "" })) });
@@ -763,10 +831,15 @@ export default function MeetingNotePage() {
                               setStep("review");
                               setView("main");
                             }}
-                              style={{ padding: "6px 12px", background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 7, fontSize: 12, color: "var(--cyan)", fontWeight: 500, cursor: "pointer" }}>
+                              style={{ padding: "6px 12px", background: "#EEF3FF", border: "1px solid #BFDBFE", borderRadius: 7, fontSize: 12, color: "var(--cyan)", fontWeight: 500, cursor: "pointer" }}>
                               결과 보기
                             </button>
                           )}
+                          {/* 내용 열기/수정 - 항상 표시 */}
+                          <button onClick={() => openHistoryItem(h)}
+                            style={{ padding: "6px 12px", background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 7, fontSize: 12, color: "var(--text-2)", cursor: "pointer" }}>
+                            {isMyRecord ? "수정" : "열기"}
+                          </button>
                           {isMyRecord && (
                             <button onClick={async () => { if (!confirm("삭제할까요?")) return; await supabase.from("meeting_drafts").delete().eq("id", h.id); loadHistory(); }}
                               style={{ padding: "6px 10px", background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 7, fontSize: 11, color: "#DC2626", cursor: "pointer" }}>
