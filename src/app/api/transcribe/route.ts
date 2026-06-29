@@ -5,9 +5,8 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File;
-    if (!file) throw new Error("파일이 없습니다");
+    if (!file) return NextResponse.json({ error: "파일 없음" }, { status: 400 });
 
-    // OpenAI Whisper API로 전송
     const openaiForm = new FormData();
     openaiForm.append("file", file);
     openaiForm.append("model", "whisper-1");
@@ -21,7 +20,7 @@ export async function POST(req: NextRequest) {
 
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.error?.message ?? "변환 실패");
+      return NextResponse.json({ error: err.error?.message ?? "변환 실패" }, { status: 500 });
     }
 
     const data = await res.json();

@@ -51,6 +51,12 @@ export default function MeetingNotePage() {
   const [audioFiles, setAudioFiles] = useState<File[]>([]);
   const [transcribing, setTranscribing] = useState(false);
   const [transcribeProgress, setTranscribeProgress] = useState("");
+  const [recording, setRecording] = useState(false);
+  const [recordTime, setRecordTime] = useState(0);
+  const [mediaRecorder, setMediaRecorder] = useState<any>(null);
+  const [audioTab, setAudioTab] = useState<"upload" | "record">("upload");
+  const timerRef = useRef<any>(null);
+  const allTextsRef = useRef<string[]>([]);
 
   // 데이터
   const [projects, setProjects] = useState<any[]>([]);
@@ -60,6 +66,57 @@ export default function MeetingNotePage() {
 
   const fileRef = useRef<HTMLInputElement>(null);
   const saveTimer = useRef<any>(null);
+
+  function fmtTime(s: number) {
+    return `${Math.floor(s/60).toString().padStart(2,"0")}:${(s%60).toString().padStart(2,"0")}`;
+  }
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      allTextsRef.current = [];
+      let segIdx = 0;
+      const startSeg = () => {
+        const chunks: Blob[] = [];
+        const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
+        mr.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+        mr.onstop = async () => {
+          const blob = new Blob(chunks, { type: "audio/webm" });
+          const f = new File([blob], `녹음_${segIdx + 1}.webm`, { type: "audio/webm" });
+          segIdx++;
+          // 녹음 파일을 audioFiles에 추가
+          setAudioFiles(prev => [...prev, f]);
+          // 자동 Whisper 변환 (서버 라우트)
+          try {
+            const form = new FormData();
+            form.append("file", f);
+            const res = await fetch("/api/transcribe", {
+              method: "POST", body: form,
+            });
+            if (res.ok) {
+              const d = await res.json();
+              if (d.text) allTextsRef.current.push(d.text);
+            }
+          } catch {}
+        };
+        mr.start();
+        setMediaRecorder(mr);
+        setTimeout(() => { if (mr.state === "recording") { mr.stop(); startSeg(); } }, 10 * 60 * 1000);
+      };
+      startSeg();
+      setRecording(true);
+      setRecordTime(0);
+      timerRef.current = setInterval(() => setRecordTime(t => t + 1), 1000);
+    } catch {
+      alert("마이크 접근 권한이 필요합니다.");
+    }
+  }
+
+  function stopRecording() {
+    mediaRecorder?.stop();
+    setRecording(false);
+    clearInterval(timerRef.current);
+  }
 
   useEffect(() => {
     async function init() {
@@ -136,20 +193,22 @@ export default function MeetingNotePage() {
 
   // 음성 파일 Whisper 변환
   async function transcribeFiles(files: File[]): Promise<string> {
-    const key = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
     const texts: string[] = [];
     for (let i = 0; i < files.length; i++) {
       setTranscribeProgress(`음성 변환 중 (${i + 1}/${files.length}) — ${files[i].name}`);
       const form = new FormData();
       form.append("file", files[i]);
-      form.append("model", "whisper-1");
-      form.append("language", "ko");
       try {
-        const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-          method: "POST", headers: { Authorization: `Bearer ${key}` }, body: form,
+        const res = await fetch("/api/transcribe", {
+          method: "POST", body: form,
         });
-        if (res.ok) texts.push((await res.json()).text);
-        else texts.push(`[${files[i].name} 변환 실패]`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.text) texts.push(data.text);
+          else texts.push(`[${files[i].name} 변환 실패]`);
+        } else {
+          texts.push(`[${files[i].name} 변환 실패]`);
+        }
       } catch { texts.push(`[${files[i].name} 변환 오류]`); }
     }
     setTranscribeProgress("");
@@ -526,46 +585,106 @@ export default function MeetingNotePage() {
         ))}
       </div>
 
-      {/* ③ 음성 파일 */}
+      {/* ③ 음성 녹음 / 파일 업로드 */}
       <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 18 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", margin: 0 }}>🎵 음성 파일 (선택)</p>
-          <button onClick={() => fileRef.current?.click()}
-            style={{ padding: "5px 12px", background: "var(--cyan-bg)", border: "1px solid #BFDBFE", borderRadius: 7, fontSize: 12, color: "var(--cyan)", cursor: "pointer" }}>
-            + 파일 추가
-          </button>
-          <input ref={fileRef} type="file" accept="audio/*,.mp3,.mp4,.wav,.m4a,.webm" multiple
-            onChange={e => { if (e.target.files) setAudioFiles(prev => [...prev, ...Array.from(e.target.files!)]); e.target.value = ""; }}
-            style={{ display: "none" }} />
-        </div>
-        {audioFiles.length === 0 ? (
-          <div onClick={() => fileRef.current?.click()}
-            style={{ border: "2px dashed var(--border)", borderRadius: 10, padding: "24px 0", textAlign: "center", cursor: "pointer" }}>
-            <p style={{ fontSize: 13, color: "var(--text-3)", margin: 0 }}>여러 파일을 한번에 업로드 가능</p>
-            <p style={{ fontSize: 11, color: "var(--text-3)", marginTop: 4 }}>mp3, mp4, wav, m4a, webm 지원</p>
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {audioFiles.map((f, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8 }}>
-                <span style={{ fontSize: 16 }}>🎵</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 12, fontWeight: 500, color: "var(--text-1)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</p>
-                  <p style={{ fontSize: 11, color: "var(--text-3)", margin: 0 }}>{(f.size / 1024 / 1024).toFixed(1)} MB</p>
-                </div>
-                <button onClick={() => setAudioFiles(prev => prev.filter((_, j) => j !== i))}
-                  style={{ fontSize: 12, color: "#DC2626", background: "transparent", border: "none", cursor: "pointer", flexShrink: 0 }}>✕</button>
-              </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", margin: 0 }}>🎵 음성 (선택)</p>
+          {/* 업로드 / 녹음 탭 */}
+          <div style={{ display: "flex", gap: 2, padding: 3, background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8 }}>
+            {[{ id: "upload", label: "파일 업로드" }, { id: "record", label: "🎙 녹음" }].map(t => (
+              <button key={t.id} onClick={() => setAudioTab(t.id as any)}
+                style={{ padding: "4px 12px", borderRadius: 6, fontSize: 12, fontWeight: 500, border: "none", cursor: "pointer", background: audioTab === t.id ? "var(--bg-2)" : "transparent", color: audioTab === t.id ? "var(--text-1)" : "var(--text-3)" }}>
+                {t.label}
+              </button>
             ))}
-            <button onClick={() => fileRef.current?.click()}
-              style={{ fontSize: 12, color: "var(--cyan)", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", padding: "4px 0" }}>
-              + 파일 더 추가
-            </button>
+          </div>
+        </div>
+
+        {/* 파일 업로드 탭 */}
+        {audioTab === "upload" && (
+          <>
+            <input ref={fileRef} type="file" accept="audio/*,.mp3,.mp4,.wav,.m4a,.webm" multiple
+              onChange={e => {
+                if (e.target.files) setAudioFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+                e.target.value = "";
+              }}
+              style={{ display: "none" }} />
+            {audioFiles.filter(f => !f.name.startsWith("녹음_")).length === 0 ? (
+              <div onClick={() => fileRef.current?.click()}
+                style={{ border: "2px dashed var(--border)", borderRadius: 10, padding: "28px 0", textAlign: "center", cursor: "pointer" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "var(--cyan)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border)"; }}>
+                <p style={{ fontSize: 22, margin: "0 0 8px" }}>🎵</p>
+                <p style={{ fontSize: 13, color: "var(--text-2)", margin: "0 0 4px", fontWeight: 500 }}>클릭해서 파일 선택</p>
+                <p style={{ fontSize: 11, color: "var(--text-3)", margin: 0 }}>mp3, mp4, wav, m4a, webm · 여러 파일 동시 가능</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {audioFiles.filter(f => !f.name.startsWith("녹음_")).map((f, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8 }}>
+                    <span style={{ fontSize: 16 }}>🎵</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 12, fontWeight: 500, color: "var(--text-1)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</p>
+                      <p style={{ fontSize: 11, color: "var(--text-3)", margin: 0 }}>{(f.size / 1024 / 1024).toFixed(1)} MB</p>
+                    </div>
+                    <button onClick={() => setAudioFiles(prev => prev.filter(x => x !== f))}
+                      style={{ fontSize: 12, color: "#DC2626", background: "transparent", border: "none", cursor: "pointer", flexShrink: 0 }}>✕</button>
+                  </div>
+                ))}
+                <button onClick={() => fileRef.current?.click()}
+                  style={{ fontSize: 12, color: "var(--cyan)", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", padding: "4px 0" }}>
+                  + 파일 더 추가
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* 녹음 탭 */}
+        {audioTab === "record" && (
+          <div style={{ textAlign: "center", padding: "20px 0" }}>
+            {!recording ? (
+              <div>
+                <p style={{ fontSize: 13, color: "var(--text-2)", marginBottom: 6 }}>10분마다 자동 분할 저장됩니다</p>
+                <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 16 }}>시간 제한 없이 녹음 가능</p>
+                {audioFiles.filter(f => f.name.startsWith("녹음_")).length > 0 && (
+                  <div style={{ marginBottom: 14 }}>
+                    <p style={{ fontSize: 12, color: "var(--text-2)", marginBottom: 8 }}>녹음된 파일 ({audioFiles.filter(f => f.name.startsWith("녹음_")).length}개)</p>
+                    {audioFiles.filter(f => f.name.startsWith("녹음_")).map((f, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, marginBottom: 4, textAlign: "left" }}>
+                        <span style={{ fontSize: 14 }}>🎙</span>
+                        <p style={{ fontSize: 12, color: "var(--text-1)", margin: 0, flex: 1 }}>{f.name}</p>
+                        <button onClick={() => setAudioFiles(prev => prev.filter(x => x !== f))}
+                          style={{ fontSize: 11, color: "#DC2626", background: "transparent", border: "none", cursor: "pointer" }}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button onClick={startRecording}
+                  style={{ padding: "10px 28px", background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "#DC2626", cursor: "pointer" }}>
+                  🔴 녹음 시작
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 8 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#DC2626", animation: "pulse 1s infinite" }} />
+                  <p style={{ fontSize: 28, fontWeight: 700, color: "#DC2626", fontVariantNumeric: "tabular-nums", margin: 0 }}>{fmtTime(recordTime)}</p>
+                </div>
+                <p style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 16 }}>녹음 중 · 10분마다 자동 분할</p>
+                <button onClick={stopRecording}
+                  style={{ padding: "10px 28px", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "var(--text-2)", cursor: "pointer" }}>
+                  ⏹ 녹음 중지
+                </button>
+                <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}`}</style>
+              </div>
+            )}
           </div>
         )}
+
         {audioFiles.length > 0 && (
-          <p style={{ fontSize: 11, color: "var(--text-3)", marginTop: 8, marginBottom: 0 }}>
-            💡 음성 파일은 자동으로 텍스트로 변환되어 회의록과 교차 분석됩니다
+          <p style={{ fontSize: 11, color: "var(--text-3)", marginTop: 12, marginBottom: 0 }}>
+            💡 음성 파일은 Whisper로 자동 변환되어 회의록과 교차 분석됩니다
           </p>
         )}
       </div>
