@@ -707,21 +707,21 @@ export default function MeetingNotePage() {
         {/* 파일 업로드 탭 */}
         {audioTab === "upload" && (
           <>
-            <input ref={fileRef} type="file" accept="audio/*,.mp3,.mp4,.wav,.m4a,.webm" multiple
-              onChange={e => {
-                if (e.target.files) setAudioFiles(prev => [...prev, ...Array.from(e.target.files!)]);
-                e.target.value = "";
-              }}
-              style={{ display: "none" }} />
             {audioFiles.filter(f => !f.name.startsWith("녹음_")).length === 0 ? (
-              <div onClick={() => fileRef.current?.click()}
-                style={{ border: "2px dashed var(--border)", borderRadius: 10, padding: "28px 0", textAlign: "center", cursor: "pointer" }}
-                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "var(--cyan)"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border)"; }}>
+              <label style={{ display: "block", border: "2px dashed var(--border)", borderRadius: 10, padding: "28px 0", textAlign: "center", cursor: "pointer" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLLabelElement).style.borderColor = "var(--cyan)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLLabelElement).style.borderColor = "var(--border)"; }}>
+                <input type="file" accept="audio/*,.mp3,.mp4,.wav,.m4a,.webm" multiple
+                  style={{ display: "none" }}
+                  onChange={e => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      setAudioFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+                    }
+                  }} />
                 <p style={{ fontSize: 22, margin: "0 0 8px" }}>🎵</p>
                 <p style={{ fontSize: 13, color: "var(--text-2)", margin: "0 0 4px", fontWeight: 500 }}>클릭해서 파일 선택</p>
                 <p style={{ fontSize: 11, color: "var(--text-3)", margin: 0 }}>mp3, mp4, wav, m4a, webm · 여러 파일 동시 가능</p>
-              </div>
+              </label>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {audioFiles.filter(f => !f.name.startsWith("녹음_")).map((f, i) => (
