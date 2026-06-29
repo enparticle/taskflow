@@ -707,12 +707,7 @@ export default function MeetingNotePage() {
         {/* 파일 업로드 탭 */}
         {audioTab === "upload" && (
           <>
-            <input ref={fileRef} type="file" accept="audio/*,.mp3,.mp4,.wav,.m4a,.webm" multiple onChange={e => { if (e.target.files) setAudioFiles(prev => [...prev, ...Array.from(e.target.files!)]); (e.target as HTMLInputElement).value = ""; }}
-              onChange={e => {
-                if (e.target.files) setAudioFiles(prev => [...prev, ...Array.from(e.target.files!)]);
-                e.target.value = "";
-              }}
-              style={{ display: "none" }} />
+            <input ref={fileRef} type="file" accept="audio/*,.mp3,.mp4,.wav,.m4a,.webm" multiple onChange={e => { if (e.target.files) setAudioFiles(prev => [...prev, ...Array.from(e.target.files!)]); (e.target as HTMLInputElement).value = ""; }} style={{ display: "none" }} />
             {audioFiles.filter(f => !f.name.startsWith("녹음_")).length === 0 ? (
               <div onClick={() => fileRef.current?.click()}
                 style={{ border: "2px dashed var(--border)", borderRadius: 10, padding: "28px 0", textAlign: "center", cursor: "pointer" }}
