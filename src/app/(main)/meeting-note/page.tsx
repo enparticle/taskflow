@@ -1,4 +1,4 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase";
@@ -145,10 +145,14 @@ export default function MeetingNotePage() {
   async function loadHistory() {
     if (!myUser) return;
     setHistoryLoading(true);
-    const { data } = await supabase.from("meeting_drafts")
-      .select("*, project:projects(name)")
-      .eq("user_id", myUser.userId)
-      .order("updated_at", { ascending: false }).limit(30);
+    // admin/leader는 팀 전체, 일반 멤버는 본인 기록
+    let q = supabase.from("meeting_drafts")
+      .select("*, project:projects(name), author:users!meeting_drafts_user_id_fkey(name)")
+      .order("updated_at", { ascending: false }).limit(50);
+    if (myUser.role !== "admin" && myUser.role !== "leader") {
+      q = q.eq("user_id", myUser.userId);
+    }
+    const { data } = await q;
     setHistory(data ?? []);
     setHistoryLoading(false);
   }
@@ -712,32 +716,68 @@ export default function MeetingNotePage() {
               <p style={{ fontSize: 13, color: "var(--text-3)", textAlign: "center", padding: "24px 0" }}>저장된 기록이 없습니다</p>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {history.map(h => (
-                  <div key={h.id} style={{ padding: "12px 16px", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 10, display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                        <span style={{ fontSize: 10, padding: "1px 8px", borderRadius: 20, fontWeight: 600, background: h.status === "completed" ? "#F0FDF4" : "#F5F3FF", color: h.status === "completed" ? "#16A34A" : "#7C3AED", border: `1px solid ${h.status === "completed" ? "#BBF7D0" : "#DDD6FE"}` }}>
-                          {h.status === "completed" ? "완료" : "미완료"}
-                        </span>
-                        {h.project?.name && <span style={{ fontSize: 11, color: "var(--text-3)" }}>{h.project.name}</span>}
-                        <span style={{ fontSize: 11, color: "var(--text-3)" }}>{new Date(h.updated_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                {history.map(h => {
+                  const isMyRecord = h.user_id === myUser?.userId;
+                  const hasResult = h.result && (h.result.summary || h.result.tasks?.length > 0);
+                  return (
+                    <div key={h.id} style={{ padding: "14px 16px", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 10 }}>
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          {/* 배지 행 */}
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                            <span style={{ fontSize: 10, padding: "1px 8px", borderRadius: 20, fontWeight: 600, background: h.status === "completed" ? "#F0FDF4" : "#F5F3FF", color: h.status === "completed" ? "#16A34A" : "#7C3AED", border: `1px solid ${h.status === "completed" ? "#BBF7D0" : "#DDD6FE"}` }}>
+                              {h.status === "completed" ? "✓ 완료" : "미완료"}
+                            </span>
+                            {h.author?.name && !isMyRecord && (
+                              <span style={{ fontSize: 11, color: "var(--cyan)", fontWeight: 500 }}>👤 {h.author.name}</span>
+                            )}
+                            {h.project?.name && <span style={{ fontSize: 11, color: "var(--text-3)" }}>📁 {h.project.name}</span>}
+                            <span style={{ fontSize: 11, color: "var(--text-3)", marginLeft: "auto" }}>
+                              {new Date(h.updated_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          </div>
+                          {/* 요약 */}
+                          {h.result?.summary && (
+                            <p style={{ fontSize: 12, color: "var(--text-1)", margin: "0 0 4px", fontWeight: 500 }}>{h.result.summary}</p>
+                          )}
+                          {/* 업무 수 */}
+                          {h.result?.tasks?.length > 0 && (
+                            <p style={{ fontSize: 11, color: "var(--text-3)", margin: 0 }}>
+                              업무 {h.result.tasks.length}건
+                              {h.result.decisions?.length > 0 && ` · 결정사항 ${h.result.decisions.length}건`}
+                            </p>
+                          )}
+                          {/* 결과 없으면 텍스트 미리보기 */}
+                          {!hasResult && h.input_text && (
+                            <p style={{ fontSize: 11, color: "var(--text-3)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {h.input_text.slice(0, 80)}
+                            </p>
+                          )}
+                        </div>
+                        {/* 버튼 */}
+                        <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }}>
+                          {hasResult && (
+                            <button onClick={() => {
+                              setResult({ ...h.result, tasks: (h.result.tasks ?? []).map((t: any) => ({ ...t, selected: true, projectId: t.projectId || h.project_id || "" })) });
+                              setDraftId(h.id);
+                              setStep("review");
+                              setView("main");
+                            }}
+                              style={{ padding: "6px 12px", background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 7, fontSize: 12, color: "var(--cyan)", fontWeight: 500, cursor: "pointer" }}>
+                              결과 보기
+                            </button>
+                          )}
+                          {isMyRecord && (
+                            <button onClick={async () => { if (!confirm("삭제할까요?")) return; await supabase.from("meeting_drafts").delete().eq("id", h.id); loadHistory(); }}
+                              style={{ padding: "6px 10px", background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 7, fontSize: 11, color: "#DC2626", cursor: "pointer" }}>
+                              삭제
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <p style={{ fontSize: 12, color: "var(--text-2)", margin: 0 }}>{h.result?.summary ?? h.input_text?.slice(0, 60) ?? "회의록"}</p>
                     </div>
-                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                      {h.result && (
-                        <button onClick={() => { setResult({ ...h.result, tasks: (h.result.tasks ?? []).map((t: any) => ({ ...t, selected: true, projectId: t.projectId || h.project_id || "" })) }); setDraftId(h.id); setStep("review"); setView("main"); }}
-                          style={{ padding: "5px 10px", background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 6, fontSize: 11, color: "var(--text-2)", cursor: "pointer" }}>
-                          검토하기
-                        </button>
-                      )}
-                      <button onClick={async () => { if (!confirm("삭제할까요?")) return; await supabase.from("meeting_drafts").delete().eq("id", h.id); loadHistory(); }}
-                        style={{ padding: "5px 10px", background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 6, fontSize: 11, color: "#DC2626", cursor: "pointer" }}>
-                        삭제
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
