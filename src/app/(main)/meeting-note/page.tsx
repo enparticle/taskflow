@@ -335,8 +335,7 @@ export default function MeetingNotePage() {
 
     // input_text에서 기본 정보 파싱
     const text = h.input_text ?? "";
-    const lines = text.split("
-");
+    const lines = text.split(String.fromCharCode(10));
 
     const titleLine = lines.find((l: string) => l.startsWith("회의명:"));
     const dateLine  = lines.find((l: string) => l.startsWith("일시:"));
