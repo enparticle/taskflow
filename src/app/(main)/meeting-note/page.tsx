@@ -196,27 +196,61 @@ export default function MeetingNotePage() {
   }
 
   // 음성 파일 Whisper 변환
+  async function transcribeFile(file: File): Promise<string> {
+    const CHUNK = 24 * 1024 * 1024; // 24MB
+    const key = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+    if (!key) throw new Error("OpenAI API 키가 없습니다");
+
+    if (file.size <= CHUNK) {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("model", "whisper-1");
+      form.append("language", "ko");
+      const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}` },
+        body: form,
+      });
+      if (!res.ok) throw new Error(`변환 실패: ${res.status}`);
+      return (await res.json()).text ?? "";
+    }
+
+    // 25MB 초과 시 청크 분할
+    const chunks = Math.ceil(file.size / CHUNK);
+    const texts: string[] = [];
+    for (let i = 0; i < chunks; i++) {
+      const start = i * CHUNK;
+      const end = Math.min((i + 1) * CHUNK, file.size);
+      const ext = file.name.split(".").pop() ?? "webm";
+      const chunk = new File([file.slice(start, end)], `chunk_${i}.${ext}`, { type: file.type });
+      const form = new FormData();
+      form.append("file", chunk);
+      form.append("model", "whisper-1");
+      form.append("language", "ko");
+      const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}` },
+        body: form,
+      });
+      if (res.ok) texts.push((await res.json()).text ?? "");
+    }
+    return texts.join(" ");
+  }
+
   async function transcribeFiles(files: File[]): Promise<string> {
     const texts: string[] = [];
     for (let i = 0; i < files.length; i++) {
       setTranscribeProgress(`음성 변환 중 (${i + 1}/${files.length}) — ${files[i].name}`);
-      const form = new FormData();
-      form.append("file", files[i]);
       try {
-        const res = await fetch("/api/transcribe", {
-          method: "POST", body: form,
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.text) texts.push(data.text);
-          else texts.push(`[${files[i].name} 변환 실패]`);
-        } else {
-          texts.push(`[${files[i].name} 변환 실패]`);
-        }
-      } catch { texts.push(`[${files[i].name} 변환 오류]`); }
+        const text = await transcribeFile(files[i]);
+        if (text) texts.push(text);
+        else texts.push(`[${files[i].name} 변환 결과 없음]`);
+      } catch (e: any) {
+        texts.push(`[${files[i].name} 변환 실패: ${e.message}]`);
+      }
     }
     setTranscribeProgress("");
-    return texts.join("\n\n");
+    return texts.join(" ");
   }
 
   async function analyze() {
@@ -335,7 +369,7 @@ export default function MeetingNotePage() {
 
     // input_text에서 기본 정보 파싱
     const text = h.input_text ?? "";
-    const lines = text.split(String.fromCharCode(10));
+    const lines = text.split("\n");
 
     const titleLine = lines.find((l: string) => l.startsWith("회의명:"));
     const dateLine  = lines.find((l: string) => l.startsWith("일시:"));
@@ -858,4 +892,3 @@ export default function MeetingNotePage() {
     </div>
   );
 }
-
