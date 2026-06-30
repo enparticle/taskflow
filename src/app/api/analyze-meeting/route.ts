@@ -1,11 +1,14 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
   try {
     const Anthropic = (await import("@anthropic-ai/sdk")).default;
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const { text, audioText, projectId, meetingMeta } = await req.json();
+    // UTF-8 인코딩 명시적 처리
+    const bodyText = await req.text();
+    const body = JSON.parse(bodyText);
+    const { text, audioText, projectId, meetingMeta } = body;
 
     const hasBoth = !!(text?.trim() && audioText?.trim());
     const hasAudio = !!audioText?.trim();

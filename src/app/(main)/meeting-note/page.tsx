@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase";
@@ -268,15 +268,16 @@ export default function MeetingNotePage() {
       const meetingText = buildTextSummary();
 
       // AI 분석
+      const payload = JSON.stringify({
+        text: meetingText,
+        audioText: audioText || undefined,
+        projectId: selectedProject,
+        meetingMeta: { title, date: meetingDate, attendees: attendees.map(a => a.name) },
+      });
       const res = await fetch("/api/analyze-meeting", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: meetingText,
-          audioText: audioText || undefined,
-          projectId: selectedProject,
-          meetingMeta: { title, date: meetingDate, attendees: attendees.map(a => a.name) },
-        }),
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: new TextEncoder().encode(payload),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
