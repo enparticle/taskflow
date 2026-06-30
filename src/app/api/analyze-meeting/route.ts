@@ -1,4 +1,4 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
@@ -67,15 +67,28 @@ export async function POST(req: NextRequest) {
     });
 
     const raw = message.content[0].type === "text" ? message.content[0].text.trim() : "";
+    console.log("RAW RESPONSE:", raw.substring(0, 500));
+    
     const clean = raw.replace(/^```[a-z]*\s*/m, "").replace(/\s*```\s*$/m, "").trim();
+    console.log("CLEAN:", clean.substring(0, 500));
 
     let result = null;
-    try { result = JSON.parse(clean); } catch {}
-    if (!result) {
-      const match = clean.match(/\{[\s\S]*\}/);
-      if (match) { try { result = JSON.parse(match[0]); } catch {} }
+    try { 
+      result = JSON.parse(clean); 
+      console.log("PARSE SUCCESS");
+    } catch(e) { 
+      console.log("PARSE FAIL:", e.message);
     }
     if (!result) {
+      const match = clean.match(/\{[\s\S]*\}/);
+      if (match) { 
+        try { result = JSON.parse(match[0]); } catch(e) { console.log("MATCH PARSE FAIL:", e.message); }
+      } else {
+        console.log("NO JSON MATCH FOUND");
+      }
+    }
+    if (!result) {
+      console.log("RETURNING FALLBACK");
       result = { summary: "분석 완료", items: [], tasks: [], decisions: [], issues: [] };
     }
 
