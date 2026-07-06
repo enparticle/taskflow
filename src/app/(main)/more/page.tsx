@@ -28,6 +28,7 @@ export default function MorePage() {
       { href: "/report-export", icon: "📋", label: "외부용 보고서",    desc: "외부 공유용 보고서를 생성합니다" },
     ] : []),
     { href: "/project-assistant", icon: "🤖", label: "AI 프로젝트 어시스턴트", desc: "프로젝트 계획 수립, 방향 변경 반영을 AI와 함께" },
+    { href: "/project-assistant", icon: "🤖", label: "AI 프로젝트 어시스턴트", desc: "프로젝트 계획 수립, 방향 변경 반영을 AI와 함께" },
     { href: "/guide",    icon: "📖", label: "사용 가이드", desc: "역할별 TaskFlow 사용법을 안내합니다" },
     { href: "/settings", icon: "⚙",  label: "설정",        desc: "계정 및 알림 설정을 변경합니다" },
     { href: "/viewer", icon: "📺", label: "전체 현황 뷰어", desc: "TV 대시보드를 새 탭에서 엽니다", external: true },
