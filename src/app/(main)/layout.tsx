@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 "use client";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -26,6 +26,7 @@ function BottomNav({ userRole }: { userRole: string }) {
     { href: "/tree",         label: "🌳 업무 트리", leaderOnly: true },
     { href: "/admin",        label: "🧠 팀원 프로필", adminOnly: true },
     { href: "/report-export",label: "📋 외부 보고서", adminOnly: true },
+    { href: "/beta-overview",     label: "🚀 TaskFlow 2.0 베타" },
     { href: "/project-assistant", label: "🤖 AI 프로젝트 어시스턴트" },
     { href: "/guide",        label: "📖 사용 가이드" },
     { href: "/changelog",    label: "📋 변경 이력" },

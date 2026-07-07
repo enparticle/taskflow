@@ -27,6 +27,7 @@ export default function MorePage() {
       { href: "/admin",         icon: "🧠", label: "팀원 프로필 관리", desc: "팀원 정보와 성향을 관리합니다" },
       { href: "/report-export", icon: "📋", label: "외부용 보고서",    desc: "외부 공유용 보고서를 생성합니다" },
     ] : []),
+    { href: "/beta-overview", icon: "🚀", label: "TaskFlow 2.0 베타", desc: "다음 버전 개발 사양서 및 로드맵" },
     { href: "/project-assistant", icon: "🤖", label: "AI 프로젝트 어시스턴트", desc: "프로젝트 계획 수립, 방향 변경 반영을 AI와 함께" },
     { href: "/guide",    icon: "📖", label: "사용 가이드", desc: "역할별 TaskFlow 사용법을 안내합니다" },
     { href: "/changelog", icon: "📋", label: "변경 이력", desc: "TaskFlow 업데이트 내역을 확인합니다" },
