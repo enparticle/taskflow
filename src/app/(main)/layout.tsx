@@ -1,4 +1,4 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 "use client";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -15,28 +15,21 @@ const NAV_ITEMS = [
   { href: "/more",      icon: "···", label: "더보기" },
 ];
 
+// 정리 메모 (2026-07-08):
+// - 팀 현황 / 팀원 프로필 → 설정(Settings) 페이지 내부로 이동 예정. 설정 페이지 쪽 작업 후 여기 링크를 그쪽으로 연결.
+// - 리포트 / 업무 트리 / 외부용 보고서 / AI 프로젝트 어시스턴트 → 활용도 낮아 네비게이션에서 제거.
+//   페이지 자체는 삭제하지 않았으므로 URL로는 계속 접근 가능.
+// - TaskFlow 베타 안내 / 사용 가이드 / 변경 이력 → 하나의 메뉴로 통합.
+//   지금은 편의상 /guide 로 연결해뒀는데, 세 페이지 내용을 한 곳에 합치는 작업이 별도로 필요함.
+const MORE_ITEMS = [
+  { href: "/meeting-note", label: "📝 회의 기록" },
+  { href: "/guide",        label: "🚀 TaskFlow 소식/가이드" },
+  { href: "/viewer",       label: "📺 전체 현황 뷰어", external: true },
+];
+
 function BottomNav({ userRole }: { userRole: string }) {
   const pathname = usePathname();
   const [showMore, setShowMore] = useState(false);
-
-  const MORE_ITEMS = [
-    { href: "/meeting-note", label: "📝 회의 기록" },
-    { href: "/team",         label: "◈ 팀 현황", leaderOnly: true },
-    { href: "/reports",      label: "📊 리포트", leaderOnly: true },
-    { href: "/tree",         label: "🌳 업무 트리", leaderOnly: true },
-    { href: "/admin",        label: "🧠 팀원 프로필", adminOnly: true },
-    { href: "/report-export",label: "📋 외부 보고서", adminOnly: true },
-    { href: "/beta-overview",     label: "🚀 TaskFlow 2.0 베타" },
-    { href: "/project-assistant", label: "🤖 AI 프로젝트 어시스턴트" },
-    { href: "/guide",        label: "📖 사용 가이드" },
-    { href: "/changelog",    label: "📋 변경 이력" },
-    { href: "/settings",     label: "⚙ 설정" },
-    { href: "/viewer",       label: "📺 전체 현황 뷰어", external: true },
-  ].filter(item => {
-    if (item.adminOnly) return userRole === "admin";
-    if (item.leaderOnly) return userRole === "admin" || userRole === "leader";
-    return true;
-  });
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
@@ -342,12 +335,6 @@ function UserAvatar({ supabase }: { supabase: any }) {
               onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = "var(--bg-3)"; }}
               onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = "transparent"; }}>
               ⚙ 설정
-            </Link>
-            <Link href="/guide" onClick={() => setOpen(false)}
-              style={{ display: "block", padding: "7px 12px", fontSize: 12, color: "var(--text-2)", textDecoration: "none", borderRadius: 6 }}
-              onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.background = "var(--bg-3)"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.background = "transparent"; }}>
-              📖 사용 가이드
             </Link>
             <div style={{ height: "0.5px", background: "var(--border)", margin: "4px 0" }} />
             <button onClick={logout}
