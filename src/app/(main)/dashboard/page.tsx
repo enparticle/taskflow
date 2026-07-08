@@ -118,7 +118,7 @@ function AIBriefing({ tasks, myUser }: { tasks: any[]; myUser: any }) {
 }
 
 // ── 신규: 오늘 한 일 기록 입력 + AI 제안 ─────────────────────────
-function DailyLog({ myUser, myTasks, onChanged }: { myUser: any; myTasks: any[]; onChanged: () => void }) {
+function DailyLog({ myUser, myTasks, onChanged, onOpen }: { myUser: any; myTasks: any[]; onChanged: () => void; onOpen: (id: string) => void }) {
   const supabase = createClient();
   const [text, setText] = useState("");
   const [asking, setAsking] = useState(false);
@@ -133,12 +133,12 @@ function DailyLog({ myUser, myTasks, onChanged }: { myUser: any; myTasks: any[];
   const loadRecent = useCallback(async () => {
     if (!myUser) return;
     setRecentLoading(true);
-    const { data } = await supabase.from("tasks")
-      .select("id, title, status, created_at")
-      .or(`assignee_id.eq.${myUser.id},assignee_ids.cs.{${myUser.id}}`)
+    const { data } = await supabase.from("task_comments")
+      .select("id, content, created_at, task:tasks(id, title, status)")
+      .eq("user_id", myUser.id)
       .order("created_at", { ascending: false })
       .limit(6);
-    setRecent(data ?? []);
+    setRecent((data ?? []).filter((r: any) => r.task));
     setRecentLoading(false);
   }, [myUser]);
 
@@ -177,15 +177,29 @@ function DailyLog({ myUser, myTasks, onChanged }: { myUser: any; myTasks: any[];
     const s = suggestions[idx];
     setApplying(idx);
     try {
+      let targetTaskId: string | null = null;
+
       if (s.type === "complete" && s.taskId) {
         await supabase.from("tasks").update({ status: "done" }).eq("id", s.taskId);
+        targetTaskId = s.taskId;
       } else if (s.type === "create") {
-        await supabase.from("tasks").insert({
+        const { data: created } = await supabase.from("tasks").insert({
           title: s.title,
           status: s.status === "doing" ? "doing" : "done",
           assignee_id: myUser.id,
+        }).select("id").single();
+        targetTaskId = created?.id ?? null;
+      }
+
+      // 원문 기록을 해당 업무의 댓글로 남김 — 업무 상세/프로젝트 상세에서 그대로 보이게
+      if (targetTaskId && text.trim()) {
+        await supabase.from("task_comments").insert({
+          task_id: targetTaskId,
+          user_id: myUser.id,
+          content: `📝 홈 기록: ${text.trim()}`,
         });
       }
+
       setAppliedIdx(prev => new Set(prev).add(idx));
       onChanged();
       loadRecent();
@@ -286,23 +300,24 @@ function DailyLog({ myUser, myTasks, onChanged }: { myUser: any; myTasks: any[];
           <p style={{ fontSize: 12, color: "var(--text-3)" }}>아직 기록이 없어요</p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            {recent.map(t => {
-              const sc = STATUS_COLOR[t.status] ?? "#A8A8A4";
+            {recent.map((r: any) => {
+              const sc = STATUS_COLOR[r.task.status] ?? "#A8A8A4";
               return (
-                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div key={r.id} onClick={() => onOpen(r.task.id)}
+                  style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", borderRadius: 6, padding: "2px 4px" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = "var(--bg-3)"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}>
                   <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 4, background: `${sc}12`, color: sc, fontWeight: 600, flexShrink: 0 }}>
-                    {STATUS_LABEL[t.status]}
+                    {STATUS_LABEL[r.task.status]}
                   </span>
                   <span style={{ fontSize: 12, color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {t.title}
+                    {r.task.title}
                   </span>
                 </div>
               );
             })}
           </div>
         )}
-        {/* 참고: created_at 기준 정렬이라 '완료 시점'이 아니라 '등록 시점' 순서예요.
-           완료 시점을 정확히 보여주려면 tasks 테이블에 completed_at 컬럼 추가가 필요해요. */}
       </div>
     </div>
   );
@@ -382,7 +397,7 @@ export default function DashboardPage() {
           <WeeklySummary tasks={myTasks} />
 
           {/* 오늘 한 일 기록 (구 "오늘의 포커스" 대체) */}
-          <DailyLog myUser={myUser} myTasks={myTasks} onChanged={load} />
+          <DailyLog myUser={myUser} myTasks={myTasks} onChanged={load} onOpen={(id: string) => setOpenDetail(id)} />
 
           {/* AI 브리핑 (접힌 상태) */}
           <AIBriefing tasks={myTasks} myUser={myUser} />

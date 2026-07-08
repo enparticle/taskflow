@@ -110,6 +110,7 @@ export default function ProjectDetailPage() {
   const [expandedMs, setExpandedMs] = useState<Record<string, boolean>>({});
   const [openMilestone, setOpenMilestone] = useState(false);
   const [allProjects, setAllProjects] = useState<any[]>([]);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
 
   const load = useCallback(async () => {
     const { data: p } = await supabase.from("projects")
@@ -134,6 +135,19 @@ export default function ProjectDetailPage() {
       .select("*, assignee_ids, assignee:users!tasks_assignee_id_fkey(name,avatar_url), project:projects(name)")
       .eq("project_id", id).order("created_at", { ascending: true });
     setTasks(t ?? []);
+
+    // 최근 활동 — 이 프로젝트 소속 업무들에 달린 최근 댓글/기록
+    const taskIds = (t ?? []).map((x: any) => x.id);
+    if (taskIds.length > 0) {
+      const { data: comments } = await supabase.from("task_comments")
+        .select("id, content, created_at, task_id, user:users(name)")
+        .in("task_id", taskIds)
+        .order("created_at", { ascending: false })
+        .limit(8);
+      setRecentActivity(comments ?? []);
+    } else {
+      setRecentActivity([]);
+    }
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
@@ -323,6 +337,46 @@ export default function ProjectDetailPage() {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* 최근 활동 — 홈 기록 및 업무 댓글이 여기 모임 */}
+          <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-2)", marginBottom: 14 }}>최근 활동</p>
+            {recentActivity.length === 0 ? (
+              <p style={{ fontSize: 12, color: "var(--text-3)", textAlign: "center", padding: "12px 0" }}>
+                아직 활동 기록이 없습니다
+              </p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {recentActivity.map((a: any) => {
+                  const relatedTask = tasks.find(t => t.id === a.task_id);
+                  return (
+                    <div key={a.id} onClick={() => relatedTask && setOpenDetail(relatedTask.id)}
+                      style={{ display: "flex", gap: 10, padding: "8px 10px", borderRadius: 8, cursor: relatedTask ? "pointer" : "default" }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = "var(--bg-3)"; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}>
+                      <div style={{ width: 22, height: 22, borderRadius: "50%", background: "var(--bg-4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "var(--text-2)", flexShrink: 0 }}>
+                        {a.user?.name?.[0] ?? "?"}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-1)" }}>{a.user?.name ?? "알 수 없음"}</span>
+                          {relatedTask && (
+                            <span style={{ fontSize: 11, color: "var(--text-3)" }}>· {relatedTask.title}</span>
+                          )}
+                        </div>
+                        <p style={{ fontSize: 12, color: "var(--text-2)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {a.content}
+                        </p>
+                      </div>
+                      <span style={{ fontSize: 10, color: "var(--text-3)", flexShrink: 0, whiteSpace: "nowrap" }}>
+                        {new Date(a.created_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
