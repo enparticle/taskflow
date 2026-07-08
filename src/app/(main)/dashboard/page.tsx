@@ -14,150 +14,8 @@ const STATUS_LABEL: Record<string, string> = {
   backlog: "백로그", todo: "할 일", doing: "진행 중",
   blocked: "Blocked", review: "리뷰", done: "완료",
 };
-const PRIORITY_COLOR: Record<string, string> = {
-  urgent: "#DC2626", high: "#D97706", medium: "#2563EB", low: "#A8A8A4",
-};
-const PRIORITY_LABEL: Record<string, string> = {
-  urgent: "긴급", high: "높음", medium: "보통", low: "낮음",
-};
 
-// 포커스 업무 우선순위 로직
-function getFocusPriority(task: any, now: Date): { rank: number; badge: string; color: string; bg: string } {
-  const daysLeft = task.due_date
-    ? Math.ceil((new Date(task.due_date).getTime() - now.getTime()) / 86400000)
-    : null;
-
-  if (task.status === "blocked")
-    return { rank: 1, badge: "🚨 Blocked", color: "#DC2626", bg: "#FEF2F2" };
-  if (daysLeft !== null && daysLeft <= 3 && daysLeft >= 0)
-    return { rank: 2, badge: `⏰ D-${daysLeft === 0 ? "day" : daysLeft}`, color: "#D97706", bg: "#FFFBEB" };
-  if (daysLeft !== null && daysLeft < 0)
-    return { rank: 2, badge: `🔴 ${Math.abs(daysLeft)}일 초과`, color: "#DC2626", bg: "#FEF2F2" };
-  if (task.priority_order != null)
-    return { rank: 3, badge: `⭐ 우선순위 ${task.priority_order}`, color: "#2563EB", bg: "#EEF3FF" };
-  if (task._isNew)
-    return { rank: 4, badge: "🆕 새 업무", color: "#16A34A", bg: "#F0FDF4" };
-  if (task.status === "doing")
-    return { rank: 5, badge: "▶ 진행 중", color: "#2563EB", bg: "var(--bg-3)" };
-  return { rank: 9, badge: "", color: "var(--text-3)", bg: "var(--bg-3)" };
-}
-
-function buildFocusTasks(tasks: any[], now: Date): any[] {
-  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const withMeta = tasks.map(t => ({
-    ...t,
-    _isNew: t.created_at && new Date(t.created_at) > oneDayAgo,
-    _focus: getFocusPriority(t, now),
-  }));
-
-  // rank 9(일반)은 제외, rank 순 정렬
-  const focused = withMeta
-    .filter(t => t._focus.rank < 9)
-    .sort((a, b) => a._focus.rank - b._focus.rank);
-
-  // 중복 제거 후 최대 5개
-  const seen = new Set<string>();
-  const result: any[] = [];
-  for (const t of focused) {
-    if (!seen.has(t.id)) {
-      seen.add(t.id);
-      result.push(t);
-    }
-    if (result.length >= 5) break;
-  }
-  return result;
-}
-
-// 포커스 카드 컴포넌트
-function FocusCard({ task, myUser, onStatusChange, onOpen }: any) {
-  const [changing, setChanging] = useState(false);
-  const [localStatus, setLocalStatus] = useState(task.status);
-  const supabase = createClient();
-
-  const isAssignee = myUser &&
-    (task.assignee_id === myUser.id ||
-     (task.assignee_ids ?? []).includes(myUser.id));
-  const isAdmin = myUser?.role === "admin";
-  const canChange = isAssignee || isAdmin;
-
-  async function handleChange(newStatus: string) {
-    if (!canChange) return;
-    setChanging(true);
-    setLocalStatus(newStatus);
-    await supabase.from("tasks").update({ status: newStatus }).eq("id", task.id);
-    setChanging(false);
-    onStatusChange?.();
-  }
-
-  const sc = STATUS_COLOR[localStatus] ?? "#A8A8A4";
-  const { badge, color, bg } = task._focus;
-
-  return (
-    <div style={{
-      background: bg, border: `1.5px solid ${color}30`,
-      borderRadius: 12, padding: "14px 16px",
-      display: "flex", alignItems: "center", gap: 12,
-    }}>
-      {/* 뱃지 */}
-      <span style={{
-        fontSize: 10, padding: "3px 8px", borderRadius: 20,
-        background: `${color}15`, color, fontWeight: 700,
-        border: `1px solid ${color}30`, flexShrink: 0, whiteSpace: "nowrap",
-      }}>
-        {badge}
-      </span>
-
-      {/* 업무 정보 */}
-      <div style={{ flex: 1, minWidth: 0, cursor: "pointer" }} onClick={() => onOpen(task.id)}>
-        <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", margin: "0 0 3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {task.title}
-        </p>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {task.project?.name && (
-            <span style={{ fontSize: 11, color: "var(--text-3)" }}>{task.project.name}</span>
-          )}
-          {task.priority && (
-            <span style={{ fontSize: 10, color: PRIORITY_COLOR[task.priority] }}>
-              {PRIORITY_LABEL[task.priority]}
-            </span>
-          )}
-          {task.priority_note && (
-            <span style={{ fontSize: 10, color: "#2563EB", background: "#EEF3FF", padding: "1px 6px", borderRadius: 4 }}>
-              💬 {task.priority_note}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* 상태 변경 */}
-      {canChange ? (
-        <select
-          value={localStatus}
-          onChange={e => handleChange(e.target.value)}
-          disabled={changing}
-          style={{
-            padding: "5px 8px", borderRadius: 7, fontSize: 11, fontWeight: 600,
-            background: `${sc}12`, color: sc, border: `1px solid ${sc}33`,
-            cursor: "pointer", outline: "none", flexShrink: 0,
-            colorScheme: "light", opacity: changing ? 0.5 : 1,
-          }}>
-          {Object.entries(STATUS_LABEL).filter(([v]) => v !== "done").map(([v, l]) => (
-            <option key={v} value={v}>{l}</option>
-          ))}
-        </select>
-      ) : (
-        <span style={{
-          padding: "5px 10px", borderRadius: 7, fontSize: 11, fontWeight: 600,
-          background: `${sc}12`, color: sc, border: `1px solid ${sc}33`, flexShrink: 0,
-        }}>
-          {STATUS_LABEL[localStatus]}
-        </span>
-      )}
-    </div>
-  );
-}
-
-// 주간 요약
+// 주간 요약 (기존 유지)
 function WeeklySummary({ tasks }: { tasks: any[] }) {
   const done = tasks.filter(t => t.status === "done").length;
   const doing = tasks.filter(t => t.status === "doing").length;
@@ -189,14 +47,14 @@ function WeeklySummary({ tasks }: { tasks: any[] }) {
   );
 }
 
-// AI 브리핑 (접힌 상태)
+// AI 브리핑 (기존 유지)
 function AIBriefing({ tasks, myUser }: { tasks: any[]; myUser: any }) {
   const [open, setOpen] = useState(false);
   const [briefing, setBriefing] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function generate() {
-    if (briefing) return; // 이미 생성됐으면 스킵
+    if (briefing) return;
     setLoading(true);
     try {
       const res = await fetch("/api/briefing", {
@@ -259,11 +117,201 @@ function AIBriefing({ tasks, myUser }: { tasks: any[]; myUser: any }) {
   );
 }
 
+// ── 신규: 오늘 한 일 기록 입력 + AI 제안 ─────────────────────────
+function DailyLog({ myUser, myTasks, onChanged }: { myUser: any; myTasks: any[]; onChanged: () => void }) {
+  const supabase = createClient();
+  const [text, setText] = useState("");
+  const [asking, setAsking] = useState(false);
+  const [suggestions, setSuggestions] = useState<any[]>([]); // { type, taskId?, title, status?, reason }
+  const [reply, setReply] = useState("");
+  const [dismissedIdx, setDismissedIdx] = useState<Set<number>>(new Set());
+  const [appliedIdx, setAppliedIdx] = useState<Set<number>>(new Set());
+  const [applying, setApplying] = useState<number | null>(null);
+  const [recent, setRecent] = useState<any[]>([]);
+  const [recentLoading, setRecentLoading] = useState(true);
+
+  const loadRecent = useCallback(async () => {
+    if (!myUser) return;
+    setRecentLoading(true);
+    const { data } = await supabase.from("tasks")
+      .select("id, title, status, created_at")
+      .or(`assignee_id.eq.${myUser.id},assignee_ids.cs.{${myUser.id}}`)
+      .order("created_at", { ascending: false })
+      .limit(6);
+    setRecent(data ?? []);
+    setRecentLoading(false);
+  }, [myUser]);
+
+  useEffect(() => { loadRecent(); }, [loadRecent]);
+
+  async function ask() {
+    if (!text.trim() || asking) return;
+    setAsking(true);
+    setSuggestions([]); setReply(""); setDismissedIdx(new Set()); setAppliedIdx(new Set());
+    try {
+      const res = await fetch("/api/daily-log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          userName: myUser?.name ?? "팀원",
+          tasks: myTasks.map(t => ({ id: t.id, title: t.title, status: t.status })),
+          now: new Date().toISOString(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setReply("기록을 분석하는 중 오류가 발생했어요. 잠시 후 다시 시도해주세요.");
+        setSuggestions([]);
+      } else {
+        setReply(data.reply ?? "");
+        setSuggestions(data.suggestions ?? []);
+      }
+    } catch {
+      setReply("기록을 분석하는 중 오류가 발생했어요. 잠시 후 다시 시도해주세요.");
+    }
+    setAsking(false);
+  }
+
+  async function applySuggestion(idx: number) {
+    const s = suggestions[idx];
+    setApplying(idx);
+    try {
+      if (s.type === "complete" && s.taskId) {
+        await supabase.from("tasks").update({ status: "done" }).eq("id", s.taskId);
+      } else if (s.type === "create") {
+        await supabase.from("tasks").insert({
+          title: s.title,
+          status: s.status === "doing" ? "doing" : "done",
+          assignee_id: myUser.id,
+        });
+      }
+      setAppliedIdx(prev => new Set(prev).add(idx));
+      onChanged();
+      loadRecent();
+    } finally {
+      setApplying(null);
+    }
+  }
+
+  function dismissSuggestion(idx: number) {
+    setDismissedIdx(prev => new Set(prev).add(idx));
+  }
+
+  return (
+    <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+      <div style={{ padding: "14px 18px", background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 16 }}>📝</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)" }}>오늘 한 일을 적어주세요</span>
+        </div>
+      </div>
+
+      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+        <textarea
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder="예: 로그인 페이지 UI 다 만들었고, API 연동하다가 CORS 이슈로 막혔어"
+          rows={3}
+          style={{
+            width: "100%", boxSizing: "border-box", resize: "none",
+            background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 10,
+            padding: "10px 12px", fontSize: 13, color: "var(--text-1)", outline: "none",
+          }}
+          onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) ask(); }}
+        />
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button onClick={ask} disabled={asking || !text.trim()}
+            style={{
+              padding: "8px 16px", background: "var(--cyan)", border: "none", borderRadius: 8,
+              fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer",
+              opacity: asking || !text.trim() ? 0.4 : 1,
+            }}>
+            {asking ? "분석 중…" : "AI에게 물어보기"}
+          </button>
+        </div>
+
+        {reply && (
+          <p style={{ fontSize: 12, color: "var(--text-2)", background: "var(--bg-3)", borderRadius: 8, padding: "8px 12px", margin: 0 }}>
+            {reply}
+          </p>
+        )}
+
+        {suggestions.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {suggestions.map((s, idx) => {
+              if (dismissedIdx.has(idx)) return null;
+              const isApplied = appliedIdx.has(idx);
+              return (
+                <div key={idx} style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  background: isApplied ? "#F0FDF4" : "#EEF3FF",
+                  border: `1px solid ${isApplied ? "#BBF7D0" : "#BFDBFE"}`,
+                  borderRadius: 10, padding: "10px 12px",
+                }}>
+                  <span style={{ fontSize: 16 }}>{s.type === "complete" ? "✅" : "🆕"}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-1)", margin: 0 }}>
+                      {s.type === "complete" ? `'${s.title}' 완료 처리` : `'${s.title}' 새 업무로 등록`}
+                    </p>
+                    {s.reason && <p style={{ fontSize: 11, color: "var(--text-3)", margin: "2px 0 0" }}>{s.reason}</p>}
+                  </div>
+                  {isApplied ? (
+                    <span style={{ fontSize: 11, color: "#16A34A", fontWeight: 600, flexShrink: 0 }}>적용됨</span>
+                  ) : (
+                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                      <button onClick={() => applySuggestion(idx)} disabled={applying === idx}
+                        style={{ fontSize: 11, padding: "5px 10px", borderRadius: 6, background: "var(--cyan)", border: "none", color: "#fff", fontWeight: 600, cursor: "pointer", opacity: applying === idx ? 0.5 : 1 }}>
+                        {s.type === "complete" ? "완료 처리" : "등록"}
+                      </button>
+                      <button onClick={() => dismissSuggestion(idx)}
+                        style={{ fontSize: 11, padding: "5px 10px", borderRadius: 6, background: "transparent", border: "1px solid var(--border)", color: "var(--text-3)", cursor: "pointer" }}>
+                        무시
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* 최근 기록 */}
+      <div style={{ borderTop: "1px solid var(--border)", padding: "12px 16px" }}>
+        <p style={{ fontSize: 11, fontWeight: 600, color: "var(--text-3)", marginBottom: 8 }}>최근 기록</p>
+        {recentLoading ? (
+          <p style={{ fontSize: 12, color: "var(--text-3)" }}>불러오는 중…</p>
+        ) : recent.length === 0 ? (
+          <p style={{ fontSize: 12, color: "var(--text-3)" }}>아직 기록이 없어요</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            {recent.map(t => {
+              const sc = STATUS_COLOR[t.status] ?? "#A8A8A4";
+              return (
+                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 4, background: `${sc}12`, color: sc, fontWeight: 600, flexShrink: 0 }}>
+                    {STATUS_LABEL[t.status]}
+                  </span>
+                  <span style={{ fontSize: 12, color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {t.title}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {/* 참고: created_at 기준 정렬이라 '완료 시점'이 아니라 '등록 시점' 순서예요.
+           완료 시점을 정확히 보여주려면 tasks 테이블에 completed_at 컬럼 추가가 필요해요. */}
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const supabase = createClient();
   const [myUser, setMyUser] = useState<any>(null);
   const [myTasks, setMyTasks] = useState<any[]>([]);
-  const [focusTasks, setFocusTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [openDetail, setOpenDetail] = useState<string | null>(null);
   const [openForm, setOpenForm] = useState(false);
@@ -279,16 +327,13 @@ export default function DashboardPage() {
 
     if (authUser.role === "viewer") { setLoading(false); return; }
 
-    // 내 업무 로드 (완료 제외)
     const { data: tasks } = await supabase.from("tasks")
       .select("*, project:projects(name)")
       .or(`assignee_id.eq.${authUser.userId},assignee_ids.cs.{${authUser.userId}}`)
       .neq("status", "done")
       .order("due_date", { ascending: true, nullsFirst: false });
 
-    const allTasks = tasks ?? [];
-    setMyTasks(allTasks);
-    setFocusTasks(buildFocusTasks(allTasks, now));
+    setMyTasks(tasks ?? []);
     setLoading(false);
   }, []);
 
@@ -336,34 +381,8 @@ export default function DashboardPage() {
           {/* 주간 요약 */}
           <WeeklySummary tasks={myTasks} />
 
-          {/* 오늘의 포커스 */}
-          <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 16 }}>🎯</span>
-                <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)" }}>오늘의 포커스</span>
-                <span style={{ fontSize: 11, color: "var(--text-3)" }}>지금 당장 봐야 할 업무</span>
-              </div>
-              <a href="/tasks" style={{ fontSize: 11, color: "var(--cyan)", textDecoration: "none" }}>전체 업무 →</a>
-            </div>
-            <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-              {focusTasks.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "24px 0" }}>
-                  <p style={{ fontSize: 22, margin: "0 0 8px" }}>✅</p>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-2)", marginBottom: 4 }}>오늘 집중할 긴급 업무가 없습니다</p>
-                  <p style={{ fontSize: 12, color: "var(--text-3)" }}>마감이 임박하거나 막힌 업무가 없어요</p>
-                </div>
-              ) : focusTasks.map(task => (
-                <FocusCard
-                  key={task.id}
-                  task={task}
-                  myUser={myUser}
-                  onStatusChange={load}
-                  onOpen={(id: string) => setOpenDetail(id)}
-                />
-              ))}
-            </div>
-          </div>
+          {/* 오늘 한 일 기록 (구 "오늘의 포커스" 대체) */}
+          <DailyLog myUser={myUser} myTasks={myTasks} onChanged={load} />
 
           {/* AI 브리핑 (접힌 상태) */}
           <AIBriefing tasks={myTasks} myUser={myUser} />
