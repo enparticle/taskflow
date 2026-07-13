@@ -1,18 +1,15 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createAuthedClient } from "@/lib/supabaseServer";
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+    const supabase = createAuthedClient(req);
 
     const { result, userId, assigneeId } = await req.json();
     const { project, milestones, tasks } = result;
 
-    // 프로젝트 생성
+    // 프로젝트 생성 — 이제 실제 로그인 사용자 권한으로 실행 (RLS: admin만 가능)
     const { data: proj, error: projErr } = await supabase
       .from("projects").insert({ ...project, owner_id: userId }).select().single();
     if (projErr) throw new Error(projErr.message);

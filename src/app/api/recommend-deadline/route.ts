@@ -1,15 +1,11 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
-import { createClient } from "@supabase/supabase-js";
+import { createAuthedClient } from "@/lib/supabaseServer";
 
 export async function POST(req: NextRequest) {
   try {
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+    const client = new (await import("@anthropic-ai/sdk")).default({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const supabase = createAuthedClient(req);
 
     const { title, task_type, priority, estimated_hours } = await req.json();
 

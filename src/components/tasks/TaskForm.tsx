@@ -1,7 +1,8 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase";
+import { authFetch } from "@/lib/authFetch";
 import type { User, Project } from "@/types/database";
 
 const TYPES = [
@@ -84,9 +85,8 @@ export default function TaskForm({ onClose, onSaved, defaultProjectId }: Props) 
     if (!form.title.trim()) return;
     setClassifying(true);
     try {
-      const res = await fetch("/api/classify", {
+      const res = await authFetch("/api/classify", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: form.title, description: form.description }),
       });
       const data = await res.json();
@@ -117,9 +117,8 @@ export default function TaskForm({ onClose, onSaved, defaultProjectId }: Props) 
     setRecommending(true);
     setRecommendations([]);
     try {
-      const res = await fetch("/api/recommend-assignee", {
+      const res = await authFetch("/api/recommend-assignee", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: form.title,
           task_type: form.task_type,
@@ -137,9 +136,8 @@ export default function TaskForm({ onClose, onSaved, defaultProjectId }: Props) 
     if (!form.title.trim()) return;
     setDeadlineLoading(true); setDeadlineRec(null);
     try {
-      const res = await fetch("/api/recommend-deadline", {
+      const res = await authFetch("/api/recommend-deadline", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: form.title,
           task_type: form.task_type,

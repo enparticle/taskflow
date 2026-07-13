@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { createClient } from "@supabase/supabase-js";
+import { createAuthedClient } from "@/lib/supabaseServer";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -49,10 +49,7 @@ END_JSON`;
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+    const supabase = createAuthedClient(req);
 
     const { messages, chatId, userId } = await req.json();
 

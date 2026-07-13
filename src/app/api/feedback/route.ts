@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createAuthedClient } from "@/lib/supabaseServer";
 
 const BASE_RULES = `
 분석 기준 (반드시 이 순서로 사고하세요):
@@ -152,13 +152,10 @@ export async function POST(req: NextRequest) {
       };
     }
 
-    // suggestions를 DB에 저장
+    // suggestions를 DB에 저장 — 이제 사용자 인증 컨텍스트로 접근 (RLS 정상 통과)
     if (result.suggestions?.length > 0 && snapshot.project_id) {
       try {
-        const supabase = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        );
+        const supabase = createAuthedClient(req);
         for (const s of result.suggestions) {
           if (!s.task_id || !s.type) continue;
           await supabase.from("ai_suggestions").insert({
