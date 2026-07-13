@@ -20,6 +20,7 @@ export default function ProjectsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editProject, setEditProject] = useState<any>(null);
   const [sysRole, setSysRole] = useState<string>("");
+  const [myLeaderProjectIds, setMyLeaderProjectIds] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     const [{ data: active }, { data: completed }, { data: { user } }] = await Promise.all([
@@ -30,18 +31,26 @@ export default function ProjectsPage() {
     setActiveProjects(active ?? []);
     setCompletedProjects(completed ?? []);
     if (user) {
-      const { data: u } = await supabase.from("users").select("role").eq("auth_id", user.id).single();
+      const { data: u } = await supabase.from("users").select("id, role").eq("auth_id", user.id).single();
       setSysRole(u?.role ?? "");
+      if (u) {
+        const { data: leaderRows } = await supabase.from("project_members")
+          .select("project_id").eq("user_id", u.id).eq("role", "leader");
+        setMyLeaderProjectIds(new Set((leaderRows ?? []).map((r: any) => r.project_id)));
+      }
     }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const canManage = sysRole === "admin" || sysRole === "leader";
+  // 생성/삭제는 admin만 (DB 정책과 일치). 수정/재활성화는 admin 또는 그 프로젝트의 리더.
+  const isAdmin = sysRole === "admin";
+  const canEdit = (p: any) => isAdmin || myLeaderProjectIds.has(p.id);
 
   async function reactivate(p: any) {
     if (!confirm(`"${p.name}"을 다시 활성화할까요?`)) return;
-    await supabase.from("projects").update({ status: "active" }).eq("id", p.id);
+    const { error } = await supabase.from("projects").update({ status: "active" }).eq("id", p.id);
+    if (error) { alert(error.message.includes("row-level security") ? "이 프로젝트를 재활성화할 권한이 없어요." : error.message); return; }
     load();
   }
 
@@ -98,13 +107,13 @@ export default function ProjectsPage() {
 
           {/* 버튼 */}
           <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-            {completed && canManage && (
+            {completed && canEdit(p) && (
               <button onClick={() => reactivate(p)}
                 style={{ fontSize: 11, padding: "5px 10px", borderRadius: 7, background: "var(--bg-3)", color: "var(--cyan)", border: "1px solid var(--border)", cursor: "pointer" }}>
                 재활성화
               </button>
             )}
-            {!completed && canManage && (
+            {!completed && canEdit(p) && (
               <button onClick={() => { setEditProject(p); setShowForm(true); }}
                 style={{ fontSize: 11, padding: "5px 10px", borderRadius: 7, background: "var(--bg-3)", color: "var(--text-2)", border: "1px solid var(--border)", cursor: "pointer" }}>
                 수정
@@ -149,7 +158,7 @@ export default function ProjectsPage() {
           <div style={{ width: 3, height: 18, background: "var(--cyan)", borderRadius: 2 }} />
           <h1 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-1)", margin: 0 }}>프로젝트</h1>
         </div>
-        {canManage && (
+        {isAdmin && (
           <button onClick={() => { setEditProject(null); setShowForm(true); }}
             style={{ padding: "8px 16px", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer" }}>
             + 새 프로젝트
@@ -182,7 +191,7 @@ export default function ProjectsPage() {
           activeProjects.length === 0 ? (
             <div style={{ textAlign: "center", padding: "48px 0", background: "var(--bg-2)", border: "1px dashed var(--border)", borderRadius: 12 }}>
               <p style={{ fontSize: 13, color: "var(--text-3)" }}>진행 중인 프로젝트가 없습니다</p>
-              {canManage && (
+              {isAdmin && (
                 <button onClick={() => { setEditProject(null); setShowForm(true); }}
                   style={{ marginTop: 12, padding: "7px 16px", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer" }}>
                   + 새 프로젝트

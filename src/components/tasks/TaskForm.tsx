@@ -1,4 +1,4 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase";
@@ -25,11 +25,11 @@ const fieldStyle = {
 
 interface Props {
   onClose: () => void;
-  onCreated: () => void;
+  onSaved: () => void;
   defaultProjectId?: string;
 }
 
-export default function TaskForm({ onClose, onCreated, defaultProjectId }: Props) {
+export default function TaskForm({ onClose, onSaved, defaultProjectId }: Props) {
   const supabase = createClient();
   const [users, setUsers] = useState<User[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -169,8 +169,11 @@ export default function TaskForm({ onClose, onCreated, defaultProjectId }: Props
       status: "todo",
     });
     setLoading(false);
-    if (err) { setError(err.message); return; }
-    onCreated();
+    if (err) {
+      setError(err.message.includes("row-level security") ? "이 작업을 수행할 권한이 없어요." : err.message);
+      return;
+    }
+    onSaved();
   }
 
   const selectedUsers = users.filter(u => form.assignee_ids.includes(u.id));
