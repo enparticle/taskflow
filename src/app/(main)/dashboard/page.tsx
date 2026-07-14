@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase";
 import { getAuthUser } from "@/lib/auth";
+import OnboardingWizard from "@/components/onboarding/OnboardingWizard";
 import TaskDetail from "@/components/tasks/TaskDetail";
 import TaskForm from "@/components/tasks/TaskForm";
 
@@ -344,6 +345,7 @@ export default function DashboardPage() {
   const supabase = createClient();
   const [myUser, setMyUser] = useState<any>(null);
   const [myTasks, setMyTasks] = useState<any[]>([]);
+  const [preferences, setPreferences] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [openDetail, setOpenDetail] = useState<string | null>(null);
   const [openForm, setOpenForm] = useState(false);
@@ -358,6 +360,9 @@ export default function DashboardPage() {
     setMyUser(me);
 
     if (authUser.role === "viewer") { setLoading(false); return; }
+
+    const { data: prefs } = await supabase.from("user_preferences").select("*").eq("user_id", authUser.userId).maybeSingle();
+    setPreferences(prefs); // null이면 온보딩 마법사 노출
 
     const { data: tasks } = await supabase.from("tasks")
       .select("*, project:projects(name)")
@@ -380,9 +385,16 @@ export default function DashboardPage() {
 
   const isViewer = myUser.role === "viewer";
   const greet = now.getHours() < 12 ? "좋은 아침이에요" : now.getHours() < 18 ? "안녕하세요" : "수고하셨어요";
+  const needsOnboarding = !isViewer && (!preferences || !preferences.onboarding_completed);
+  const inputStyle = preferences?.input_style ?? "log";
+  const summaryFirst = preferences?.home_priority?.[0] === "summary";
 
   return (
     <div style={{ maxWidth: 760, display: "flex", flexDirection: "column", gap: 16 }}>
+
+      {needsOnboarding && (
+        <OnboardingWizard userId={myUser.id} onDone={load} />
+      )}
 
       {/* 헤더 */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
@@ -410,11 +422,37 @@ export default function DashboardPage() {
 
       {!isViewer && (
         <>
-          {/* 주간 요약 */}
-          <WeeklySummary tasks={myTasks} />
+          {/* 계획형: 업무 추가를 먼저 하도록 유도 */}
+          {inputStyle === "plan" && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, background: "var(--cyan-bg)", border: "1px solid #BFDBFE", borderRadius: 12, padding: "14px 18px" }}>
+              <p style={{ fontSize: 13, color: "var(--cyan)", margin: 0, fontWeight: 500 }}>📋 오늘 할 일부터 등록해볼까요?</p>
+              <button onClick={() => setOpenForm(true)}
+                style={{ padding: "6px 14px", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer", flexShrink: 0 }}>
+                + 업무 추가
+              </button>
+            </div>
+          )}
 
-          {/* 오늘 한 일 기록 (구 "오늘의 포커스" 대체) */}
-          <DailyLog myUser={myUser} myTasks={myTasks} onChanged={load} onOpen={(id: string) => setOpenDetail(id)} />
+          {/* 클릭형: 굳이 안 적어도 된다는 안내 */}
+          {inputStyle === "click" && (
+            <div style={{ background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 18px" }}>
+              <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>
+                🖱 글 쓰는 게 귀찮으면 <a href="/tasks" style={{ color: "var(--cyan)" }}>업무 탭</a>에서 상태만 클릭해서 바꾸셔도 똑같이 기록이 남아요.
+              </p>
+            </div>
+          )}
+
+          {summaryFirst ? (
+            <>
+              <WeeklySummary tasks={myTasks} />
+              <DailyLog myUser={myUser} myTasks={myTasks} onChanged={load} onOpen={(id: string) => setOpenDetail(id)} />
+            </>
+          ) : (
+            <>
+              <DailyLog myUser={myUser} myTasks={myTasks} onChanged={load} onOpen={(id: string) => setOpenDetail(id)} />
+              <WeeklySummary tasks={myTasks} />
+            </>
+          )}
 
           {/* AI 브리핑 (접힌 상태) */}
           <AIBriefing tasks={myTasks} myUser={myUser} />
