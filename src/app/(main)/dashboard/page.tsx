@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
@@ -155,7 +155,7 @@ function DailyLog({ myUser, myTasks, onChanged, onOpen }: { myUser: any; myTasks
         body: JSON.stringify({
           text,
           userName: myUser?.name ?? "팀원",
-          tasks: myTasks.map(t => ({ id: t.id, title: t.title, status: t.status })),
+          tasks: myTasks.map(t => ({ id: t.id, title: t.title, status: t.status, project: t.project?.name ?? null })),
           now: new Date().toISOString(),
         }),
       });

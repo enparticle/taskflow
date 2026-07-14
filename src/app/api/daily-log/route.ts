@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 
 // 오늘 한 일을 자유 텍스트로 받아서, 기존 업무 완료 처리 / 신규 업무 등록을 제안합니다.
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
 
     const openTasks = (tasks ?? []).filter((t: any) => t.status !== "done");
     const taskList = openTasks
-      .map((t: any) => `- [${t.id}] ${t.title} (현재 상태: ${t.status})`)
+      .map((t: any) => `- [${t.id}] ${t.title}${t.project ? ` (프로젝트: ${t.project})` : ""} (현재 상태: ${t.status})`)
       .join("\n");
 
     const prompt = `당신은 ${userName}님의 업무 기록 보조 AI입니다.
@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
 1. 기존 업무 중 완료된 것으로 보이는 게 있으면 "complete" 제안
 2. 기존 업무 목록에 없는 새로운 작업 내용이 언급됐으면 "create" 제안 (완료된 것 같으면 status "done", 아직 진행 중인 것 같으면 status "doing")
 3. 애매하거나 업무와 무관한 내용(잡담 등)은 제안하지 않습니다.
+4. 사용자가 프로젝트명을 언급하면, 업무 목록의 (프로젝트: ...) 표시와 대조해서 더 정확하게 매칭하세요. 같은 제목의 업무가 여러 프로젝트에 있을 수 있으니 프로젝트명이 매칭 판단에 중요한 단서입니다.
 
 현재 사용자의 미완료 업무 목록:
 ${taskList || "(없음)"}
