@@ -187,11 +187,19 @@ const CONSUMPTION_STYLE_OPTIONS = [
   { value: "summary", title: "아니요, 필요할 때만" },
   { value: "unsure", title: "잘 모르겠어요" },
 ];
+const ADVANCED_FEATURES = [
+  { key: "my-work", emoji: "📋", label: "내 업무", desc: "담당 업무만 마감일순으로 빠르게", path: "/my-work" },
+  { key: "kanban", emoji: "📊", label: "칸반 보드", desc: "상태별로 시각화, 드래그로 상태 변경", path: "/kanban" },
+  { key: "recurring", emoji: "🔄", label: "반복 업무", desc: "매주 반복되는 팀/개인 업무 자동 등록", path: "/recurring" },
+  { key: "project-assistant", emoji: "🤖", label: "AI 프로젝트 어시스턴트", desc: "대화로 프로젝트 구성, 방향 변경 반영", path: "/project-assistant" },
+  { key: "report-export", emoji: "📄", label: "외부용 보고서", desc: "팀 외부 공유용 진행 보고서 작성", path: "/report-export" },
+];
 
 function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
   const [inputStyle, setInputStyle] = useState("log");
   const [homePriority, setHomePriority] = useState("today");
   const [consumptionStyle, setConsumptionStyle] = useState("unsure");
+  const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -203,10 +211,15 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
         setInputStyle(data.input_style ?? "log");
         setHomePriority(data.home_priority?.[0] ?? "today");
         setConsumptionStyle(data.consumption_style ?? "unsure");
+        setEnabledFeatures(data.enabled_features ?? []);
       }
       setLoaded(true);
     });
   }, [myUserId]);
+
+  function toggleFeature(key: string) {
+    setEnabledFeatures(prev => prev.includes(key) ? prev.filter(f => f !== key) : [...prev, key]);
+  }
 
   async function save() {
     setSaving(true); setSaved(false);
@@ -216,6 +229,7 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
       input_style: inputStyle,
       home_priority: priorityOrder,
       consumption_style: consumptionStyle,
+      enabled_features: enabledFeatures,
       onboarding_completed: true,
       updated_at: new Date().toISOString(),
     }, { onConflict: "user_id" });
@@ -288,12 +302,34 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
         </div>
       </div>
 
+      <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 18 }}>
+        <h2 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", marginBottom: 4 }}>고급 기능</h2>
+        <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 14 }}>켜면 하단 "더보기" 메뉴에 나타나요. 필요한 것만 골라서 쓰세요</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {ADVANCED_FEATURES.map(f => (
+            <label key={f.key} style={{
+              display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 10, cursor: "pointer",
+              background: enabledFeatures.includes(f.key) ? "var(--cyan-bg)" : "var(--bg-3)",
+              border: `1px solid ${enabledFeatures.includes(f.key) ? "var(--cyan)" : "var(--border)"}`,
+            }}>
+              <input type="checkbox" checked={enabledFeatures.includes(f.key)} onChange={() => toggleFeature(f.key)}
+                style={{ width: 15, height: 15, accentColor: "var(--cyan)", cursor: "pointer" }} />
+              <span style={{ fontSize: 16 }}>{f.emoji}</span>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-1)", margin: 0 }}>{f.label}</p>
+                <p style={{ fontSize: 11, color: "var(--text-3)", margin: "1px 0 0" }}>{f.desc}</p>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
+
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <button onClick={save} disabled={saving}
           style={{ padding: "8px 20px", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
           {saving ? "저장 중…" : "저장"}
         </button>
-        {saved && <span style={{ fontSize: 12, color: "#16A34A" }}>✓ 저장됐어요, 홈 화면에 바로 반영돼요</span>}
+        {saved && <span style={{ fontSize: 12, color: "#16A34A" }}>✓ 저장됐어요, 홈 화면·메뉴에 바로 반영돼요</span>}
       </div>
     </div>
   );
