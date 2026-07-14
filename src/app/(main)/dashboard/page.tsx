@@ -2,6 +2,7 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase";
+import { authFetch } from "@/lib/authFetch";
 import { getAuthUser } from "@/lib/auth";
 import OnboardingWizard from "@/components/onboarding/OnboardingWizard";
 import TaskDetail from "@/components/tasks/TaskDetail";
@@ -159,9 +160,8 @@ function DailyLog({ myUser, myTasks, onChanged, onOpen }: { myUser: any; myTasks
     setAsking(true);
     setSuggestions([]); setReply(""); setDismissedIdx(new Set()); setAppliedIdx(new Set());
     try {
-      const res = await fetch("/api/daily-log", {
+      const res = await authFetch("/api/daily-log", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text,
           userName: myUser?.name ?? "팀원",
@@ -213,6 +213,22 @@ function DailyLog({ myUser, myTasks, onChanged, onOpen }: { myUser: any; myTasks
         });
       }
 
+      // 학습 루프용 기록 — 이 제안이 "맞았다"는 사례로 남김 (3단계)
+      await supabase.from("ai_suggestions").insert({
+        task_id: targetTaskId,
+        type: s.type === "complete" ? "status" : "create_task",
+        field: s.type === "complete" ? "status" : "title",
+        current_value: s.type === "complete" ? "미완료" : null,
+        suggested_value: s.type === "complete" ? "done" : s.title,
+        reason: s.reason ?? null,
+        status: "approved",
+        source: "daily_log",
+        source_text: text.trim() || null,
+        user_id: myUser.id,
+        reviewed_by: myUser.id,
+        reviewed_at: new Date().toISOString(),
+      });
+
       setAppliedIdx(prev => new Set(prev).add(idx));
       onChanged();
       loadRecent();
@@ -221,8 +237,23 @@ function DailyLog({ myUser, myTasks, onChanged, onOpen }: { myUser: any; myTasks
     }
   }
 
-  function dismissSuggestion(idx: number) {
+  async function dismissSuggestion(idx: number) {
+    const s = suggestions[idx];
     setDismissedIdx(prev => new Set(prev).add(idx));
+    // 학습 루프용 기록 — 이 제안이 "틀렸다"는 사례로 남김
+    await supabase.from("ai_suggestions").insert({
+      task_id: s.taskId ?? null,
+      type: s.type === "complete" ? "status" : "create_task",
+      field: s.type === "complete" ? "status" : "title",
+      suggested_value: s.type === "complete" ? "done" : s.title,
+      reason: s.reason ?? null,
+      status: "rejected",
+      source: "daily_log",
+      source_text: text.trim() || null,
+      user_id: myUser?.id ?? null,
+      reviewed_by: myUser?.id ?? null,
+      reviewed_at: new Date().toISOString(),
+    });
   }
 
   return (
