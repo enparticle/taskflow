@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
 2. 기존 업무 목록에 없는 새로운 작업 내용이 언급됐으면 "create" 제안 (완료된 것 같으면 status "done", 아직 진행 중인 것 같으면 status "doing")
 3. 애매하거나 업무와 무관한 내용(잡담 등)은 제안하지 않습니다.
 4. 사용자가 프로젝트명을 언급하면, 업무 목록의 (프로젝트: ...) 표시와 대조해서 더 정확하게 매칭하세요. 같은 제목의 업무가 여러 프로젝트에 있을 수 있으니 프로젝트명이 매칭 판단에 중요한 단서입니다.
+5. "create" 제안 시, 텍스트에서 프로젝트가 유추되면 업무 목록에 나온 프로젝트명 중 정확히 일치하는 것을 "project" 필드에 넣으세요. 확신 없으면 project 필드를 생략하세요(추측해서 엉뚱한 프로젝트에 넣지 마세요).
 
 현재 사용자의 미완료 업무 목록:
 ${taskList || "(없음)"}
@@ -41,7 +42,7 @@ ${text}
   "reply": "사용자에게 보여줄 한두 문장의 짧은 확인 멘트",
   "suggestions": [
     { "type": "complete", "taskId": "기존 업무 id", "title": "업무 제목", "reason": "왜 이렇게 판단했는지 한 문장" },
-    { "type": "create", "title": "새 업무 제목", "status": "done 또는 doing", "reason": "왜 새 업무로 판단했는지 한 문장" }
+    { "type": "create", "title": "새 업무 제목", "status": "done 또는 doing", "project": "정확히 일치하는 프로젝트명 (확신 없으면 생략)", "reason": "왜 새 업무로 판단했는지 한 문장" }
   ]
 }
 제안할 게 없으면 suggestions는 빈 배열로 두세요.`;

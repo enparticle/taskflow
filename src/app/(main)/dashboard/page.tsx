@@ -1,6 +1,6 @@
 // @ts-nocheck
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase";
 import { getAuthUser } from "@/lib/auth";
 import TaskDetail from "@/components/tasks/TaskDetail";
@@ -130,6 +130,15 @@ function DailyLog({ myUser, myTasks, onChanged, onOpen }: { myUser: any; myTasks
   const [recent, setRecent] = useState<any[]>([]);
   const [recentLoading, setRecentLoading] = useState(true);
 
+  // 프로젝트명 → project_id 매핑 (신규 업무 생성 시 프로젝트 배정용)
+  const projectNameToId = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const t of myTasks) {
+      if (t.project?.name && t.project_id) map[t.project.name] = t.project_id;
+    }
+    return map;
+  }, [myTasks]);
+
   const loadRecent = useCallback(async () => {
     if (!myUser) return;
     setRecentLoading(true);
@@ -183,10 +192,13 @@ function DailyLog({ myUser, myTasks, onChanged, onOpen }: { myUser: any; myTasks
         await supabase.from("tasks").update({ status: "done" }).eq("id", s.taskId);
         targetTaskId = s.taskId;
       } else if (s.type === "create") {
+        const projectId = s.project ? projectNameToId[s.project] : undefined;
         const { data: created } = await supabase.from("tasks").insert({
           title: s.title,
           status: s.status === "doing" ? "doing" : "done",
           assignee_id: myUser.id,
+          assignee_ids: [myUser.id],
+          project_id: projectId ?? null,
         }).select("id").single();
         targetTaskId = created?.id ?? null;
       }
@@ -267,6 +279,11 @@ function DailyLog({ myUser, myTasks, onChanged, onOpen }: { myUser: any; myTasks
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-1)", margin: 0 }}>
                       {s.type === "complete" ? `'${s.title}' 완료 처리` : `'${s.title}' 새 업무로 등록`}
+                      {s.type === "create" && s.project && (
+                        <span style={{ fontSize: 10, marginLeft: 6, padding: "1px 6px", borderRadius: 4, background: "var(--bg-4)", color: "var(--text-3)", fontWeight: 500 }}>
+                          {s.project}
+                        </span>
+                      )}
                     </p>
                     {s.reason && <p style={{ fontSize: 11, color: "var(--text-3)", margin: "2px 0 0" }}>{s.reason}</p>}
                   </div>
