@@ -16,20 +16,33 @@ const NAV_ITEMS = [
 ];
 
 // 정리 메모 (2026-07-08):
-// - 팀 현황 / 팀원 프로필 → 설정(Settings) 페이지 내부로 이동 예정. 설정 페이지 쪽 작업 후 여기 링크를 그쪽으로 연결.
-// - 리포트 / 업무 트리 / 외부용 보고서 / AI 프로젝트 어시스턴트 → 활용도 낮아 네비게이션에서 제거.
-//   페이지 자체는 삭제하지 않았으므로 URL로는 계속 접근 가능.
+// - 팀 현황 / 팀원 프로필 → 설정(Settings) 페이지 내부로 이동 완료.
+// - 리포트 / 업무 트리 / 외부용 보고서 / AI 프로젝트 어시스턴트 → 활용도 낮아 네비게이션에서 제거했다가,
+//   2단계(2-5)에서 "고급 기능 토글"로 부활 — 설정 → 나의 스타일에서 켠 것만 아래 목록에 추가됨.
 // - TaskFlow 베타 안내 / 사용 가이드 / 변경 이력 → 하나의 메뉴로 통합.
-//   지금은 편의상 /guide 로 연결해뒀는데, 세 페이지 내용을 한 곳에 합치는 작업이 별도로 필요함.
-const MORE_ITEMS = [
+const MORE_ITEMS_BASE = [
   { href: "/meeting-note", label: "📝 회의 기록" },
   { href: "/guide",        label: "🚀 TaskFlow 소식/가이드" },
   { href: "/viewer",       label: "📺 전체 현황 뷰어", external: true },
 ];
 
-function BottomNav({ userRole }: { userRole: string }) {
+// 설정 → 나의 스타일에서 켠 것만 이 중에서 추가됨 (key는 user_preferences.enabled_features 값과 일치)
+const ADVANCED_MENU_ITEMS: Record<string, { href: string; label: string }> = {
+  "my-work":           { href: "/my-work", label: "📋 내 업무" },
+  "kanban":            { href: "/kanban", label: "📊 칸반 보드" },
+  "recurring":         { href: "/recurring", label: "🔄 반복 업무" },
+  "project-assistant": { href: "/project-assistant", label: "🤖 AI 프로젝트 어시스턴트" },
+  "report-export":     { href: "/report-export", label: "📄 외부용 보고서" },
+};
+
+function BottomNav({ userRole, enabledFeatures }: { userRole: string; enabledFeatures: string[] }) {
   const pathname = usePathname();
   const [showMore, setShowMore] = useState(false);
+
+  const MORE_ITEMS = [
+    ...MORE_ITEMS_BASE,
+    ...enabledFeatures.map(key => ADVANCED_MENU_ITEMS[key]).filter(Boolean),
+  ];
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
@@ -131,6 +144,7 @@ function BottomNav({ userRole }: { userRole: string }) {
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
   const [userRole, setUserRole] = useState("member");
+  const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
   const [openDetail, setOpenDetail] = useState<string | null>(null);
 
   useEffect(() => {
@@ -156,6 +170,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       }
 
       if (myUserId) {
+        const { data: prefs } = await supabase.from("user_preferences").select("enabled_features").eq("user_id", myUserId).maybeSingle();
+        setEnabledFeatures(prefs?.enabled_features ?? []);
+
         const today = new Date().toDateString();
         const lastCheck = localStorage.getItem("lastDeadlineCheck");
         if (lastCheck !== today) {
@@ -215,7 +232,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         {children}
       </main>
 
-      <BottomNav userRole={userRole} />
+      <BottomNav userRole={userRole} enabledFeatures={enabledFeatures} />
 
       {openDetail && (
         <TaskDetail taskId={openDetail} onClose={() => setOpenDetail(null)} onRefresh={() => setOpenDetail(null)} />
