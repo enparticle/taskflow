@@ -2,6 +2,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase";
+import { getAuthUser } from "@/lib/auth";
 import type { Task, User, Project } from "@/types/database";
 type TaskStatus = string;
 import TaskDetail from "@/components/tasks/TaskDetail";
@@ -44,6 +45,7 @@ export default function KanbanPage() {
   const [showBlockedModal, setShowBlockedModal] = useState(false);
   const [pendingDrop, setPendingDrop] = useState<{ taskId: string; status: TaskStatus } | null>(null);
   const [blockedReason, setBlockedReason] = useState("");
+  const [myUser, setMyUser] = useState<any>(null);
   const dragTask = useRef<T | null>(null);
 
   const load = useCallback(async () => {
@@ -70,13 +72,25 @@ export default function KanbanPage() {
     supabase.from("projects").select("id,name").eq("status","active").then(({ data }) => setProjects(data ?? []));
   }, [load]);
 
+  useEffect(() => {
+    getAuthUser().then(u => setMyUser(u));
+  }, []);
+
   const byStatus = (status: TaskStatus) => tasks.filter(t => t.status === status);
 
   async function moveTask(taskId: string, newStatus: TaskStatus, reason?: string) {
+    const previousStatus = dragTask.current?.status ?? tasks.find(t => t.id === taskId)?.status ?? null;
     await supabase.from("tasks").update({
       status: newStatus,
       blocked_reason: newStatus === "blocked" ? (reason ?? null) : null,
     }).eq("id", taskId);
+    // 변경 이력 기록 — TaskDetail.tsx / TaskCard.tsx와 동일한 패턴
+    await supabase.from("task_events").insert({
+      task_id: taskId, event_type: "status_change",
+      from_status: previousStatus, to_status: newStatus,
+      changed_by: myUser?.userId ?? null,
+      reason: newStatus === "blocked" ? (reason ?? null) : null,
+    });
     await load();
   }
 
@@ -251,7 +265,7 @@ export default function KanbanPage() {
       {openForm && (
         <TaskForm
           onClose={() => setOpenForm(false)}
-          onCreated={() => { load(); setOpenForm(false); }}
+          onSaved={() => { load(); setOpenForm(false); }}
         />
       )}
     </div>
