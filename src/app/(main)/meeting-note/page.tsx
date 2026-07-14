@@ -195,24 +195,18 @@ export default function MeetingNotePage() {
     return lines.join("\n");
   }
 
-  // 음성 파일 Whisper 변환
+  // 음성 파일 Whisper 변환 — 서버 라우트(/api/transcribe) 경유로 통일 (OpenAI 키 클라이언트 노출 방지)
   async function transcribeFile(file: File): Promise<string> {
     const CHUNK = 24 * 1024 * 1024; // 24MB
-    const key = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
-    if (!key) throw new Error("OpenAI API 키가 없습니다");
 
     if (file.size <= CHUNK) {
       const form = new FormData();
       form.append("file", file);
-      form.append("model", "whisper-1");
-      form.append("language", "ko");
-      const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${key}` },
-        body: form,
-      });
+      const res = await fetch("/api/transcribe", { method: "POST", body: form });
       if (!res.ok) throw new Error(`변환 실패: ${res.status}`);
-      return (await res.json()).text ?? "";
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      return data.text ?? "";
     }
 
     // 25MB 초과 시 청크 분할
@@ -225,14 +219,11 @@ export default function MeetingNotePage() {
       const chunk = new File([file.slice(start, end)], `chunk_${i}.${ext}`, { type: file.type });
       const form = new FormData();
       form.append("file", chunk);
-      form.append("model", "whisper-1");
-      form.append("language", "ko");
-      const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${key}` },
-        body: form,
-      });
-      if (res.ok) texts.push((await res.json()).text ?? "");
+      const res = await fetch("/api/transcribe", { method: "POST", body: form });
+      if (res.ok) {
+        const data = await res.json();
+        texts.push(data.text ?? "");
+      }
     }
     return texts.join(" ");
   }
@@ -314,12 +305,21 @@ export default function MeetingNotePage() {
         });
         if (!error) count++;
       } else {
-        const { error } = await supabase.from("tasks").insert({
+        const { data: created, error } = await supabase.from("tasks").insert({
           title: task.title, task_type: task.task_type ?? "other", priority: task.priority ?? "medium",
           status: "todo", due_date: task.due_date ?? null,
           assignee_id: task.assignee_id ?? null, assignee_ids: task.assignee_ids ?? [],
-        });
-        if (!error) count++;
+          meeting_note_id: draftId ?? null,
+        }).select("id").single();
+        if (!error && created) {
+          count++;
+          // 회의록 출처를 댓글로 남김 — 업무 상세에서 어느 회의에서 나왔는지 바로 확인 가능
+          await supabase.from("task_comments").insert({
+            task_id: created.id,
+            user_id: myUser?.userId ?? null,
+            content: `📋 회의록 "${title || result._meetingTitle || "제목 없음"}"에서 등록됨`,
+          });
+        }
       }
     }
     if (draftId) await supabase.from("meeting_drafts").update({ status: "completed" }).eq("id", draftId);
