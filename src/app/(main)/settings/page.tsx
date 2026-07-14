@@ -483,13 +483,13 @@ function AccountTab({
 
 // ── 팀 현황 탭 (구 TeamPage + 서브탭으로 구 AdminMembersPage) ──────
 function TeamTab({ isAdmin, myUserId, supabase }: { isAdmin: boolean; myUserId: string; supabase: any }) {
-  const [teamSubTab, setTeamSubTab] = useState<"overview" | "profiles">("overview");
+  const [teamSubTab, setTeamSubTab] = useState<"overview" | "profiles" | "ai_learning">("overview");
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {isAdmin && (
         <div style={{ display: "flex", gap: 2, padding: 3, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 10, width: "fit-content" }}>
-          {[{ v: "overview", l: "현황" }, { v: "profiles", l: "🧠 팀원 프로필 관리" }].map(({ v, l }) => (
+          {[{ v: "overview", l: "현황" }, { v: "profiles", l: "🧠 팀원 프로필 관리" }, { v: "ai_learning", l: "🤖 AI 학습 데이터" }].map(({ v, l }) => (
             <button key={v} onClick={() => setTeamSubTab(v as any)}
               style={{ padding: "5px 14px", borderRadius: 7, fontSize: 12, fontWeight: 500, border: "none", cursor: "pointer", transition: "all 0.15s", background: teamSubTab === v ? "var(--bg-4)" : "transparent", color: teamSubTab === v ? "var(--text-1)" : "var(--text-3)" }}>
               {l}
@@ -497,10 +497,104 @@ function TeamTab({ isAdmin, myUserId, supabase }: { isAdmin: boolean; myUserId: 
           ))}
         </div>
       )}
-      {teamSubTab === "overview" || !isAdmin ? (
+      {(!isAdmin || teamSubTab === "overview") ? (
         <TeamOverview isAdmin={isAdmin} supabase={supabase} />
-      ) : (
+      ) : teamSubTab === "profiles" ? (
         <MemberProfiles myUserId={myUserId} supabase={supabase} />
+      ) : (
+        <AILearningData supabase={supabase} />
+      )}
+    </div>
+  );
+}
+
+// ── AI 학습 데이터 (Admin 전용) — 오늘 한 일 기록에서 쌓이는 승인/반려 이력 ──
+function AILearningData({ supabase }: { supabase: any }) {
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [userFilter, setUserFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  useEffect(() => {
+    supabase.from("ai_suggestions")
+      .select("id, source_text, type, suggested_value, status, reason, created_at, user:users(id, name)")
+      .eq("source", "daily_log")
+      .order("created_at", { ascending: false })
+      .limit(100)
+      .then(({ data }: any) => { setRows(data ?? []); setLoading(false); });
+  }, []);
+
+  const users = Array.from(new Map(rows.filter(r => r.user).map((r: any) => [r.user.id, r.user.name])).entries());
+
+  const filtered = rows.filter(r => {
+    if (userFilter && r.user?.id !== userFilter) return false;
+    if (statusFilter !== "all" && r.status !== statusFilter) return false;
+    return true;
+  });
+
+  const approvedCount = rows.filter(r => r.status === "approved").length;
+  const rejectedCount = rows.filter(r => r.status === "rejected").length;
+
+  if (loading) return <p style={{ fontSize: 13, color: "var(--text-3)" }}>불러오는 중…</p>;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 11, padding: "2px 10px", borderRadius: 20, background: "#F0FDF4", color: "#16A34A", border: "1px solid #BBF7D0" }}>
+          승인 {approvedCount}
+        </span>
+        <span style={{ fontSize: 11, padding: "2px 10px", borderRadius: 20, background: "#FEF2F2", color: "#DC2626", border: "1px solid #FCA5A5" }}>
+          무시/반려 {rejectedCount}
+        </span>
+        <span style={{ fontSize: 11, color: "var(--text-3)" }}>최근 {rows.length}건 (최대 100건)</span>
+
+        <select value={userFilter} onChange={e => setUserFilter(e.target.value)}
+          style={{ marginLeft: "auto", background: "var(--bg-3)", border: "1px solid var(--border)", color: "var(--text-2)", borderRadius: 8, padding: "5px 8px", fontSize: 12 }}>
+          <option value="">전체 팀원</option>
+          {users.map(([id, name]: any) => <option key={id} value={id}>{name}</option>)}
+        </select>
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+          style={{ background: "var(--bg-3)", border: "1px solid var(--border)", color: "var(--text-2)", borderRadius: 8, padding: "5px 8px", fontSize: 12 }}>
+          <option value="all">전체 상태</option>
+          <option value="approved">승인만</option>
+          <option value="rejected">무시/반려만</option>
+        </select>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "40px 0", background: "var(--bg-2)", border: "1px dashed var(--border)", borderRadius: 12 }}>
+          <p style={{ fontSize: 13, color: "var(--text-3)" }}>아직 쌓인 데이터가 없습니다</p>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {filtered.map(r => (
+            <div key={r.id} style={{
+              background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 10, padding: "12px 16px",
+              borderLeft: `3px solid ${r.status === "approved" ? "#16A34A" : "#DC2626"}`,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-1)" }}>{r.user?.name ?? "알 수 없음"}</span>
+                <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 4, background: r.type === "status" ? "#EEF3FF" : "#F5F3FF", color: r.type === "status" ? "#2563EB" : "#7C3AED" }}>
+                  {r.type === "status" ? "완료 처리 제안" : "신규 등록 제안"}
+                </span>
+                <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 20, background: r.status === "approved" ? "#F0FDF4" : "#FEF2F2", color: r.status === "approved" ? "#16A34A" : "#DC2626" }}>
+                  {r.status === "approved" ? "✓ 승인" : "✕ 무시/반려"}
+                </span>
+                <span style={{ fontSize: 10, color: "var(--text-3)", marginLeft: "auto" }}>
+                  {new Date(r.created_at).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                </span>
+              </div>
+              {r.source_text && (
+                <p style={{ fontSize: 12, color: "var(--text-2)", margin: "0 0 4px", background: "var(--bg-3)", padding: "6px 10px", borderRadius: 6 }}>
+                  "{r.source_text}"
+                </p>
+              )}
+              <p style={{ fontSize: 11, color: "var(--text-3)", margin: 0 }}>
+                → {r.suggested_value}{r.reason ? ` · ${r.reason}` : ""}
+              </p>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
