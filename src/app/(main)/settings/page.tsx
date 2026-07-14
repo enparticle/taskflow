@@ -42,7 +42,7 @@ export default function SettingsPage() {
   const supabase = createClient();
 
   // ── 공통 / 계정 탭 ──────────────────────────────
-  const [settingsTab, setSettingsTab] = useState<"account" | "team">("account");
+  const [settingsTab, setSettingsTab] = useState<"account" | "style" | "team">("account");
   const [form, setForm] = useState({ password: "", confirm: "" });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState("");
@@ -138,16 +138,18 @@ export default function SettingsPage() {
           <div style={{ width: 3, height: 18, background: "var(--cyan)", borderRadius: 2 }} />
           <h1 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-1)", margin: 0 }}>설정</h1>
         </div>
-        {isLeaderOrAbove && (
-          <div style={{ display: "flex", gap: 2, padding: 3, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 10 }}>
-            {[{ v: "account", l: "계정" }, { v: "team", l: "팀 현황" }].map(({ v, l }) => (
-              <button key={v} onClick={() => setSettingsTab(v as any)}
-                style={{ padding: "5px 14px", borderRadius: 7, fontSize: 12, fontWeight: 500, border: "none", cursor: "pointer", transition: "all 0.15s", background: settingsTab === v ? "var(--bg-4)" : "transparent", color: settingsTab === v ? "var(--text-1)" : "var(--text-3)" }}>
-                {l}
-              </button>
-            ))}
-          </div>
-        )}
+        <div style={{ display: "flex", gap: 2, padding: 3, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 10 }}>
+          {[
+            { v: "account", l: "계정" },
+            { v: "style", l: "나의 스타일" },
+            ...(isLeaderOrAbove ? [{ v: "team", l: "팀 현황" }] : []),
+          ].map(({ v, l }) => (
+            <button key={v} onClick={() => setSettingsTab(v as any)}
+              style={{ padding: "5px 14px", borderRadius: 7, fontSize: 12, fontWeight: 500, border: "none", cursor: "pointer", transition: "all 0.15s", background: settingsTab === v ? "var(--bg-4)" : "transparent", color: settingsTab === v ? "var(--text-1)" : "var(--text-3)" }}>
+              {l}
+            </button>
+          ))}
+        </div>
       </div>
 
       {settingsTab === "account" ? (
@@ -160,9 +162,139 @@ export default function SettingsPage() {
           form={form} setForm={setForm} loading={loading} handlePasswordChange={handlePasswordChange}
           error={error} success={success}
         />
+      ) : settingsTab === "style" ? (
+        <StyleTab myUserId={myUserId} supabase={supabase} />
       ) : (
         <TeamTab isAdmin={isAdmin} myUserId={myUserId} supabase={supabase} />
       )}
+    </div>
+  );
+}
+
+// ── 나의 스타일 탭 (2-3: 온보딩에서 고른 설정 재변경) ──────────────
+const INPUT_STYLE_OPTIONS = [
+  { value: "plan", emoji: "📋", title: "미리 계획 세우는 게 편해요", desc: "할 일을 먼저 등록하고 시작해요" },
+  { value: "log", emoji: "📝", title: "끝난 뒤 편하게 적는 게 편해요", desc: "일단 하고, 나중에 뭐 했는지 적어요" },
+  { value: "click", emoji: "🖱", title: "그냥 클릭 몇 번으로 끝내고 싶어요", desc: "상태만 딸깍딸깍 바꾸는 게 좋아요" },
+];
+const HOME_PRIORITY_OPTIONS = [
+  { value: "today", label: "오늘 해야 할 일" },
+  { value: "recent", label: "최근에 내가 남긴 기록" },
+  { value: "summary", label: "주간 요약 (완료/진행중/Blocked)" },
+];
+const CONSUMPTION_STYLE_OPTIONS = [
+  { value: "monitor", title: "네, 자주 봐요" },
+  { value: "summary", title: "아니요, 필요할 때만" },
+  { value: "unsure", title: "잘 모르겠어요" },
+];
+
+function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
+  const [inputStyle, setInputStyle] = useState("log");
+  const [homePriority, setHomePriority] = useState("today");
+  const [consumptionStyle, setConsumptionStyle] = useState("unsure");
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (!myUserId) return;
+    supabase.from("user_preferences").select("*").eq("user_id", myUserId).maybeSingle().then(({ data }: any) => {
+      if (data) {
+        setInputStyle(data.input_style ?? "log");
+        setHomePriority(data.home_priority?.[0] ?? "today");
+        setConsumptionStyle(data.consumption_style ?? "unsure");
+      }
+      setLoaded(true);
+    });
+  }, [myUserId]);
+
+  async function save() {
+    setSaving(true); setSaved(false);
+    const priorityOrder = [homePriority, ...HOME_PRIORITY_OPTIONS.map(h => h.value).filter(v => v !== homePriority)];
+    await supabase.from("user_preferences").upsert({
+      user_id: myUserId,
+      input_style: inputStyle,
+      home_priority: priorityOrder,
+      consumption_style: consumptionStyle,
+      onboarding_completed: true,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id" });
+    setSaving(false); setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  }
+
+  if (!loaded) return <p style={{ fontSize: 13, color: "var(--text-3)" }}>불러오는 중…</p>;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 18 }}>
+        <h2 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", marginBottom: 4 }}>업무를 기록하는 스타일</h2>
+        <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 14 }}>홈 화면 구성과 AI 제안 방식에 반영돼요</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {INPUT_STYLE_OPTIONS.map(s => (
+            <button key={s.value} onClick={() => setInputStyle(s.value)}
+              style={{
+                display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 10, textAlign: "left", cursor: "pointer",
+                background: inputStyle === s.value ? "var(--cyan-bg)" : "var(--bg-3)",
+                border: `1px solid ${inputStyle === s.value ? "var(--cyan)" : "var(--border)"}`,
+              }}>
+              <span style={{ fontSize: 18 }}>{s.emoji}</span>
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-1)", margin: 0 }}>{s.title}</p>
+                <p style={{ fontSize: 11, color: "var(--text-3)", margin: "1px 0 0" }}>{s.desc}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 18 }}>
+        <h2 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", marginBottom: 14 }}>홈 화면에서 먼저 보고 싶은 것</h2>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {HOME_PRIORITY_OPTIONS.map(h => (
+            <button key={h.value} onClick={() => setHomePriority(h.value)}
+              style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, textAlign: "left", cursor: "pointer",
+                background: homePriority === h.value ? "var(--cyan-bg)" : "var(--bg-3)",
+                border: `1px solid ${homePriority === h.value ? "var(--cyan)" : "var(--border)"}`,
+              }}>
+              <div style={{
+                width: 14, height: 14, borderRadius: "50%", border: `2px solid ${homePriority === h.value ? "var(--cyan)" : "var(--border-2)"}`,
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+              }}>
+                {homePriority === h.value && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--cyan)" }} />}
+              </div>
+              <span style={{ fontSize: 12, color: "var(--text-1)" }}>{h.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 18 }}>
+        <h2 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", marginBottom: 14 }}>팀 전체 현황을 자주 보는 편인가요?</h2>
+        <div style={{ display: "flex", gap: 8 }}>
+          {CONSUMPTION_STYLE_OPTIONS.map(c => (
+            <button key={c.value} onClick={() => setConsumptionStyle(c.value)}
+              style={{
+                flex: 1, padding: "10px 8px", borderRadius: 10, textAlign: "center", cursor: "pointer",
+                background: consumptionStyle === c.value ? "var(--cyan-bg)" : "var(--bg-3)",
+                border: `1px solid ${consumptionStyle === c.value ? "var(--cyan)" : "var(--border)"}`,
+                color: consumptionStyle === c.value ? "var(--cyan)" : "var(--text-2)",
+                fontSize: 12, fontWeight: 500,
+              }}>
+              {c.title}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <button onClick={save} disabled={saving}
+          style={{ padding: "8px 20px", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+          {saving ? "저장 중…" : "저장"}
+        </button>
+        {saved && <span style={{ fontSize: 12, color: "#16A34A" }}>✓ 저장됐어요, 홈 화면에 바로 반영돼요</span>}
+      </div>
     </div>
   );
 }
