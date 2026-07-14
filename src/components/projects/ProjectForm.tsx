@@ -21,6 +21,7 @@ export default function ProjectForm({ project, onClose, onSaved }: Props) {
   const [loading, setLoading] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [error, setError] = useState("");
+  const [pendingApproval, setPendingApproval] = useState(false);
   const [form, setForm] = useState({
     name:        project?.name        ?? "",
     description: project?.description ?? "",
@@ -64,12 +65,26 @@ export default function ProjectForm({ project, onClose, onSaved }: Props) {
       start_date: form.start_date || null, end_date: form.end_date || null,
       status: "active",
     };
-    const { error: err } = project
-      ? await supabase.from("projects").update(payload).eq("id", project.id)
-      : await supabase.from("projects").insert(payload);
+
+    if (project) {
+      // 수정 — 기존 프로젝트는 승인 절차 없음(이미 승인된 프로젝트라 canEdit 있는 사람만 여기까지 옴)
+      const { error: err } = await supabase.from("projects").update(payload).eq("id", project.id);
+      setLoading(false);
+      if (err) { setError(err.message.includes("row-level security") ? "이 작업을 수행할 권한이 없어요." : err.message); return; }
+      onSaved();
+      return;
+    }
+
+    // 신규 생성 — 결과를 돌려받아서 승인 대기 상태인지 확인
+    const { data, error: err } = await supabase.from("projects").insert(payload).select().single();
     setLoading(false);
-    if (err) { setError(err.message); return; }
-    onSaved();
+    if (err) { setError(err.message.includes("row-level security") ? "이 작업을 수행할 권한이 없어요." : err.message); return; }
+
+    if (data?.approval_status === "pending") {
+      setPendingApproval(true); // 바로 안 닫고 승인 대기 안내를 보여줌
+    } else {
+      onSaved();
+    }
   }
 
   async function handleComplete() {
@@ -90,6 +105,31 @@ export default function ProjectForm({ project, onClose, onSaved }: Props) {
     if (!confirm(`"${project.name}" 프로젝트를 삭제할까요?\n관련된 모든 업무와 데이터가 삭제됩니다.`)) return;
     await supabase.from("projects").delete().eq("id", project.id);
     onSaved();
+  }
+
+  // 승인 대기 안내 화면 (신규 생성 + pending인 경우만)
+  if (pendingApproval) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center"
+        style={{ background: "rgba(7,13,24,0.85)", backdropFilter: "blur(4px)" }}>
+        <div className="w-full max-w-sm rounded-2xl p-6 shadow-2xl text-center"
+          style={{ background: "var(--bg-2)", border: "1px solid var(--border-2)" }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>⏳</div>
+          <h2 className="text-sm font-bold mb-2" style={{ color: "var(--text-1)" }}>
+            프로젝트 생성 요청을 보냈어요
+          </h2>
+          <p className="text-xs mb-5" style={{ color: "var(--text-3)", lineHeight: 1.6 }}>
+            "{form.name}" 요청이 접수됐어요.<br />
+            관리자 승인 후 프로젝트 목록에 표시돼요.
+          </p>
+          <button onClick={onSaved}
+            className="rounded-lg px-5 py-2 text-xs font-semibold"
+            style={{ background: "linear-gradient(135deg, #00C2CC, #2E86FF)", color: "#fff" }}>
+            확인
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -154,6 +194,12 @@ export default function ProjectForm({ project, onClose, onSaved }: Props) {
               <input type="date" value={form.end_date} onChange={e => set("end_date", e.target.value)} style={fieldStyle} />
             </div>
           </div>
+
+          {!project && (
+            <p className="text-xs" style={{ color: "var(--text-3)", background: "var(--bg-3)", padding: "8px 12px", borderRadius: 8 }}>
+              ℹ 관리자가 아니면, 생성 요청 후 승인을 거쳐 목록에 표시돼요.
+            </p>
+          )}
 
           {project && (
             <div>
