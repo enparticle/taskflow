@@ -42,8 +42,8 @@ export default function ViewerPage() {
     return () => { clearInterval(dataTimer); clearInterval(clockTimer); };
   }, [load]);
 
-  // 슬라이드: [전체 요약, ...팀원별]
-  const slides = data ? [{ type: "overall" }, ...data.team.map((t: any) => ({ type: "person", person: t }))] : [];
+  // 슬라이드: [전체 요약, ...프로젝트별]
+  const slides = data ? [{ type: "overall" }, ...data.projects.map((p: any) => ({ type: "project", project: p }))] : [];
 
   useEffect(() => {
     if (slides.length === 0) return;
@@ -100,7 +100,7 @@ export default function ViewerPage() {
       {/* 슬라이드 본문 */}
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px 64px" }}>
         {slide?.type === "overall" && <OverallSlide data={data} />}
-        {slide?.type === "person" && <PersonSlide person={slide.person} />}
+        {slide?.type === "project" && <ProjectSlide project={slide.project} />}
       </div>
 
       {/* 하단 진행 표시 */}
@@ -129,7 +129,7 @@ function OverallSlide({ data }: { data: any }) {
   return (
     <div style={{ width: "100%", maxWidth: 1100 }}>
       <p style={{ fontSize: 15, color: "#4A7099", letterSpacing: 3, textTransform: "uppercase", marginBottom: 8, textAlign: "center" }}>전체 현황</p>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 40 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 32 }}>
         {stats.map(s => (
           <div key={s.label} style={{ textAlign: "center", padding: "28px 0", background: "#111D30", border: `1px solid ${s.color}33`, borderRadius: 20 }}>
             <p style={{ fontSize: 56, fontWeight: 800, color: s.color, margin: 0, lineHeight: 1 }}>{s.value}</p>
@@ -137,11 +137,14 @@ function OverallSlide({ data }: { data: any }) {
           </div>
         ))}
       </div>
-      {data.overall.overdue > 0 && (
-        <p style={{ textAlign: "center", fontSize: 16, color: "#FF4D6A", marginBottom: 32 }}>
-          ⚠ 마감 초과 업무 {data.overall.overdue}건
-        </p>
-      )}
+      <div style={{ display: "flex", justifyContent: "center", gap: 24, marginBottom: 32 }}>
+        {data.overall.overdue > 0 && (
+          <p style={{ fontSize: 16, color: "#FF4D6A", margin: 0 }}>⚠ 마감 초과 {data.overall.overdue}건</p>
+        )}
+        {data.overall.unassigned > 0 && (
+          <p style={{ fontSize: 16, color: "#7BA7C8", margin: 0 }}>📁 프로젝트 미배정 {data.overall.unassigned}건</p>
+        )}
+      </div>
       {data.projects.length > 0 && (
         <div>
           <p style={{ fontSize: 13, color: "#4A7099", letterSpacing: 2, textTransform: "uppercase", marginBottom: 14, textAlign: "center" }}>프로젝트</p>
@@ -153,6 +156,7 @@ function OverallSlide({ data }: { data: any }) {
                   <div style={{ width: 8, height: 8, borderRadius: "50%", background: h.color }} />
                   <span style={{ fontSize: 15, color: "#E8F4FF" }}>{p.name}</span>
                   <span style={{ fontSize: 12, color: h.color }}>{h.label}</span>
+                  <span style={{ fontSize: 12, color: "#4A7099" }}>· {p.total}건</span>
                 </div>
               );
             })}
@@ -163,29 +167,29 @@ function OverallSlide({ data }: { data: any }) {
   );
 }
 
-function PersonSlide({ person }: { person: any }) {
+function ProjectSlide({ project }: { project: any }) {
+  const h = HEALTH_LABEL[project.health] ?? HEALTH_LABEL.good;
   return (
     <div style={{ width: "100%", maxWidth: 900 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 28 }}>
-        <div style={{ width: 72, height: 72, borderRadius: "50%", background: "#1E3050", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, fontWeight: 800, color: "#00C2CC" }}>
-          {person.name[0]}
-        </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 28 }}>
+        <div style={{ width: 14, height: 14, borderRadius: "50%", background: h.color, boxShadow: `0 0 14px ${h.color}` }} />
         <div>
-          <p style={{ fontSize: 34, fontWeight: 800, color: "#E8F4FF", margin: 0 }}>{person.name}</p>
-          <div style={{ display: "flex", gap: 14, marginTop: 6 }}>
-            {person.counts.doing > 0 && <span style={{ fontSize: 14, color: STATUS_COLOR.doing }}>진행 중 {person.counts.doing}</span>}
-            {person.counts.blocked > 0 && <span style={{ fontSize: 14, color: STATUS_COLOR.blocked }}>Blocked {person.counts.blocked}</span>}
-            {person.counts.todo > 0 && <span style={{ fontSize: 14, color: STATUS_COLOR.todo }}>할 일 {person.counts.todo}</span>}
-            {person.counts.review > 0 && <span style={{ fontSize: 14, color: STATUS_COLOR.review }}>리뷰 {person.counts.review}</span>}
+          <p style={{ fontSize: 34, fontWeight: 800, color: "#E8F4FF", margin: 0 }}>{project.name}</p>
+          <div style={{ display: "flex", gap: 14, marginTop: 6, alignItems: "center" }}>
+            <span style={{ fontSize: 13, color: h.color, fontWeight: 600 }}>{h.label}</span>
+            {project.counts.doing > 0 && <span style={{ fontSize: 14, color: STATUS_COLOR.doing }}>진행 중 {project.counts.doing}</span>}
+            {project.counts.blocked > 0 && <span style={{ fontSize: 14, color: STATUS_COLOR.blocked }}>Blocked {project.counts.blocked}</span>}
+            {project.counts.todo > 0 && <span style={{ fontSize: 14, color: STATUS_COLOR.todo }}>할 일 {project.counts.todo}</span>}
+            {project.counts.review > 0 && <span style={{ fontSize: 14, color: STATUS_COLOR.review }}>리뷰 {project.counts.review}</span>}
           </div>
         </div>
       </div>
 
-      {person.tasks.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "60px 0", color: "#4A7099", fontSize: 16 }}>담당 업무가 없어요</div>
+      {project.tasks.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "60px 0", color: "#4A7099", fontSize: 16 }}>진행 중인 업무가 없어요</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {person.tasks.map((t: any) => (
+          {project.tasks.map((t: any) => (
             <div key={t.id} style={{
               display: "flex", alignItems: "center", gap: 14, padding: "14px 20px",
               background: "#111D30", border: `1px solid ${STATUS_COLOR[t.status] ?? "#1E3050"}33`, borderRadius: 14,
@@ -197,7 +201,9 @@ function PersonSlide({ person }: { person: any }) {
                 {t.statusLabel}
               </span>
               <span style={{ flex: 1, fontSize: 17, color: "#E8F4FF" }}>{t.title}</span>
-              {t.projectName && <span style={{ fontSize: 13, color: "#4A7099", flexShrink: 0 }}>{t.projectName}</span>}
+              {t.assignees.length > 0 && (
+                <span style={{ fontSize: 13, color: "#7BA7C8", flexShrink: 0 }}>{t.assignees.join(", ")}</span>
+              )}
               {t.dueDate && (
                 <span style={{ fontSize: 13, color: t.overdue ? "#FF4D6A" : "#4A7099", flexShrink: 0 }}>
                   {t.overdue ? "⚠ " : ""}{new Date(t.dueDate).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
