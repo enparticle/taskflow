@@ -1,7 +1,8 @@
 // @ts-nocheck
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { createClient } from "@/lib/supabase";
+import { getAuthUser } from "@/lib/auth";
 import TaskCard from "./TaskCard";
 
 const STATUS_OPTIONS = [
@@ -51,6 +52,11 @@ export default function TaskList({
   const [bulkAction, setBulkAction] = useState<"milestone" | "project" | "status" | "priority" | null>(null);
   const [bulkValue, setBulkValue] = useState("");
   const [applying, setApplying] = useState(false);
+  const [myUser, setMyUser] = useState<any>(null);
+
+  useEffect(() => {
+    getAuthUser().then(u => setMyUser(u));
+  }, []);
 
   const filtered = useMemo(() => {
     let result = [...tasks];
@@ -100,7 +106,17 @@ export default function TaskList({
     else if (bulkAction === "priority") updatePayload = { priority: bulkValue };
 
     for (const id of ids) {
+      const prevTask = tasks.find(t => t.id === id);
       await supabase.from("tasks").update(updatePayload).eq("id", id);
+      // 상태 일괄변경은 변경 이력 기록 — TaskDetail/TaskCard/Kanban과 동일한 패턴
+      if (bulkAction === "status" && prevTask && prevTask.status !== bulkValue) {
+        await supabase.from("task_events").insert({
+          task_id: id, event_type: "status_change",
+          from_status: prevTask.status, to_status: bulkValue,
+          changed_by: myUser?.userId ?? null,
+          reason: null,
+        });
+      }
     }
     setSelected(new Set());
     setBulkAction(null);
