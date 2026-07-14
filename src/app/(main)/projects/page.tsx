@@ -15,12 +15,14 @@ const HEALTH_CONFIG = {
 export default function ProjectsPage() {
   const supabase = createClient();
   const [activeProjects, setActiveProjects] = useState<any[]>([]);
+  const [pendingProjects, setPendingProjects] = useState<any[]>([]);
   const [completedProjects, setCompletedProjects] = useState<any[]>([]);
   const [tab, setTab] = useState<"active" | "completed">("active");
   const [showForm, setShowForm] = useState(false);
   const [editProject, setEditProject] = useState<any>(null);
   const [sysRole, setSysRole] = useState<string>("");
   const [myLeaderProjectIds, setMyLeaderProjectIds] = useState<Set<string>>(new Set());
+  const [approving, setApproving] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [{ data: active }, { data: completed }, { data: { user } }] = await Promise.all([
@@ -28,7 +30,8 @@ export default function ProjectsPage() {
       supabase.from("projects").select("*, owner:users!projects_owner_id_fkey(name), tasks(id,status)").eq("status", "completed").order("end_date", { ascending: false }),
       supabase.auth.getUser(),
     ]);
-    setActiveProjects(active ?? []);
+    setActiveProjects((active ?? []).filter((p: any) => (p.approval_status ?? "approved") === "approved"));
+    setPendingProjects((active ?? []).filter((p: any) => p.approval_status === "pending"));
     setCompletedProjects(completed ?? []);
     if (user) {
       const { data: u } = await supabase.from("users").select("id, role").eq("auth_id", user.id).single();
@@ -43,9 +46,26 @@ export default function ProjectsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // 생성/삭제는 admin만 (DB 정책과 일치). 수정/재활성화는 admin 또는 그 프로젝트의 리더.
+  // 생성은 viewer만 아니면 누구나 가능(승인 대기로 시작, admin이면 즉시 승인됨 — DB 트리거가 자동 결정)
+  // 수정/재활성화는 admin 또는 그 프로젝트의 리더. 승인 처리는 admin만.
   const isAdmin = sysRole === "admin";
+  const canCreate = sysRole !== "" && sysRole !== "viewer";
   const canEdit = (p: any) => isAdmin || myLeaderProjectIds.has(p.id);
+
+  async function approveProject(p: any) {
+    setApproving(p.id);
+    const { error } = await supabase.from("projects").update({ approval_status: "approved" }).eq("id", p.id);
+    if (error) { alert(error.message.includes("row-level security") ? "승인 권한이 없어요." : error.message); setApproving(null); return; }
+    await load();
+    setApproving(null);
+  }
+
+  async function rejectProject(p: any) {
+    if (!confirm(`"${p.name}" 생성 요청을 반려할까요? (삭제됩니다)`)) return;
+    const { error } = await supabase.from("projects").delete().eq("id", p.id);
+    if (error) { alert(error.message.includes("row-level security") ? "반려 권한이 없어요." : error.message); return; }
+    await load();
+  }
 
   async function reactivate(p: any) {
     if (!confirm(`"${p.name}"을 다시 활성화할까요?`)) return;
@@ -153,18 +173,50 @@ export default function ProjectsPage() {
     <div style={{ maxWidth: 900, display: "flex", flexDirection: "column", gap: 16 }}>
 
       {/* 헤더 */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ width: 3, height: 18, background: "var(--cyan)", borderRadius: 2 }} />
           <h1 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-1)", margin: 0 }}>프로젝트</h1>
+          {canCreate && !isAdmin && (
+            <span style={{ fontSize: 11, color: "var(--text-3)" }}>새로 만들면 관리자 승인 후 등록돼요</span>
+          )}
         </div>
-        {isAdmin && (
+        {canCreate && (
           <button onClick={() => { setEditProject(null); setShowForm(true); }}
             style={{ padding: "8px 16px", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer" }}>
             + 새 프로젝트
           </button>
         )}
       </div>
+
+      {/* 승인 대기 (Admin만 보임) */}
+      {isAdmin && pendingProjects.length > 0 && (
+        <div style={{ background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 12, padding: 16 }}>
+          <p style={{ fontSize: 12, fontWeight: 600, color: "#D97706", marginBottom: 10 }}>
+            ⏳ 승인 대기 중인 프로젝트 ({pendingProjects.length}건)
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {pendingProjects.map(p => (
+              <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px" }}>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", margin: 0 }}>{p.name}</p>
+                  <p style={{ fontSize: 11, color: "var(--text-3)", margin: "2px 0 0" }}>{p.owner?.name ?? "알 수 없음"}님이 요청</p>
+                </div>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <button onClick={() => approveProject(p)} disabled={approving === p.id}
+                    style={{ fontSize: 11, padding: "5px 12px", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 6, color: "#16A34A", fontWeight: 600, cursor: "pointer", opacity: approving === p.id ? 0.5 : 1 }}>
+                    {approving === p.id ? "…" : "✓ 승인"}
+                  </button>
+                  <button onClick={() => rejectProject(p)}
+                    style={{ fontSize: 11, padding: "5px 12px", background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 6, color: "#DC2626", cursor: "pointer" }}>
+                    반려
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 탭 */}
       <div style={{ display: "flex", gap: 2, padding: 3, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 10, width: "fit-content" }}>
@@ -191,7 +243,7 @@ export default function ProjectsPage() {
           activeProjects.length === 0 ? (
             <div style={{ textAlign: "center", padding: "48px 0", background: "var(--bg-2)", border: "1px dashed var(--border)", borderRadius: 12 }}>
               <p style={{ fontSize: 13, color: "var(--text-3)" }}>진행 중인 프로젝트가 없습니다</p>
-              {isAdmin && (
+              {canCreate && (
                 <button onClick={() => { setEditProject(null); setShowForm(true); }}
                   style={{ marginTop: 12, padding: "7px 16px", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer" }}>
                   + 새 프로젝트
