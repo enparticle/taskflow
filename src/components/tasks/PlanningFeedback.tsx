@@ -2,6 +2,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase";
+import { authFetch } from "@/lib/authFetch";
 import { getAuthUser } from "@/lib/auth";
 
 const LEVEL_CONFIG = {
@@ -176,9 +177,8 @@ export default function PlanningFeedback({ mode = "tasks", projectId, projectNam
         })),
       };
 
-      const res = await fetch("/api/feedback", {
+      const res = await authFetch("/api/feedback", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ snapshot }),
       });
       const raw = await res.json();
