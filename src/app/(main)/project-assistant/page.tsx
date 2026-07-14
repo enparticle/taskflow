@@ -283,15 +283,22 @@ ${taskList}
   }
 
   // 완료 화면
+  const isPending = created?.project?.approval_status === "pending";
   if (created) return (
     <div style={{ maxWidth: 480, margin: "80px auto", textAlign: "center", display: "flex", flexDirection: "column", gap: 20, alignItems: "center" }}>
-      <div style={{ fontSize: 48 }}>✅</div>
+      <div style={{ fontSize: 48 }}>{isPending ? "⏳" : "✅"}</div>
       <div>
         <p style={{ fontSize: 18, fontWeight: 700, color: "var(--text-1)", marginBottom: 8 }}>
-          {created.tasksOnly ? `업무 ${created.count}건이 등록됐습니다!` : "프로젝트가 생성됐습니다!"}
+          {created.tasksOnly
+            ? `업무 ${created.count}건이 등록됐습니다!`
+            : isPending ? "프로젝트 생성 요청을 보냈습니다" : "프로젝트가 생성됐습니다!"}
         </p>
         <p style={{ fontSize: 13, color: "var(--text-3)" }}>
-          {created.tasksOnly ? "선택한 프로젝트에 업무가 추가됐습니다" : `${result?.project?.name} 프로젝트와 업무가 모두 등록됐습니다`}
+          {created.tasksOnly
+            ? "선택한 프로젝트에 업무가 추가됐습니다"
+            : isPending
+              ? "관리자 승인 후 프로젝트 목록에 표시돼요. 승인되면 알려드릴게요."
+              : `${result?.project?.name} 프로젝트와 업무가 모두 등록됐습니다`}
         </p>
       </div>
       <div style={{ display: "flex", gap: 10 }}>
