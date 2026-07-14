@@ -2,6 +2,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase";
+import { authFetch } from "@/lib/authFetch";
 import { getAuthUser } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 
@@ -100,7 +101,7 @@ export default function ProjectAssistantPage() {
     setInput("");
     setLoading(true);
     try {
-      const res = await fetch("/api/project-chat", {
+      const res = await authFetch("/api/project-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
         body: new TextEncoder().encode(JSON.stringify({ messages: newMessages, chatId, userId: myUser?.userId })),
@@ -125,7 +126,7 @@ export default function ProjectAssistantPage() {
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     try {
-      const res = await fetch("/api/project-chat", {
+      const res = await authFetch("/api/project-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
         body: new TextEncoder().encode(JSON.stringify({ messages: newMessages, chatId, userId: myUser?.userId })),
@@ -151,7 +152,7 @@ export default function ProjectAssistantPage() {
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     try {
-      const res = await fetch("/api/project-chat", {
+      const res = await authFetch("/api/project-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
         body: new TextEncoder().encode(JSON.stringify({ messages: newMessages, chatId, userId: myUser?.userId })),
@@ -212,7 +213,7 @@ ${taskList}
     setMessages(prev => [...prev, userMsg]);
 
     try {
-      const res = await fetch("/api/analyze-change", {
+      const res = await authFetch("/api/analyze-change", {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
         body: new TextEncoder().encode(JSON.stringify({ prompt, changeText, projectContext })),
@@ -267,7 +268,7 @@ ${taskList}
       return;
     }
     try {
-      const res = await fetch("/api/project-create-from-chat", {
+      const res = await authFetch("/api/project-create-from-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
         body: new TextEncoder().encode(JSON.stringify({ result, userId: myUser?.userId, assigneeId: myUser?.userId })),
