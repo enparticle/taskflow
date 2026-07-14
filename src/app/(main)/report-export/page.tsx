@@ -22,7 +22,7 @@ export default function ReportExportPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getAuthUser().then(u => setIsAdmin(u?.role === "admin" || u?.role === "leader"));
+    getAuthUser().then(u => setIsAdmin(u?.role === "admin"));
     loadReports();
     loadProjects();
   }, []);
@@ -91,12 +91,14 @@ export default function ReportExportPage() {
   async function saveReport(publish: boolean) {
     const data = { ...editingReport, published: publish, updated_at: new Date().toISOString() };
     if (editingReport.id) {
-      await supabase.from("external_reports").update(data).eq("id", editingReport.id);
+      const { error } = await supabase.from("external_reports").update(data).eq("id", editingReport.id);
+      if (error) { alert(error.message.includes("row-level security") ? "이 작업을 수행할 권한이 없어요." : error.message); return; }
     } else {
-      const { data: created } = await supabase.from("external_reports").insert({
+      const { data: created, error } = await supabase.from("external_reports").insert({
         title: data.title, report_date: data.report_date,
         published: publish, projects: data.projects,
       }).select().single();
+      if (error) { alert(error.message.includes("row-level security") ? "이 작업을 수행할 권한이 없어요." : error.message); return; }
       if (created) setEditingReport({ ...data, id: created.id });
     }
     await loadReports();
@@ -105,7 +107,8 @@ export default function ReportExportPage() {
 
   async function deleteReport(id: string) {
     if (!confirm("보고서를 삭제할까요?")) return;
-    await supabase.from("external_reports").delete().eq("id", id);
+    const { error } = await supabase.from("external_reports").delete().eq("id", id);
+    if (error) { alert(error.message.includes("row-level security") ? "이 작업을 수행할 권한이 없어요." : error.message); return; }
     loadReports();
   }
 
