@@ -324,6 +324,8 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
         </div>
       </div>
 
+      <DesignThemeSection myUserId={myUserId} supabase={supabase} />
+
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <button onClick={save} disabled={saving}
           style={{ padding: "8px 20px", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
@@ -335,7 +337,115 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
   );
 }
 
-// ── 계정 탭 (기존 설정 페이지 내용) ──────────────────────────────
+// ── 디자인 커스터마이징 — AI가 CSS 색상 변수만 생성 (4단계) ──────
+function DesignThemeSection({ myUserId, supabase }: { myUserId: string; supabase: any }) {
+  const [description, setDescription] = useState("");
+  const [currentCss, setCurrentCss] = useState("");
+  const [sourcePrompt, setSourcePrompt] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!myUserId) return;
+    supabase.from("user_theme").select("css_text, source_prompt").eq("user_id", myUserId).maybeSingle()
+      .then(({ data }: any) => {
+        if (data?.css_text) { setCurrentCss(data.css_text); setSourcePrompt(data.source_prompt ?? ""); }
+      });
+  }, [myUserId]);
+
+  async function generate() {
+    if (!description.trim()) return;
+    setGenerating(true); setError("");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/generate-theme", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ description }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setCurrentCss(data.css);
+      setSourcePrompt(description);
+    } catch (e: any) {
+      setError(e.message ?? "생성에 실패했어요");
+    }
+    setGenerating(false);
+  }
+
+  async function reset() {
+    if (!confirm("디자인을 기본값으로 되돌릴까요?")) return;
+    await supabase.from("user_theme").delete().eq("user_id", myUserId);
+    setCurrentCss(""); setSourcePrompt(""); setDescription("");
+  }
+
+  return (
+    <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 18 }}>
+      <h2 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", marginBottom: 4 }}>🎨 화면 디자인</h2>
+      <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 14 }}>
+        원하는 분위기를 말로 설명하면 AI가 색상 팔레트를 만들어드려요. 데이터나 기능은 전혀 안 건드리고, 색상만 바뀌어요.
+      </p>
+
+      {sourcePrompt && (
+        <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 10, background: "var(--bg-3)", padding: "8px 12px", borderRadius: 8 }}>
+          현재 적용된 요청: "{sourcePrompt}"
+        </p>
+      )}
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+        <input value={description} onChange={e => setDescription(e.target.value)}
+          placeholder="예: 차분하고 넓은 느낌으로, 초록색 계열이 좋아요"
+          style={{ flex: 1, background: "var(--bg-3)", border: "1px solid var(--border)", color: "var(--text-1)", borderRadius: 8, padding: "8px 12px", fontSize: 12, outline: "none" }}
+          onKeyDown={e => { if (e.key === "Enter") generate(); }} />
+        <button onClick={generate} disabled={generating || !description.trim()}
+          style={{ padding: "8px 16px", background: "linear-gradient(135deg, #A78BFA, #2E86FF)", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer", opacity: generating || !description.trim() ? 0.5 : 1, flexShrink: 0 }}>
+          {generating ? "생성 중…" : "✦ 생성"}
+        </button>
+      </div>
+
+      {error && <p style={{ fontSize: 12, color: "#DC2626", marginBottom: 10 }}>{error}</p>}
+
+      {currentCss && (
+        <>
+          <style dangerouslySetInnerHTML={{ __html: currentCss.replace(":root", "#theme-preview") }} />
+          <div id="theme-preview" style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: 14, marginBottom: 10 }}>
+            <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 8 }}>미리보기</p>
+            <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ flex: 1, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 8, padding: 10 }}>
+                <p style={{ fontSize: 12, color: "var(--text-1)", margin: 0, fontWeight: 600 }}>카드 제목</p>
+                <p style={{ fontSize: 11, color: "var(--text-3)", margin: "3px 0 0" }}>보조 텍스트</p>
+              </div>
+              <button style={{ padding: "8px 16px", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 12, color: "#fff" }}>버튼</button>
+            </div>
+          </div>
+        </>
+      )}
+
+      <div style={{ display: "flex", gap: 10 }}>
+        {currentCss && (
+          <button onClick={() => window.location.reload()}
+            style={{ padding: "7px 16px", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer" }}>
+            🔄 새로고침해서 전체 적용
+          </button>
+        )}
+        {currentCss && (
+          <button onClick={reset}
+            style={{ padding: "7px 16px", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12, color: "var(--text-3)", cursor: "pointer" }}>
+            기본값으로 되돌리기
+          </button>
+        )}
+      </div>
+      <p style={{ fontSize: 10, color: "var(--text-3)", marginTop: 8 }}>
+        ✦ 생성 버튼을 누르면 바로 저장돼요. 위 미리보기로 먼저 확인하고, 마음에 들면 새로고침을 눌러 앱 전체(홈/업무/프로젝트 등)에 적용하세요.
+      </p>
+    </div>
+  );
+}
+
+
 function AccountTab({
   authEmail, isAdmin, myLinkedUser, allMembers, editingMemberId, setEditingMemberId,
   selectedAuthEmail, setSelectedAuthEmail, linkLoading, handleLink, handleUnlink,

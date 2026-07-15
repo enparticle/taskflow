@@ -145,6 +145,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const supabase = createClient();
   const [userRole, setUserRole] = useState("member");
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
+  const [themeCss, setThemeCss] = useState("");
   const [openDetail, setOpenDetail] = useState<string | null>(null);
 
   useEffect(() => {
@@ -172,6 +173,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       if (myUserId) {
         const { data: prefs } = await supabase.from("user_preferences").select("enabled_features").eq("user_id", myUserId).maybeSingle();
         setEnabledFeatures(prefs?.enabled_features ?? []);
+
+        const { data: theme } = await supabase.from("user_theme").select("css_text").eq("user_id", myUserId).maybeSingle();
+        if (theme?.css_text) setThemeCss(theme.css_text);
 
         const today = new Date().toDateString();
         const lastCheck = localStorage.getItem("lastDeadlineCheck");
@@ -208,6 +212,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+      {themeCss && <style dangerouslySetInnerHTML={{ __html: themeCss }} />}
       {/* 상단 헤더 */}
       <div style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 20,
