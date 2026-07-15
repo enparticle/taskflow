@@ -483,13 +483,26 @@ function AccountTab({
 
 // ── 팀 현황 탭 (구 TeamPage + 서브탭으로 구 AdminMembersPage) ──────
 function TeamTab({ isAdmin, myUserId, supabase }: { isAdmin: boolean; myUserId: string; supabase: any }) {
-  const [teamSubTab, setTeamSubTab] = useState<"overview" | "profiles" | "ai_learning">("overview");
+  const [teamSubTab, setTeamSubTab] = useState<"overview" | "profiles" | "ai_learning" | "pending_changes">("overview");
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    supabase.from("ai_suggestions").select("id", { count: "exact", head: true })
+      .eq("source", "project_change").eq("status", "pending")
+      .then(({ count }: any) => setPendingCount(count ?? 0));
+  }, [isAdmin]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {isAdmin && (
         <div style={{ display: "flex", gap: 2, padding: 3, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 10, width: "fit-content" }}>
-          {[{ v: "overview", l: "현황" }, { v: "profiles", l: "🧠 팀원 프로필 관리" }, { v: "ai_learning", l: "🤖 AI 학습 데이터" }].map(({ v, l }) => (
+          {[
+            { v: "overview", l: "현황" },
+            { v: "profiles", l: "🧠 팀원 프로필 관리" },
+            { v: "pending_changes", l: `⏳ 변경 승인${pendingCount > 0 ? ` (${pendingCount})` : ""}` },
+            { v: "ai_learning", l: "🤖 AI 학습 데이터" },
+          ].map(({ v, l }) => (
             <button key={v} onClick={() => setTeamSubTab(v as any)}
               style={{ padding: "5px 14px", borderRadius: 7, fontSize: 12, fontWeight: 500, border: "none", cursor: "pointer", transition: "all 0.15s", background: teamSubTab === v ? "var(--bg-4)" : "transparent", color: teamSubTab === v ? "var(--text-1)" : "var(--text-3)" }}>
               {l}
@@ -501,8 +514,101 @@ function TeamTab({ isAdmin, myUserId, supabase }: { isAdmin: boolean; myUserId: 
         <TeamOverview isAdmin={isAdmin} supabase={supabase} />
       ) : teamSubTab === "profiles" ? (
         <MemberProfiles myUserId={myUserId} supabase={supabase} />
+      ) : teamSubTab === "pending_changes" ? (
+        <PendingChanges supabase={supabase} myUserId={myUserId} onCountChange={setPendingCount} />
       ) : (
         <AILearningData supabase={supabase} />
+      )}
+    </div>
+  );
+}
+
+// ── 변경 승인 (Admin 전용) — AI 프로젝트 어시스턴트 "방향 변경 반영"에서 온 제안 ──
+function PendingChanges({ supabase, myUserId, onCountChange }: { supabase: any; myUserId: string; onCountChange: (n: number) => void }) {
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [acting, setActing] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const { data } = await supabase.from("ai_suggestions")
+      .select("id, task_id, project_id, type, field, suggested_value, reason, source_text, created_at, user:users(name), task:tasks(title, status, due_date, priority)")
+      .eq("source", "project_change").eq("status", "pending")
+      .order("created_at", { ascending: false });
+    setRows(data ?? []);
+    onCountChange((data ?? []).length);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function approve(row: any) {
+    setActing(row.id);
+    const update: any = {};
+    update[row.field] = row.suggested_value;
+    const { error } = await supabase.from("tasks").update(update).eq("id", row.task_id);
+    if (!error) {
+      // 상태 변경이면 변경 이력도 기록
+      if (row.field === "status") {
+        await supabase.from("task_events").insert({
+          task_id: row.task_id, event_type: "status_change",
+          from_status: row.task?.status ?? null, to_status: row.suggested_value,
+          changed_by: myUserId, reason: `AI 방향 변경 승인: ${row.reason ?? ""}`,
+        });
+      }
+      await supabase.from("ai_suggestions").update({ status: "approved", reviewed_by: myUserId, reviewed_at: new Date().toISOString() }).eq("id", row.id);
+    }
+    setActing(null);
+    load();
+  }
+
+  async function reject(row: any) {
+    setActing(row.id);
+    await supabase.from("ai_suggestions").update({ status: "rejected", reviewed_by: myUserId, reviewed_at: new Date().toISOString() }).eq("id", row.id);
+    setActing(null);
+    load();
+  }
+
+  const FIELD_LABEL: Record<string, string> = { due_date: "마감일", status: "상태", priority: "우선순위" };
+
+  if (loading) return <p style={{ fontSize: 13, color: "var(--text-3)" }}>불러오는 중…</p>;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <p style={{ fontSize: 11, color: "var(--text-3)" }}>
+        AI 프로젝트 어시스턴트의 "방향 변경 반영"에서 제출된 수정 제안이에요. 승인해야 실제 업무에 반영돼요.
+      </p>
+      {rows.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "40px 0", background: "var(--bg-2)", border: "1px dashed var(--border)", borderRadius: 12 }}>
+          <p style={{ fontSize: 13, color: "var(--text-3)" }}>승인 대기 중인 변경 제안이 없습니다</p>
+        </div>
+      ) : (
+        rows.map(r => (
+          <div key={r.id} style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 10, padding: "14px 16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-1)" }}>{r.task?.title ?? "삭제된 업무"}</span>
+              <span style={{ fontSize: 10, padding: "1px 8px", borderRadius: 4, background: "#EEF3FF", color: "#2563EB" }}>
+                {FIELD_LABEL[r.field] ?? r.field} → {r.suggested_value}
+              </span>
+              <span style={{ fontSize: 10, color: "var(--text-3)", marginLeft: "auto" }}>{r.user?.name} 요청</span>
+            </div>
+            {r.reason && <p style={{ fontSize: 12, color: "var(--text-2)", margin: "0 0 4px" }}>{r.reason}</p>}
+            {r.source_text && (
+              <p style={{ fontSize: 11, color: "var(--text-3)", margin: "0 0 10px", background: "var(--bg-3)", padding: "6px 10px", borderRadius: 6 }}>
+                원 요청: "{r.source_text}"
+              </p>
+            )}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => approve(r)} disabled={acting === r.id}
+                style={{ fontSize: 11, padding: "5px 14px", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 6, color: "#16A34A", fontWeight: 600, cursor: "pointer" }}>
+                ✓ 승인
+              </button>
+              <button onClick={() => reject(r)} disabled={acting === r.id}
+                style={{ fontSize: 11, padding: "5px 14px", background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 6, color: "#DC2626", cursor: "pointer" }}>
+                반려
+              </button>
+            </div>
+          </div>
+        ))
       )}
     </div>
   );

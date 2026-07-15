@@ -223,7 +223,7 @@ ${taskList}
 
       setAffectedTasks(data.affected ?? []);
       setSelectedTasks(new Set((data.affected ?? []).map((t: any) => t.task_id)));
-      const msg = `**${data.summary}**\n\n영향받는 업무 ${(data.affected ?? []).length}건을 찾았습니다. 아래에서 적용할 항목을 선택하세요.`;
+      const msg = `**${data.summary}**\n\n영향받는 업무 ${(data.affected ?? []).length}건을 찾았습니다. 아래에서 승인 요청할 항목을 선택하세요 (선택해도 바로 반영되지 않고, 관리자 승인 후 반영돼요).`;
       setMessages(prev => [...prev, { role: "assistant", content: msg }]);
     } catch (e: any) {
       setMessages(prev => [...prev, { role: "assistant", content: "분석 실패: " + e.message }]);
@@ -231,23 +231,42 @@ ${taskList}
     setLoading(false);
   }
 
-  // 영향 업무 일괄 적용
+  // 영향 업무 일괄 적용 — 이제 즉시 반영이 아니라 승인 대기로 제출 (회의록 승인 패턴과 동일)
   async function applyChanges() {
     if (selectedTasks.size === 0) return;
     setApplying(true);
     const toApply = affectedTasks.filter(t => selectedTasks.has(t.task_id));
+
+    let submitted = 0;
     for (const t of toApply) {
-      const update: any = {};
-      if (t.new_due_date) update.due_date = t.new_due_date;
-      if (t.new_status) update.status = t.new_status;
-      if (t.new_priority) update.priority = t.new_priority;
-      if (Object.keys(update).length > 0) {
-        await supabase.from("tasks").update(update).eq("id", t.task_id);
+      const fields: [string, string, any][] = [];
+      if (t.new_due_date) fields.push(["deadline", "due_date", t.new_due_date]);
+      if (t.new_status) fields.push(["status", "status", t.new_status]);
+      if (t.new_priority) fields.push(["priority", "priority", t.new_priority]);
+
+      for (const [type, field, value] of fields) {
+        await supabase.from("ai_suggestions").insert({
+          project_id: selectedProject,
+          task_id: t.task_id,
+          type,
+          field,
+          suggested_value: String(value),
+          reason: t.suggestion ?? t.impact ?? null,
+          status: "pending",
+          source: "project_change",
+          source_text: changeText,
+          user_id: myUser?.userId ?? null,
+        });
+        submitted++;
       }
     }
+
     setAffectedTasks([]);
     setSelectedTasks(new Set());
-    setMessages(prev => [...prev, { role: "assistant", content: `✓ ${toApply.length}건의 업무를 업데이트했습니다.` }]);
+    setMessages(prev => [...prev, {
+      role: "assistant",
+      content: `📋 ${toApply.length}건(${submitted}개 변경 항목)에 대한 수정 제안을 관리자 승인 요청으로 보냈어요.\n승인되면 실제 업무에 반영돼요 — 설정 → 팀 현황 → AI 학습 데이터에서 확인할 수 있어요.`,
+    }]);
     setApplying(false);
     setChangeText("");
   }
@@ -477,7 +496,7 @@ ${taskList}
           </div>
           <button onClick={applyChanges} disabled={applying || selectedTasks.size === 0}
             style={{ width: "100%", padding: "10px 0", background: "#D97706", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer", opacity: selectedTasks.size === 0 ? 0.4 : 1 }}>
-            {applying ? "적용 중…" : `선택한 ${selectedTasks.size}건 업무 일괄 업데이트`}
+            {applying ? "제출 중…" : `선택한 ${selectedTasks.size}건 승인 요청 보내기`}
           </button>
         </div>
       )}
