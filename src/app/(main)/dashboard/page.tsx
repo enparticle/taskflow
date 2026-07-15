@@ -7,6 +7,7 @@ import { getAuthUser } from "@/lib/auth";
 import OnboardingWizard from "@/components/onboarding/OnboardingWizard";
 import TaskDetail from "@/components/tasks/TaskDetail";
 import TaskForm from "@/components/tasks/TaskForm";
+import TaskCard from "@/components/tasks/TaskCard";
 
 const STATUS_COLOR: Record<string, string> = {
   backlog: "#A8A8A4", todo: "#2563EB", doing: "#2563EB",
@@ -120,9 +121,45 @@ function AIBriefing({ tasks, myUser }: { tasks: any[]; myUser: any }) {
 }
 
 // ── 신규: 오늘 한 일 기록 입력 + AI 제안 ─────────────────────────
-function DailyLog({ myUser, myTasks, onChanged, onOpen }: { myUser: any; myTasks: any[]; onChanged: () => void; onOpen: (id: string) => void }) {
+// 계획형 전용 — 실제 할 일 목록 (WeeklySummary 위에 배치)
+function TodayTaskList({ tasks, onOpen, onAdd }: { tasks: any[]; onOpen: (id: string) => void; onAdd: () => void }) {
+  const list = [...tasks]
+    .filter(t => t.status !== "done")
+    .sort((a, b) => {
+      if (!a.due_date && !b.due_date) return 0;
+      if (!a.due_date) return 1;
+      if (!b.due_date) return -1;
+      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+    })
+    .slice(0, 6);
+
+  return (
+    <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 16 }}>📋</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)" }}>오늘 할 일</span>
+        </div>
+        <button onClick={onAdd}
+          style={{ padding: "5px 12px", background: "var(--cyan)", border: "none", borderRadius: 7, fontSize: 11, fontWeight: 600, color: "#fff", cursor: "pointer" }}>
+          + 업무 추가
+        </button>
+      </div>
+      <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+        {list.length === 0 ? (
+          <p style={{ fontSize: 13, color: "var(--text-3)", textAlign: "center", padding: "16px 0" }}>등록된 할 일이 없어요. 위 버튼으로 추가해보세요</p>
+        ) : (
+          list.map(t => <TaskCard key={t.id} task={t} onRefresh={() => {}} />)
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DailyLog({ myUser, myTasks, onChanged, onOpen, startCollapsed }: { myUser: any; myTasks: any[]; onChanged: () => void; onOpen: (id: string) => void; startCollapsed?: boolean }) {
   const supabase = createClient();
   const [text, setText] = useState("");
+  const [inputOpen, setInputOpen] = useState(!startCollapsed);
   const [asking, setAsking] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]); // { type, taskId?, title, status?, reason }
   const [reply, setReply] = useState("");
@@ -258,13 +295,18 @@ function DailyLog({ myUser, myTasks, onChanged, onOpen }: { myUser: any; myTasks
 
   return (
     <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
-      <div style={{ padding: "14px 18px", background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
+      <button onClick={() => setInputOpen(v => !v)}
+        style={{ width: "100%", padding: "14px 18px", background: "var(--bg-3)", borderBottom: inputOpen ? "1px solid var(--border)" : "none", border: "none", cursor: "pointer", textAlign: "left" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 16 }}>📝</span>
           <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)" }}>오늘 한 일을 적어주세요</span>
+          {startCollapsed && (
+            <span style={{ fontSize: 11, color: "var(--text-3)", marginLeft: "auto" }}>{inputOpen ? "▾ 접기" : "▸ 펼치기"}</span>
+          )}
         </div>
-      </div>
+      </button>
 
+      {inputOpen && (
       <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
         <textarea
           value={text}
@@ -339,6 +381,7 @@ function DailyLog({ myUser, myTasks, onChanged, onOpen }: { myUser: any; myTasks
           </div>
         )}
       </div>
+      )}
 
       {/* 최근 기록 */}
       <div style={{ borderTop: "1px solid var(--border)", padding: "12px 16px" }}>
@@ -453,16 +496,8 @@ export default function DashboardPage() {
 
       {!isViewer && (
         <>
-          {/* 계획형: 업무 추가를 먼저 하도록 유도 */}
-          {inputStyle === "plan" && (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, background: "var(--cyan-bg)", border: "1px solid #BFDBFE", borderRadius: 12, padding: "14px 18px" }}>
-              <p style={{ fontSize: 13, color: "var(--cyan)", margin: 0, fontWeight: 500 }}>📋 오늘 할 일부터 등록해볼까요?</p>
-              <button onClick={() => setOpenForm(true)}
-                style={{ padding: "6px 14px", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer", flexShrink: 0 }}>
-                + 업무 추가
-              </button>
-            </div>
-          )}
+          {/* 계획형: 실제 할 일 목록을 보여줌 */}
+          {inputStyle === "plan" && <TodayTaskList tasks={myTasks} onOpen={(id: string) => setOpenDetail(id)} onAdd={() => setOpenForm(true)} />}
 
           {/* 클릭형: 굳이 안 적어도 된다는 안내 */}
           {inputStyle === "click" && (
@@ -476,11 +511,11 @@ export default function DashboardPage() {
           {summaryFirst ? (
             <>
               <WeeklySummary tasks={myTasks} />
-              <DailyLog myUser={myUser} myTasks={myTasks} onChanged={load} onOpen={(id: string) => setOpenDetail(id)} />
+              <DailyLog myUser={myUser} myTasks={myTasks} onChanged={load} onOpen={(id: string) => setOpenDetail(id)} startCollapsed={inputStyle === "click"} />
             </>
           ) : (
             <>
-              <DailyLog myUser={myUser} myTasks={myTasks} onChanged={load} onOpen={(id: string) => setOpenDetail(id)} />
+              <DailyLog myUser={myUser} myTasks={myTasks} onChanged={load} onOpen={(id: string) => setOpenDetail(id)} startCollapsed={inputStyle === "click"} />
               <WeeklySummary tasks={myTasks} />
             </>
           )}
