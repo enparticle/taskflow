@@ -190,6 +190,7 @@ const CONSUMPTION_STYLE_OPTIONS = [
 const ADVANCED_FEATURES = [
   { key: "my-work", emoji: "📋", label: "내 업무", desc: "담당 업무만 마감일순으로 빠르게", path: "/my-work" },
   { key: "kanban", emoji: "📊", label: "칸반 보드", desc: "상태별로 시각화, 드래그로 상태 변경", path: "/kanban" },
+  { key: "tree", emoji: "🌳", label: "업무 트리 / 간트", desc: "프로젝트→마일스톤→업무 계층 + 간트 타임라인", path: "/tree" },
   { key: "recurring", emoji: "🔄", label: "반복 업무", desc: "매주 반복되는 팀/개인 업무 자동 등록", path: "/recurring" },
   { key: "project-assistant", emoji: "🤖", label: "AI 프로젝트 어시스턴트", desc: "대화로 프로젝트 구성, 방향 변경 반영", path: "/project-assistant" },
   { key: "report-export", emoji: "📄", label: "외부용 보고서", desc: "팀 외부 공유용 진행 보고서 작성", path: "/report-export" },

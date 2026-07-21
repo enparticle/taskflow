@@ -30,6 +30,7 @@ const MORE_ITEMS_BASE = [
 const ADVANCED_MENU_ITEMS: Record<string, { href: string; label: string }> = {
   "my-work":           { href: "/my-work", label: "📋 내 업무" },
   "kanban":            { href: "/kanban", label: "📊 칸반 보드" },
+  "tree":              { href: "/tree", label: "🌳 업무 트리 / 간트" },
   "recurring":         { href: "/recurring", label: "🔄 반복 업무" },
   "project-assistant": { href: "/project-assistant", label: "🤖 AI 프로젝트 어시스턴트" },
   "report-export":     { href: "/report-export", label: "📄 외부용 보고서" },
