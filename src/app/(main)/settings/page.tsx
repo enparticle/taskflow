@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
 import { getAuthUser } from "@/lib/auth";
+import StyleChatWizard from "@/components/onboarding/StyleChatWizard";
 import UserForm from "@/components/team/UserForm";
 
 const ROLE_COLOR: Record<string, string> = {
@@ -204,8 +205,9 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showChat, setShowChat] = useState(false);
 
-  useEffect(() => {
+  const loadPrefs = () => {
     if (!myUserId) return;
     supabase.from("user_preferences").select("*").eq("user_id", myUserId).maybeSingle().then(({ data }: any) => {
       if (data) {
@@ -216,7 +218,9 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
       }
       setLoaded(true);
     });
-  }, [myUserId]);
+  };
+
+  useEffect(() => { loadPrefs(); }, [myUserId]);
 
   function toggleFeature(key: string) {
     setEnabledFeatures(prev => prev.includes(key) ? prev.filter(f => f !== key) : [...prev, key]);
@@ -242,6 +246,24 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <button onClick={() => setShowChat(true)}
+        style={{
+          display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderRadius: 12, cursor: "pointer", textAlign: "left",
+          background: "linear-gradient(135deg, rgba(167,139,250,0.12), rgba(46,134,255,0.12))", border: "1px solid rgba(167,139,250,0.3)",
+        }}>
+        <span style={{ fontSize: 20 }}>💬</span>
+        <div>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-1)", margin: 0 }}>AI와 대화로 스타일 설정하기</p>
+          <p style={{ fontSize: 11, color: "var(--text-3)", margin: "2px 0 0" }}>입력방식·홈화면·알림·화면밀도 등 20가지를 대화하면서 한 번에 설정해요</p>
+        </div>
+      </button>
+
+      {showChat && (
+        <StyleChatWizard onClose={() => setShowChat(false)} onSaved={() => { loadPrefs(); setShowChat(false); window.location.reload(); }} />
+      )}
+
+      <p style={{ fontSize: 11, color: "var(--text-3)", textAlign: "center" }}>또는 아래에서 기본 항목만 직접 고를 수도 있어요</p>
+
       <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 18 }}>
         <h2 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", marginBottom: 4 }}>업무를 기록하는 스타일</h2>
         <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 14 }}>홈 화면 구성과 AI 제안 방식에 반영돼요</p>
