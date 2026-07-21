@@ -147,6 +147,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const [userRole, setUserRole] = useState("member");
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
   const [themeCss, setThemeCss] = useState("");
+  const [zoomScale, setZoomScale] = useState(1);
   const [openDetail, setOpenDetail] = useState<string | null>(null);
 
   useEffect(() => {
@@ -172,8 +173,14 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       }
 
       if (myUserId) {
-        const { data: prefs } = await supabase.from("user_preferences").select("enabled_features").eq("user_id", myUserId).maybeSingle();
+        const { data: prefs } = await supabase.from("user_preferences")
+          .select("enabled_features, density, font_size").eq("user_id", myUserId).maybeSingle();
         setEnabledFeatures(prefs?.enabled_features ?? []);
+
+        // 화면 밀도 + 글자 크기를 하나의 배율로 합산 (앱 전체가 px 인라인 스타일 위주라 zoom으로 적용)
+        const densityScale = prefs?.density === "compact" ? 0.92 : 1;
+        const fontScale = prefs?.font_size === "small" ? 0.92 : prefs?.font_size === "large" ? 1.1 : 1;
+        setZoomScale(densityScale * fontScale);
 
         const { data: theme } = await supabase.from("user_theme").select("css_text").eq("user_id", myUserId).maybeSingle();
         if (theme?.css_text) setThemeCss(theme.css_text);
@@ -212,7 +219,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   }, []);
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", zoom: zoomScale !== 1 ? zoomScale : undefined } as any}>
       {themeCss && <style dangerouslySetInnerHTML={{ __html: themeCss }} />}
       {/* 상단 헤더 */}
       <div style={{

@@ -22,8 +22,8 @@ const SYSTEM_PROMPT = `당신은 TaskFlow 개인화 설정을 도와주는 AI입
 [업무 목록]
 7. default_sort: 업무 목록 기본 정렬 — status|priority|due_date|created_at|title
 8. default_hide_done: 완료된 업무를 기본으로 숨길지 (true/false)
-9. default_status_filter: 기본으로 보고 싶은 상태 — "all" 또는 특정 상태(todo/doing/review/blocked/backlog)
-10. default_priority_filter: 기본으로 보고 싶은 우선순위 — "all" 또는 urgent/high/medium/low
+9. default_status_filter: 기본으로 보고 싶은 상태 — 반드시 문자열 하나만: "all" 또는 todo/doing/review/blocked/backlog 중 하나. 여러 개를 원해도 배열 말고 가장 우선인 상태 하나만 고르게 하세요
+10. default_priority_filter: 기본으로 보고 싶은 우선순위 — 반드시 문자열 하나만: "all" 또는 urgent/high/medium/low 중 하나
 
 [소비/이동]
 11. consumption_style: 팀 전체 현황을 얼마나 자주 보는지 — "monitor"(자주) | "summary"(가끔) | "unsure"

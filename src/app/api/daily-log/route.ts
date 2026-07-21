@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     const Anthropic = (await import("@anthropic-ai/sdk")).default;
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const supabase = createAuthedClient(req);
-    const { text, userName, tasks, now } = await req.json();
+    const { text, userName, tasks, now, aiTone } = await req.json();
 
     if (!text || !text.trim()) {
       return NextResponse.json({ reply: "내용을 입력해주세요.", suggestions: [] });
@@ -63,6 +63,7 @@ ${taskList || "(없음)"}
 ${text}
 """
 
+${aiTone === "detailed" ? "\n응답 톤: 사용자가 '자세히' 스타일을 선호합니다. reply와 각 제안의 reason에 판단 근거를 조금 더 구체적으로 설명해주세요(3~4문장 정도 괜찮음).\n" : "\n응답 톤: 사용자가 '간결히' 스타일을 선호합니다. reply와 reason을 짧고 명확하게, 군더더기 없이 작성하세요.\n"}
 반드시 아래 JSON 형식으로만 답하세요. 다른 설명, 마크다운, 코드블록 없이 순수 JSON만 출력하세요.
 {
   "reply": "사용자에게 보여줄 한두 문장의 짧은 확인 멘트",

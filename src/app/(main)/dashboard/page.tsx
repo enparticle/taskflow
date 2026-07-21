@@ -1,6 +1,7 @@
 // @ts-nocheck
 "use client";
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { authFetch } from "@/lib/authFetch";
 import { getAuthUser } from "@/lib/auth";
@@ -51,10 +52,14 @@ function WeeklySummary({ tasks }: { tasks: any[] }) {
 }
 
 // AI 브리핑 (기존 유지)
-function AIBriefing({ tasks, myUser }: { tasks: any[]; myUser: any }) {
-  const [open, setOpen] = useState(false);
+function AIBriefing({ tasks, myUser, startExpanded }: { tasks: any[]; myUser: any; startExpanded?: boolean }) {
+  const [open, setOpen] = useState(!!startExpanded);
   const [briefing, setBriefing] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (startExpanded && !briefing) generate();
+  }, []);
 
   async function generate() {
     if (briefing) return;
@@ -156,7 +161,7 @@ function TodayTaskList({ tasks, onOpen, onAdd }: { tasks: any[]; onOpen: (id: st
   );
 }
 
-function DailyLog({ myUser, myTasks, onChanged, onOpen, startCollapsed }: { myUser: any; myTasks: any[]; onChanged: () => void; onOpen: (id: string) => void; startCollapsed?: boolean }) {
+function DailyLog({ myUser, myTasks, onChanged, onOpen, startCollapsed, autoApprove, aiTone }: { myUser: any; myTasks: any[]; onChanged: () => void; onOpen: (id: string) => void; startCollapsed?: boolean; autoApprove?: boolean; aiTone?: string }) {
   const supabase = createClient();
   const [text, setText] = useState("");
   const [inputOpen, setInputOpen] = useState(!startCollapsed);
@@ -204,6 +209,7 @@ function DailyLog({ myUser, myTasks, onChanged, onOpen, startCollapsed }: { myUs
           userName: myUser?.name ?? "팀원",
           tasks: myTasks.map(t => ({ id: t.id, title: t.title, status: t.status, project: t.project?.name ?? null })),
           now: new Date().toISOString(),
+          aiTone: aiTone ?? "concise",
         }),
       });
       const data = await res.json();
@@ -213,6 +219,10 @@ function DailyLog({ myUser, myTasks, onChanged, onOpen, startCollapsed }: { myUs
       } else {
         setReply(data.reply ?? "");
         setSuggestions(data.suggestions ?? []);
+        // 자동 승인 설정이면 확인 없이 바로 전부 반영
+        if (autoApprove && data.suggestions?.length > 0) {
+          data.suggestions.forEach((s: any, i: number) => applyOne(s, i));
+        }
       }
     } catch {
       setReply("기록을 분석하는 중 오류가 발생했어요. 잠시 후 다시 시도해주세요.");
@@ -220,9 +230,8 @@ function DailyLog({ myUser, myTasks, onChanged, onOpen, startCollapsed }: { myUs
     setAsking(false);
   }
 
-  async function applySuggestion(idx: number) {
-    const s = suggestions[idx];
-    setApplying(idx);
+  async function applyOne(s: any, idx: number | null) {
+    if (idx !== null) setApplying(idx);
     try {
       let targetTaskId: string | null = null;
 
@@ -266,12 +275,16 @@ function DailyLog({ myUser, myTasks, onChanged, onOpen, startCollapsed }: { myUs
         reviewed_at: new Date().toISOString(),
       });
 
-      setAppliedIdx(prev => new Set(prev).add(idx));
+      if (idx !== null) setAppliedIdx(prev => new Set(prev).add(idx));
       onChanged();
       loadRecent();
     } finally {
-      setApplying(null);
+      if (idx !== null) setApplying(null);
     }
+  }
+
+  async function applySuggestion(idx: number) {
+    await applyOne(suggestions[idx], idx);
   }
 
   async function dismissSuggestion(idx: number) {
@@ -417,6 +430,7 @@ function DailyLog({ myUser, myTasks, onChanged, onOpen, startCollapsed }: { myUs
 
 export default function DashboardPage() {
   const supabase = createClient();
+  const router = useRouter();
   const [myUser, setMyUser] = useState<any>(null);
   const [myTasks, setMyTasks] = useState<any[]>([]);
   const [preferences, setPreferences] = useState<any>(null);
@@ -462,6 +476,19 @@ export default function DashboardPage() {
   const needsOnboarding = !isViewer && (!preferences || !preferences.onboarding_completed);
   const inputStyle = preferences?.input_style ?? "log";
   const summaryFirst = preferences?.home_priority?.[0] === "summary";
+  const hiddenWidgets: string[] = preferences?.hidden_widgets ?? [];
+  const greetingEnabled = preferences?.greeting_enabled !== false; // 기본 true
+  const briefingAutoExpand = !!preferences?.briefing_auto_expand;
+  const aiAutoApprove = !!preferences?.ai_auto_approve;
+
+  // 로그인 후 기본 화면이 홈이 아니면 이동 (onboarding 중이거나 이미 이동했으면 건너뜀)
+  useEffect(() => {
+    if (!preferences || needsOnboarding) return;
+    const landing = preferences.landing_page;
+    if (landing && landing !== "dashboard") {
+      router.replace(`/${landing}`);
+    }
+  }, [preferences, needsOnboarding]);
 
   return (
     <div style={{ maxWidth: 760, display: "flex", flexDirection: "column", gap: 16 }}>
@@ -476,9 +503,13 @@ export default function DashboardPage() {
           <p style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 4 }}>
             {now.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" })}
           </p>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--text-1)", margin: 0 }}>
-            {greet}, {myUser.name}님
-          </h1>
+          {greetingEnabled ? (
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--text-1)", margin: 0 }}>
+              {greet}, {myUser.name}님
+            </h1>
+          ) : (
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--text-1)", margin: 0 }}>{myUser.name}</h1>
+          )}
         </div>
         {!isViewer && (
           <div style={{ display: "flex", gap: 8 }}>
@@ -497,10 +528,12 @@ export default function DashboardPage() {
       {!isViewer && (
         <>
           {/* 계획형: 실제 할 일 목록을 보여줌 */}
-          {inputStyle === "plan" && <TodayTaskList tasks={myTasks} onOpen={(id: string) => setOpenDetail(id)} onAdd={() => setOpenForm(true)} />}
+          {inputStyle === "plan" && !hiddenWidgets.includes("today") && (
+            <TodayTaskList tasks={myTasks} onOpen={(id: string) => setOpenDetail(id)} onAdd={() => setOpenForm(true)} />
+          )}
 
           {/* 클릭형: 굳이 안 적어도 된다는 안내 */}
-          {inputStyle === "click" && (
+          {inputStyle === "click" && !hiddenWidgets.includes("recent") && (
             <div style={{ background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 18px" }}>
               <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>
                 🖱 글 쓰는 게 귀찮으면 <a href="/tasks" style={{ color: "var(--cyan)" }}>업무 탭</a>에서 상태만 클릭해서 바꾸셔도 똑같이 기록이 남아요.
@@ -510,18 +543,24 @@ export default function DashboardPage() {
 
           {summaryFirst ? (
             <>
-              <WeeklySummary tasks={myTasks} />
-              <DailyLog myUser={myUser} myTasks={myTasks} onChanged={load} onOpen={(id: string) => setOpenDetail(id)} startCollapsed={inputStyle === "click"} />
+              {!hiddenWidgets.includes("summary") && <WeeklySummary tasks={myTasks} />}
+              {!hiddenWidgets.includes("recent") && (
+                <DailyLog myUser={myUser} myTasks={myTasks} onChanged={load} onOpen={(id: string) => setOpenDetail(id)}
+                  startCollapsed={inputStyle === "click"} autoApprove={aiAutoApprove} aiTone={preferences?.ai_tone} />
+              )}
             </>
           ) : (
             <>
-              <DailyLog myUser={myUser} myTasks={myTasks} onChanged={load} onOpen={(id: string) => setOpenDetail(id)} startCollapsed={inputStyle === "click"} />
-              <WeeklySummary tasks={myTasks} />
+              {!hiddenWidgets.includes("recent") && (
+                <DailyLog myUser={myUser} myTasks={myTasks} onChanged={load} onOpen={(id: string) => setOpenDetail(id)}
+                  startCollapsed={inputStyle === "click"} autoApprove={aiAutoApprove} aiTone={preferences?.ai_tone} />
+              )}
+              {!hiddenWidgets.includes("summary") && <WeeklySummary tasks={myTasks} />}
             </>
           )}
 
-          {/* AI 브리핑 (접힌 상태) */}
-          <AIBriefing tasks={myTasks} myUser={myUser} />
+          {/* AI 브리핑 */}
+          <AIBriefing tasks={myTasks} myUser={myUser} startExpanded={briefingAutoExpand} />
         </>
       )}
 

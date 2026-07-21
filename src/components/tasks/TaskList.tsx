@@ -58,6 +58,23 @@ export default function TaskList({
     getAuthUser().then(u => setMyUser(u));
   }, []);
 
+  useEffect(() => {
+    if (!myUser?.userId) return;
+    supabase.from("user_preferences").select("default_sort, default_hide_done, default_status_filter, default_priority_filter")
+      .eq("user_id", myUser.userId).maybeSingle().then(({ data }: any) => {
+        if (!data) return;
+        if (data.default_sort) setSortBy(data.default_sort);
+        if (data.default_hide_done != null) setShowDone(!data.default_hide_done);
+        // 여러 개가 배열로 잘못 저장된 예전 값 방어 — 문자열로 시작하는 값만 실제 필터로 사용
+        if (data.default_status_filter && typeof data.default_status_filter === "string" && !data.default_status_filter.startsWith("[")) {
+          setStatusFilter(data.default_status_filter);
+        }
+        if (data.default_priority_filter && typeof data.default_priority_filter === "string" && !data.default_priority_filter.startsWith("[")) {
+          setPriorityFilter(data.default_priority_filter);
+        }
+      });
+  }, [myUser?.userId]);
+
   const filtered = useMemo(() => {
     let result = [...tasks];
     if (search.trim()) result = result.filter(t => t.title?.toLowerCase().includes(search.toLowerCase()));
