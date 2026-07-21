@@ -46,6 +46,13 @@ export default function CalendarPage() {
     setMyUser(u);
     const viewer = u?.role === "viewer";
     setIsViewer(viewer);
+
+    if (u?.userId) {
+      const { data: prefs } = await supabase.from("user_preferences")
+        .select("calendar_default_view").eq("user_id", u.userId).maybeSingle();
+      if (prefs?.calendar_default_view) setView(prefs.calendar_default_view as ViewMode);
+    }
+
     if (viewer) {
       const { data } = await supabase.from("calendar_events")
         .select("*, user:users(name)").eq("is_public", true).order("start_date");
