@@ -10,6 +10,7 @@ export default function StyleChatWizard({ onClose, onSaved }: { onClose: () => v
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [chatId, setChatId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -25,10 +26,11 @@ export default function StyleChatWizard({ onClose, onSaved }: { onClose: () => v
     try {
       const res = await authFetch("/api/style-chat", {
         method: "POST",
-        body: JSON.stringify({ messages: newMessages }),
+        body: JSON.stringify({ messages: newMessages, chatId }),
       });
       const data = await res.json();
       setMessages(prev => [...prev, { role: "assistant", content: data.message }]);
+      if (data.chatId) setChatId(data.chatId);
       if (data.result) setDone(true);
     } catch {
       setMessages(prev => [...prev, { role: "assistant", content: "죄송해요, 잠시 문제가 생겼어요. 다시 시도해주세요." }]);

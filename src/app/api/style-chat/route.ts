@@ -79,7 +79,7 @@ END_JSON`;
 export async function POST(req: NextRequest) {
   try {
     const supabase = createAuthedClient(req);
-    const { messages } = await req.json();
+    const { messages, chatId } = await req.json();
 
     const response = await client.messages.create({
       model: "claude-sonnet-4-6",
@@ -98,42 +98,65 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (result) {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (authUser) {
-        const { data: me } = await supabase.from("users").select("id").eq("auth_id", authUser.id).single();
-        if (me) {
-          await supabase.from("user_preferences").upsert({
-            user_id: me.id,
-            input_style: result.input_style,
-            home_priority: result.home_priority,
-            hidden_widgets: result.hidden_widgets ?? [],
-            greeting_enabled: result.greeting_enabled,
-            briefing_auto_expand: result.briefing_auto_expand,
-            ai_auto_approve: result.ai_auto_approve,
-            default_sort: result.default_sort,
-            default_hide_done: result.default_hide_done,
-            default_status_filter: result.default_status_filter,
-            default_priority_filter: result.default_priority_filter,
-            consumption_style: result.consumption_style,
-            landing_page: result.landing_page,
-            notification_style: result.notification_style,
-            notification_types: result.notification_types,
-            deadline_reminder_days: result.deadline_reminder_days,
-            density: result.density,
-            font_size: result.font_size,
-            calendar_default_view: result.calendar_default_view,
-            ai_tone: result.ai_tone,
-            enabled_features: result.enabled_features ?? [],
-            onboarding_completed: true,
-            updated_at: new Date().toISOString(),
-          }, { onConflict: "user_id" });
-        }
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    let me: any = null;
+    if (authUser) {
+      const { data } = await supabase.from("users").select("id").eq("auth_id", authUser.id).single();
+      me = data;
+    }
+
+    if (result && me) {
+      await supabase.from("user_preferences").upsert({
+        user_id: me.id,
+        input_style: result.input_style,
+        home_priority: result.home_priority,
+        hidden_widgets: result.hidden_widgets ?? [],
+        greeting_enabled: result.greeting_enabled,
+        briefing_auto_expand: result.briefing_auto_expand,
+        ai_auto_approve: result.ai_auto_approve,
+        default_sort: result.default_sort,
+        default_hide_done: result.default_hide_done,
+        default_status_filter: result.default_status_filter,
+        default_priority_filter: result.default_priority_filter,
+        consumption_style: result.consumption_style,
+        landing_page: result.landing_page,
+        notification_style: result.notification_style,
+        notification_types: result.notification_types,
+        deadline_reminder_days: result.deadline_reminder_days,
+        density: result.density,
+        font_size: result.font_size,
+        calendar_default_view: result.calendar_default_view,
+        ai_tone: result.ai_tone,
+        enabled_features: result.enabled_features ?? [],
+        onboarding_completed: true,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id" });
+    }
+
+    // 대화 기록 저장 — chatId 있으면 이어쓰기, 없으면 새로 생성
+    const updatedMessages = [...messages, { role: "assistant", content: assistantMsg }];
+    let newChatId = chatId;
+    if (me) {
+      if (chatId) {
+        await supabase.from("style_chats").update({
+          messages: updatedMessages,
+          result,
+          status: result ? "completed" : "ongoing",
+          updated_at: new Date().toISOString(),
+        }).eq("id", chatId);
+      } else {
+        const { data: created } = await supabase.from("style_chats").insert({
+          user_id: me.id,
+          messages: updatedMessages,
+          result,
+          status: result ? "completed" : "ongoing",
+        }).select("id").single();
+        newChatId = created?.id ?? null;
       }
     }
 
     const displayMsg = assistantMsg.split("RESULT_JSON")[0].trim();
-    return NextResponse.json({ message: displayMsg || "설정이 저장됐어요! ✓", result });
+    return NextResponse.json({ message: displayMsg || "설정이 저장됐어요! ✓", result, chatId: newChatId });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
