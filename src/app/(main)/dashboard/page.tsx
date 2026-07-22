@@ -464,6 +464,17 @@ export default function DashboardPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // 로그인 후 기본 화면이 홈이 아니면 이동 (onboarding 중이거나 로딩 중이면 건너뜀)
+  // ⚠️ 반드시 아래 조기 return들보다 위에 있어야 함 — Hook 호출 순서가 매 렌더마다 같아야 하기 때문
+  useEffect(() => {
+    if (loading || !myUser || myUser.role === "viewer") return;
+    if (!preferences || !preferences.onboarding_completed) return;
+    const landing = preferences.landing_page;
+    if (landing && landing !== "dashboard") {
+      router.replace(`/${landing}`);
+    }
+  }, [loading, myUser, preferences]);
+
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200 }}>
       <p style={{ color: "var(--text-3)", fontSize: 13 }}>불러오는 중...</p>
@@ -479,15 +490,6 @@ export default function DashboardPage() {
   const greetingEnabled = preferences?.greeting_enabled !== false; // 기본 true
   const briefingAutoExpand = !!preferences?.briefing_auto_expand;
   const aiAutoApprove = !!preferences?.ai_auto_approve;
-
-  // 로그인 후 기본 화면이 홈이 아니면 이동 (onboarding 중이거나 이미 이동했으면 건너뜀)
-  useEffect(() => {
-    if (!preferences || needsOnboarding) return;
-    const landing = preferences.landing_page;
-    if (landing && landing !== "dashboard") {
-      router.replace(`/${landing}`);
-    }
-  }, [preferences, needsOnboarding]);
 
   return (
     <div style={{ maxWidth: 760, display: "flex", flexDirection: "column", gap: 16 }}>
