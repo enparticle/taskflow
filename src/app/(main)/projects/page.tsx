@@ -88,7 +88,7 @@ export default function ProjectsPage() {
     return (
       <div style={{
         background: "var(--bg-2)", border: `1px solid ${completed ? "var(--border)" : `${hc.color}33`}`,
-        borderRadius: 12, padding: 20, opacity: completed ? 0.85 : 1, transition: "border-color 0.15s",
+        borderRadius: "var(--radius, 12px)", boxShadow: "var(--shadow, none)", padding: 20, opacity: completed ? 0.85 : 1, transition: "border-color 0.15s",
       }}
         onMouseEnter={e => { if (!completed) (e.currentTarget as HTMLDivElement).style.borderColor = `${hc.color}66`; }}
         onMouseLeave={e => { if (!completed) (e.currentTarget as HTMLDivElement).style.borderColor = `${hc.color}33`; }}>
@@ -197,7 +197,7 @@ export default function ProjectsPage() {
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {pendingProjects.map(p => (
-              <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px" }}>
+              <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius, 10px)", padding: "10px 14px" }}>
                 <div>
                   <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", margin: 0 }}>{p.name}</p>
                   <p style={{ fontSize: 11, color: "var(--text-3)", margin: "2px 0 0" }}>{p.owner?.name ?? "알 수 없음"}님이 요청</p>
@@ -241,7 +241,7 @@ export default function ProjectsPage() {
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {tab === "active" && (
           activeProjects.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "48px 0", background: "var(--bg-2)", border: "1px dashed var(--border)", borderRadius: 12 }}>
+            <div style={{ textAlign: "center", padding: "48px 0", background: "var(--bg-2)", border: "1px dashed var(--border)", borderRadius: "var(--radius, 12px)" }}>
               <p style={{ fontSize: 13, color: "var(--text-3)" }}>진행 중인 프로젝트가 없습니다</p>
               {canCreate && (
                 <button onClick={() => { setEditProject(null); setShowForm(true); }}
@@ -254,7 +254,7 @@ export default function ProjectsPage() {
         )}
         {tab === "completed" && (
           completedProjects.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "48px 0", background: "var(--bg-2)", border: "1px dashed var(--border)", borderRadius: 12 }}>
+            <div style={{ textAlign: "center", padding: "48px 0", background: "var(--bg-2)", border: "1px dashed var(--border)", borderRadius: "var(--radius, 12px)" }}>
               <p style={{ fontSize: 13, color: "var(--text-3)" }}>완료된 프로젝트가 없습니다</p>
             </div>
           ) : completedProjects.map(p => <ProjectCard key={p.id} p={p} completed />)
