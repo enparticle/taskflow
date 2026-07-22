@@ -178,12 +178,13 @@ export default function KanbanPage() {
           const isOver = dragOver === col.status;
           return (
             <div key={col.status}
-              className="flex flex-col rounded-2xl shrink-0 transition-all"
+              className="flex flex-col shrink-0 transition-all"
               style={{
                 width: "240px",
                 background: isOver ? col.bg : "var(--bg-2)",
                 border: `1px solid ${isOver ? col.color + "66" : "var(--border)"}`,
                 boxShadow: isOver ? `0 0 20px ${col.color}22` : "none",
+                borderRadius: "var(--radius-lg, 16px)",
               }}
               onDragOver={e => handleDragOver(e, col.status)}
               onDragLeave={() => setDragOver(null)}
@@ -288,14 +289,15 @@ function KanbanCard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className="rounded-xl p-3 cursor-grab active:cursor-grabbing transition-all select-none"
+      className="p-3 cursor-grab active:cursor-grabbing transition-all select-none"
       style={{
         background: "var(--bg-3)",
         border: `1px solid var(--border)`,
         borderTop: `2px solid ${colColor}`,
+        borderRadius: "var(--radius, 12px)",
         opacity: isDragging ? 0.4 : 1,
         transform: isDragging ? "rotate(2deg) scale(0.98)" : undefined,
-        boxShadow: isDragging ? "none" : undefined,
+        boxShadow: isDragging ? "none" : "var(--shadow, none)",
       }}
       onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border-2)"; }}
       onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "var(--border)"; }}>
