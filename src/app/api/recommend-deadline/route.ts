@@ -32,6 +32,31 @@ export async function POST(req: NextRequest) {
       ? Math.round(historySummary.reduce((s, t) => s + (t.days ?? 0), 0) / historySummary.length)
       : null;
 
+    // 요청한 사람의 톤/소통 스타일 반영 (계정별 학습 데이터)
+    let toneBlock = "";
+    let reasonLenHint = "30자 이내";
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        const { data: me } = await supabase.from("users").select("id").eq("auth_id", authUser.id).single();
+        if (me) {
+          const { data: prefs } = await supabase.from("user_preferences")
+            .select("ai_tone, communication_profile").eq("user_id", me.id).maybeSingle();
+          if (prefs?.ai_tone === "detailed" || prefs?.ai_tone === "detailed_with_summary") {
+            toneBlock += "\n이 사용자는 '자세히' 스타일을 선호합니다. reason에 근거를 조금 더 구체적으로 담으세요.";
+            reasonLenHint = "50자 이내";
+          } else if (prefs?.ai_tone === "concise") {
+            toneBlock += "\n이 사용자는 '간결히' 스타일을 선호합니다. reason을 짧고 명확하게.";
+          }
+          if (prefs?.communication_profile) {
+            toneBlock += `\n이 사용자의 소통 스타일(참고용): ${prefs.communication_profile}`;
+          }
+        }
+      }
+    } catch {
+      // 톤 조회 실패해도 기본 동작은 계속
+    }
+
     const prompt = `업무 마감일 추천 전문가입니다. 아래 정보를 바탕으로 현실적인 마감일을 추천해주세요.
 
 새 업무:
@@ -44,13 +69,13 @@ export async function POST(req: NextRequest) {
 과거 이력: ${JSON.stringify(historySummary.slice(0, 5))}
 
 오늘 날짜: ${new Date().toLocaleDateString("ko-KR")}
-
+${toneBlock}
 JSON으로만 응답:
 {
   "recommended_days": 숫자(오늘부터 며칠 후),
   "recommended_date": "YYYY-MM-DD",
   "confidence": "high|medium|low",
-  "reason": "추천 이유 30자 이내",
+  "reason": "추천 이유 ${reasonLenHint}",
   "range": {"min": 최소일수, "max": 최대일수}
 }`;
 

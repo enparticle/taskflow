@@ -40,6 +40,31 @@ export async function POST(req: NextRequest) {
       if (ids.length > 0) eligible = memberStats.filter(u => ids.includes(u.id));
     }
 
+    // 요청한 사람의 톤/소통 스타일 반영 (계정별 학습 데이터)
+    let toneBlock = "";
+    let reasonLenHint = "20자이내";
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        const { data: me } = await supabase.from("users").select("id").eq("auth_id", authUser.id).single();
+        if (me) {
+          const { data: prefs } = await supabase.from("user_preferences")
+            .select("ai_tone, communication_profile").eq("user_id", me.id).maybeSingle();
+          if (prefs?.ai_tone === "detailed" || prefs?.ai_tone === "detailed_with_summary") {
+            toneBlock += "\n이 사용자는 '자세히' 스타일을 선호합니다. reason에 근거를 조금 더 구체적으로 담으세요.";
+            reasonLenHint = "40자이내";
+          } else if (prefs?.ai_tone === "concise") {
+            toneBlock += "\n이 사용자는 '간결히' 스타일을 선호합니다. reason을 짧고 명확하게.";
+          }
+          if (prefs?.communication_profile) {
+            toneBlock += `\n이 사용자의 소통 스타일(참고용): ${prefs.communication_profile}`;
+          }
+        }
+      }
+    } catch {
+      // 톤 조회 실패해도 기본 동작은 계속
+    }
+
     const prompt = `팀 업무 배정 전문가로서 아래 업무에 가장 적합한 담당자를 추천해주세요.
 
 새 업무: ${title} (유형: ${task_type}, 우선순위: ${priority})
@@ -48,9 +73,9 @@ export async function POST(req: NextRequest) {
 ${JSON.stringify(eligible)}
 
 추천 기준: 진행 중 업무 적은 사람, 같은 유형 경험 있는 사람, Blocked 없는 사람
-
+${toneBlock}
 JSON으로만 응답:
-{"recommendations":[{"user_id":"uuid","name":"이름","score":1-100,"reason":"이유20자이내"}]}
+{"recommendations":[{"user_id":"uuid","name":"이름","score":1-100,"reason":"이유${reasonLenHint}"}]}
 최대 3명, score 내림차순.`;
 
     const message = await client.messages.create({
