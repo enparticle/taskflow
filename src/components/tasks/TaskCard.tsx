@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase";
+import { getAuthUser } from "@/lib/auth";
 import type { Task, User, Project } from "@/types/database";
 type TaskStatus = string;
 import TaskDetail from "./TaskDetail";
@@ -79,11 +80,16 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
   const [commentCount, setCommentCount] = useState<number>(task.comment_count ?? 0);
   const [localStatus, setLocalStatus] = useState(task.status);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const [myUser, setMyUser] = useState<any>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
+
+  useEffect(() => {
+    getAuthUser().then(u => setMyUser(u));
+  }, []);
 
   useEffect(() => {
     if (task.comment_count !== undefined) { setCommentCount(task.comment_count); return; }
@@ -121,6 +127,7 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
   }
 
   async function changeStatus(newStatus: TaskStatus, blockedReason?: string) {
+    const previousStatus = localStatus;
     setLoading(true);
     setLocalStatus(newStatus);
     setOpen(false); setShowBlocked(false); setReason(""); setMenuPos(null);
@@ -128,14 +135,21 @@ export default function TaskCard({ task, onRefresh }: { task: T; onRefresh: () =
       status: newStatus,
       blocked_reason: newStatus === "blocked" ? (blockedReason ?? null) : null,
     }).eq("id", task.id);
+    // 변경 이력 기록 — TaskDetail.tsx와 동일한 패턴
+    await supabase.from("task_events").insert({
+      task_id: task.id, event_type: "status_change",
+      from_status: previousStatus, to_status: newStatus,
+      changed_by: myUser?.userId ?? null,
+      reason: newStatus === "blocked" ? (blockedReason ?? null) : null,
+    });
     setLoading(false);
     onRefresh();
   }
 
   return (
     <>
-      <div className="flex items-center gap-3 rounded-xl px-4 py-3 transition-all cursor-pointer"
-        style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderLeft: `3px solid ${s.color}` }}
+      <div className="flex items-center gap-3 px-4 py-3 transition-all cursor-pointer"
+        style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderLeft: `3px solid ${s.color}`, borderRadius: "var(--radius, 12px)", boxShadow: "var(--shadow, none)" }}
         onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = "var(--bg-3)"; }}
         onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "var(--bg-2)"; }}
         onClick={() => setShowDetail(true)}>

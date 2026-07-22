@@ -13,14 +13,27 @@ const ALLOWED_VARS = [
   "--red", "--red-bg",
   "--green", "--green-bg",
   "--blue", "--blue-bg",
+  "--radius", "--radius-lg",
+  "--shadow",
+  "--font-family",
 ];
+
+// font-family만 값 안에 위험한 문자(url(), 세미콜론 등)가 없는지 한 번 더 확인
+function isSafeFontFamily(value: string): boolean {
+  return !/url\(|;|\{|\}/.test(value) && value.length < 200;
+}
 
 function sanitizeCss(raw: string): string {
   // "--변수명: 값;" 형태만 추출, 그 외(선택자, 다른 속성 등)는 전부 버림
   const lines = raw.match(/--[\w-]+\s*:\s*[^;{}]+;/g) ?? [];
   const kept = lines.filter(line => {
     const varName = line.split(":")[0].trim();
-    return ALLOWED_VARS.includes(varName);
+    if (!ALLOWED_VARS.includes(varName)) return false;
+    if (varName === "--font-family") {
+      const value = line.split(":").slice(1).join(":").replace(";", "").trim();
+      return isSafeFontFamily(value);
+    }
+    return true;
   });
   if (kept.length === 0) return "";
   return `:root {\n  ${kept.join("\n  ")}\n}`;
@@ -45,6 +58,10 @@ export async function POST(req: NextRequest) {
 - --border, --border-2: 테두리색 2단계
 - --cyan, --cyan-bg: 포인트색 + 그 배경색(투명도 있는 rgba 권장)
 - --red, --red-bg, --green, --green-bg, --blue, --blue-bg: 상태색(경고/성공/정보) + 각 배경색
+- --radius: 카드 모서리 둥글기 (예: 각지게 "4px" ~ 아주 둥글게 "24px")
+- --radius-lg: 큰 컨테이너용 모서리 둥글기 (--radius보다 살짝 크게)
+- --shadow: 카드 그림자 (예: 그림자 없음 "none", 은은하게 "0 2px 8px rgba(0,0,0,0.15)", 강하게 "0 8px 24px rgba(0,0,0,0.35)")
+- --font-family: 폰트 (웹 안전 폰트만: "'Pretendard', -apple-system, sans-serif" 기본. 분위기에 따라 "Georgia, serif"처럼 바꿔도 되지만 반드시 흔한 시스템 폰트로만, url()이나 @import 절대 금지)
 
 반드시 아래 형식으로만 응답하세요. 다른 설명 없이 CSS 변수 선언만:
 --bg: #0D1B2E;
@@ -64,6 +81,10 @@ export async function POST(req: NextRequest) {
 --green-bg: rgba(52,211,153,0.12);
 --blue: #60a5fa;
 --blue-bg: rgba(96,165,250,0.12);
+--radius: 12px;
+--radius-lg: 18px;
+--shadow: 0 2px 8px rgba(0,0,0,0.15);
+--font-family: 'Pretendard', -apple-system, sans-serif;
 
 (위는 예시일 뿐, 실제 값은 사용자가 원하는 분위기에 맞게 새로 정하세요)`;
 

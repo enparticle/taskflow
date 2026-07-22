@@ -138,7 +138,7 @@ function TodayTaskList({ tasks, onOpen, onAdd }: { tasks: any[]; onOpen: (id: st
     .slice(0, 6);
 
   return (
-    <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+    <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg, 14px)", overflow: "hidden", boxShadow: "var(--shadow, none)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 16 }}>📋</span>
@@ -306,7 +306,7 @@ function DailyLog({ myUser, myTasks, onChanged, onOpen, startCollapsed, autoAppr
   }
 
   return (
-    <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+    <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg, 14px)", overflow: "hidden", boxShadow: "var(--shadow, none)" }}>
       <button onClick={() => setInputOpen(v => !v)}
         style={{ width: "100%", padding: "14px 18px", background: "var(--bg-3)", borderBottom: inputOpen ? "1px solid var(--border)" : "none", border: "none", cursor: "pointer", textAlign: "left" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -526,7 +526,7 @@ export default function DashboardPage() {
 
           {/* 로그인 후 기본 화면을 "내 업무"로 설정한 경우 — 홈 화면 안에 내 업무 목록을 띄움 (다른 페이지로 이동 아님) */}
           {preferences?.landing_page === "my-work" && (
-            <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+            <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg, 14px)", overflow: "hidden", boxShadow: "var(--shadow, none)" }}>
               <div style={{ padding: "14px 18px", background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
                 <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)" }}>📋 내 업무</span>
               </div>

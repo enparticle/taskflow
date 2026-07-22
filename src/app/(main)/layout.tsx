@@ -219,7 +219,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   }, []);
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", zoom: zoomScale !== 1 ? zoomScale : undefined } as any}>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", fontFamily: "var(--font-family, inherit)", zoom: zoomScale !== 1 ? zoomScale : undefined } as any}>
       {themeCss && <style dangerouslySetInnerHTML={{ __html: themeCss }} />}
       {/* 상단 헤더 */}
       <div style={{
