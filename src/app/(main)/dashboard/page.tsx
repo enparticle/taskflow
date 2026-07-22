@@ -52,6 +52,23 @@ function WeeklySummary({ tasks }: { tasks: any[] }) {
 }
 
 // AI 브리핑 (기존 유지)
+// 간단한 서식 렌더러 — **굵게**와 줄바꿈만 지원 (라이브러리 없이 가볍게)
+function renderFormattedText(text: string) {
+  const lines = (text ?? "").split("\n");
+  return lines.map((line, i) => {
+    const parts = line.split(/(\*\*[^*]+\*\*)/g).filter(Boolean);
+    return (
+      <span key={i} style={{ display: "block", marginBottom: line.trim() ? 4 : 8 }}>
+        {parts.map((part, j) =>
+          part.startsWith("**") && part.endsWith("**")
+            ? <strong key={j} style={{ fontWeight: 700, fontSize: "1.05em", color: "var(--text-1)" }}>{part.slice(2, -2)}</strong>
+            : <span key={j}>{part}</span>
+        )}
+      </span>
+    );
+  });
+}
+
 function AIBriefing({ tasks, myUser, startExpanded }: { tasks: any[]; myUser: any; startExpanded?: boolean }) {
   const [open, setOpen] = useState(!!startExpanded);
   const [briefing, setBriefing] = useState<string | null>(null);
@@ -111,7 +128,7 @@ function AIBriefing({ tasks, myUser, startExpanded }: { tasks: any[]; myUser: an
             </div>
           ) : (
             <div style={{ paddingTop: 12 }}>
-              <p style={{ fontSize: 13, color: "var(--text-1)", lineHeight: 1.7, margin: "0 0 10px" }}>{briefing}</p>
+              <div style={{ fontSize: 13, color: "var(--text-1)", lineHeight: 1.7, margin: "0 0 10px" }}>{renderFormattedText(briefing)}</div>
               <button onClick={() => { setBriefing(null); generate(); }}
                 style={{ fontSize: 11, color: "var(--text-3)", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}>
                 🔄 다시 생성
