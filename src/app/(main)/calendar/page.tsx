@@ -170,7 +170,7 @@ export default function CalendarPage() {
     const s = new Date(current); s.setDate(current.getDate() - current.getDay());
     const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(s); d.setDate(s.getDate() + i); return d; });
     return (
-      <div style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+      <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-lg, 12px)", overflow: "hidden", boxShadow: "var(--shadow, none)" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
           {days.map((d, i) => (
             <div key={i} style={{ padding: "10px 8px", textAlign: "center" }}>
@@ -209,7 +209,7 @@ export default function CalendarPage() {
     const cells: (Date|null)[] = [...Array(firstDay).fill(null), ...Array.from({length:daysInMonth},(_,i)=>new Date(year,month,i+1))];
     while (cells.length%7!==0) cells.push(null);
     return (
-      <div style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+      <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-lg, 12px)", overflow: "hidden", boxShadow: "var(--shadow, none)" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
           {DAYS.map((d,i) => (
             <div key={i} style={{ padding: "8px 0", textAlign: "center", fontSize: 11, fontWeight: 500, color: i===0?"#DC2626":i===6?"#2563EB":"var(--text-3)" }}>{d}</div>
@@ -296,7 +296,7 @@ export default function CalendarPage() {
       {showForm && !isViewer && (
         <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.3)" }}
           onClick={closeForm}>
-          <div style={{ width: "100%", maxWidth: 440, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 14, padding: 24, display: "flex", flexDirection: "column", gap: 14 }}
+          <div style={{ width: "100%", maxWidth: 440, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg, 14px)", padding: 24, display: "flex", flexDirection: "column", gap: 14, boxShadow: "var(--shadow, none)" }}
             onClick={e => e.stopPropagation()}>
             <h2 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)", margin: 0 }}>{editEvent ? "일정 수정" : "새 일정"}</h2>
             <input value={form.title} onChange={e => setForm(f=>({...f,title:e.target.value}))} placeholder="일정 제목" style={FS} />
