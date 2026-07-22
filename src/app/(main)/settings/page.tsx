@@ -264,7 +264,7 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
 
       <p style={{ fontSize: 11, color: "var(--text-3)", textAlign: "center" }}>또는 아래에서 기본 항목만 직접 고를 수도 있어요</p>
 
-      <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 18 }}>
+      <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius, 12px)", padding: 18, boxShadow: "var(--shadow, none)" }}>
         <h2 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", marginBottom: 4 }}>업무를 기록하는 스타일</h2>
         <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 14 }}>홈 화면 구성과 AI 제안 방식에 반영돼요</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -285,7 +285,7 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
         </div>
       </div>
 
-      <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 18 }}>
+      <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius, 12px)", padding: 18, boxShadow: "var(--shadow, none)" }}>
         <h2 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", marginBottom: 14 }}>홈 화면에서 먼저 보고 싶은 것</h2>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {HOME_PRIORITY_OPTIONS.map(h => (
@@ -307,7 +307,7 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
         </div>
       </div>
 
-      <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 18 }}>
+      <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius, 12px)", padding: 18, boxShadow: "var(--shadow, none)" }}>
         <h2 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", marginBottom: 14 }}>팀 전체 현황을 자주 보는 편인가요?</h2>
         <div style={{ display: "flex", gap: 8 }}>
           {CONSUMPTION_STYLE_OPTIONS.map(c => (
@@ -325,7 +325,7 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
         </div>
       </div>
 
-      <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 18 }}>
+      <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius, 12px)", padding: 18, boxShadow: "var(--shadow, none)" }}>
         <h2 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", marginBottom: 4 }}>고급 기능</h2>
         <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 14 }}>켜면 하단 "더보기" 메뉴에 나타나요. 필요한 것만 골라서 쓰세요</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -406,7 +406,7 @@ function DesignThemeSection({ myUserId, supabase }: { myUserId: string; supabase
   }
 
   return (
-    <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 18 }}>
+    <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius, 12px)", padding: 18, boxShadow: "var(--shadow, none)" }}>
       <h2 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", marginBottom: 4 }}>🎨 화면 디자인</h2>
       <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 14 }}>
         원하는 분위기를 말로 설명하면 AI가 색상 팔레트를 만들어드려요. 데이터나 기능은 전혀 안 건드리고, 색상만 바뀌어요.
@@ -478,7 +478,7 @@ function AccountTab({
   return (
     <>
       {/* 내 계정 정보 */}
-      <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 18 }}>
+      <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius, 12px)", padding: 18, boxShadow: "var(--shadow, none)" }}>
         <h2 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", marginBottom: 14 }}>내 계정</h2>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--cyan-bg)", border: "1px solid #BFDBFE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, color: "var(--cyan)", flexShrink: 0 }}>
@@ -502,7 +502,7 @@ function AccountTab({
 
       {/* 팀원 계정 연결 (Admin) */}
       {isAdmin ? (
-        <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 18 }}>
+        <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius, 12px)", padding: 18, boxShadow: "var(--shadow, none)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
             <h2 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", margin: 0 }}>팀원 계정 연결</h2>
             <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: "#F5F3FF", color: "#7C3AED", border: "1px solid #DDD6FE" }}>Admin</span>
@@ -555,7 +555,7 @@ function AccountTab({
           </div>
         </div>
       ) : (
-        <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 18 }}>
+        <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius, 12px)", padding: 18, boxShadow: "var(--shadow, none)" }}>
           <h2 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", marginBottom: 8 }}>계정 연결</h2>
           <p style={{ fontSize: 12, padding: "8px 12px", borderRadius: 8, background: "#FFFBEB", color: "#D97706", border: "1px solid #FCD34D", margin: 0 }}>
             계정 연결은 관리자만 설정할 수 있습니다
@@ -565,7 +565,7 @@ function AccountTab({
 
       {/* 알림 발송 (Admin) */}
       {isAdmin && (
-        <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 18 }}>
+        <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius, 12px)", padding: 18, boxShadow: "var(--shadow, none)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
             <h2 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", margin: 0 }}>마감 알림 발송</h2>
             <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: "#F5F3FF", color: "#7C3AED", border: "1px solid #DDD6FE" }}>Admin</span>
@@ -588,7 +588,7 @@ function AccountTab({
       )}
 
       {/* 비밀번호 변경 */}
-      <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 18 }}>
+      <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius, 12px)", padding: 18, boxShadow: "var(--shadow, none)" }}>
         <h2 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", marginBottom: 16 }}>비밀번호 변경</h2>
         <form onSubmit={handlePasswordChange} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div>
@@ -711,7 +711,7 @@ function PendingChanges({ supabase, myUserId, onCountChange }: { supabase: any; 
         AI 프로젝트 어시스턴트의 "방향 변경 반영"에서 제출된 수정 제안이에요. 승인해야 실제 업무에 반영돼요.
       </p>
       {rows.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "40px 0", background: "var(--bg-2)", border: "1px dashed var(--border)", borderRadius: 12 }}>
+        <div style={{ textAlign: "center", padding: "40px 0", background: "var(--bg-2)", border: "1px dashed var(--border)", borderRadius: "var(--radius, 12px)" }}>
           <p style={{ fontSize: 13, color: "var(--text-3)" }}>승인 대기 중인 변경 제안이 없습니다</p>
         </div>
       ) : (
@@ -801,7 +801,7 @@ function AILearningData({ supabase }: { supabase: any }) {
       </div>
 
       {filtered.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "40px 0", background: "var(--bg-2)", border: "1px dashed var(--border)", borderRadius: 12 }}>
+        <div style={{ textAlign: "center", padding: "40px 0", background: "var(--bg-2)", border: "1px dashed var(--border)", borderRadius: "var(--radius, 12px)" }}>
           <p style={{ fontSize: 13, color: "var(--text-3)" }}>아직 쌓인 데이터가 없습니다</p>
         </div>
       ) : (
@@ -963,7 +963,7 @@ function TeamOverview({ isAdmin, supabase }: { isAdmin: boolean; supabase: any }
       </div>
 
       {displayed.length === 0 && (
-        <div style={{ textAlign: "center", padding: "48px 0", background: "var(--bg-2)", border: "1px dashed var(--border)", borderRadius: 12 }}>
+        <div style={{ textAlign: "center", padding: "48px 0", background: "var(--bg-2)", border: "1px dashed var(--border)", borderRadius: "var(--radius, 12px)" }}>
           <p style={{ fontSize: 13, color: "var(--text-2)", marginBottom: 4 }}>팀원이 없습니다</p>
           <p style={{ fontSize: 12, color: "var(--text-3)" }}>팀원을 추가해주세요</p>
         </div>
@@ -1228,7 +1228,7 @@ function MemberProfiles({ myUserId, supabase }: { myUserId: string; supabase: an
               </div>
 
               {prioritized.length > 0 && (
-                <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+                <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius, 12px)", overflow: "hidden", boxShadow: "var(--shadow, none)" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "#EEF3FF", borderBottom: "1px solid #BFDBFE" }}>
                     <p style={{ fontSize: 12, fontWeight: 600, color: "#2563EB", margin: 0 }}>🎯 우선순위 지정됨 ({prioritized.length}건)</p>
                     <button onClick={clearAllPriorities} disabled={prioritySaving}
@@ -1277,7 +1277,7 @@ function MemberProfiles({ myUserId, supabase }: { myUserId: string; supabase: an
                 </div>
               )}
 
-              <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+              <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius, 12px)", overflow: "hidden", boxShadow: "var(--shadow, none)" }}>
                 <div style={{ padding: "12px 16px", background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
                   <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-2)", margin: 0 }}>
                     미지정 업무 ({unset.length}건) — 순서 번호를 입력해 우선순위 지정
@@ -1316,7 +1316,7 @@ function MemberProfiles({ myUserId, supabase }: { myUserId: string; supabase: an
           {profileTab === "notes" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {userTasks.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "48px 0", background: "var(--bg-2)", border: "1px dashed var(--border)", borderRadius: 12 }}>
+                <div style={{ textAlign: "center", padding: "48px 0", background: "var(--bg-2)", border: "1px dashed var(--border)", borderRadius: "var(--radius, 12px)" }}>
                   <p style={{ fontSize: 13, color: "var(--text-3)" }}>담당 업무가 없습니다</p>
                 </div>
               ) : userTasks.map(task => {
