@@ -52,9 +52,11 @@ export async function POST(req: NextRequest) {
     const prompt = `당신은 웹 앱의 다크 테마 색상 팔레트를 만드는 디자이너입니다.
 사용자가 원하는 분위기: "${description}"
 
-아래 CSS 변수들의 값만 새로 정해주세요 (다크 테마 기준, 가독성 유지 — 배경은 어둡게, 글자는 밝게):
-- --bg, --bg-2, --bg-3, --bg-4: 배경색 4단계 (어두운 순, hex)
-- --text-1, --text-2, --text-3: 글자색 3단계 (밝은 순, hex)
+아래 CSS 변수들의 값을 사용자가 원하는 분위기에 맞게 새로 정해주세요.
+⚠️ 중요: 사용자가 "화이트톤", "밝게", "라이트 테마" 같은 걸 원하면 실제로 밝은 배경(--bg가 흰색/아주 연한 회색)에 어두운 글자로 만드세요 — 다크 테마를 기본값으로 우기지 마세요. 반대로 별다른 언급이 없으면 지금 앱의 기본인 다크 테마를 유지하세요.
+어느 쪽이든 가독성은 꼭 유지하세요 (배경과 글자색 대비가 충분해야 함):
+- --bg, --bg-2, --bg-3, --bg-4: 배경색 4단계 (톤 방향에 맞게 점점 진해지거나 옅어지는 순서로, hex)
+- --text-1, --text-2, --text-3: 글자색 3단계 (배경과 대비되는 방향으로, 진한/연한 순)
 - --border, --border-2: 테두리색 2단계
 - --cyan, --cyan-bg: 포인트색 + 그 배경색(투명도 있는 rgba 권장)
 - --red, --red-bg, --green, --green-bg, --blue, --blue-bg: 상태색(경고/성공/정보) + 각 배경색
@@ -86,7 +88,7 @@ export async function POST(req: NextRequest) {
 --shadow: 0 2px 8px rgba(0,0,0,0.15);
 --font-family: 'Pretendard', -apple-system, sans-serif;
 
-(위는 예시일 뿐, 실제 값은 사용자가 원하는 분위기에 맞게 새로 정하세요)`;
+(위는 어디까지나 다크 테마 예시일 뿐입니다. 사용자가 밝은/화이트 톤을 원했다면 --bg를 흰색이나 아주 연한 회색 계열로, --text-1은 진한 색으로 완전히 뒤집어서 작성하세요. 값의 형식만 참고하고, 실제 색상은 사용자가 원하는 분위기에 맞게 새로 정하세요)`;
 
     const message = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
