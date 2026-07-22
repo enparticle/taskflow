@@ -122,9 +122,32 @@ export async function POST(req: NextRequest) {
   try {
     const Anthropic = (await import("@anthropic-ai/sdk")).default;
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const supabase = createAuthedClient(req);
 
     const { snapshot } = await req.json();
-    const prompt = buildPrompt(snapshot);
+    let prompt = buildPrompt(snapshot);
+
+    // 이 사람의 AI 톤/소통 스타일 참고 (나의 스타일 설정에서 저장된 것)
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        const { data: me } = await supabase.from("users").select("id").eq("auth_id", authUser.id).single();
+        if (me) {
+          const { data: prefs } = await supabase.from("user_preferences")
+            .select("ai_tone, communication_profile").eq("user_id", me.id).maybeSingle();
+          if (prefs?.ai_tone === "detailed") {
+            prompt += "\n\n응답 톤: 이 사용자는 '자세히' 스타일을 선호합니다. summary와 각 item의 detail에 근거를 조금 더 구체적으로 풀어서 설명하세요.";
+          } else if (prefs?.ai_tone === "concise") {
+            prompt += "\n\n응답 톤: 이 사용자는 '간결히' 스타일을 선호합니다. summary와 detail을 짧고 명확하게 작성하세요.";
+          }
+          if (prefs?.communication_profile) {
+            prompt += `\n이 사용자의 소통 스타일(참고용): ${prefs.communication_profile}`;
+          }
+        }
+      }
+    } catch {
+      // 톤 조회 실패해도 기본 동작은 계속
+    }
 
     const message = await callWithRetry(client, {
       model: "claude-haiku-4-5-20251001",
@@ -155,7 +178,6 @@ export async function POST(req: NextRequest) {
     // suggestions를 DB에 저장 — 이제 사용자 인증 컨텍스트로 접근 (RLS 정상 통과)
     if (result.suggestions?.length > 0 && snapshot.project_id) {
       try {
-        const supabase = createAuthedClient(req);
         for (const s of result.suggestions) {
           if (!s.task_id || !s.type) continue;
           await supabase.from("ai_suggestions").insert({

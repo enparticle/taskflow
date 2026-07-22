@@ -53,10 +53,28 @@ export async function POST(req: NextRequest) {
 
     const { messages, chatId, userId } = await req.json();
 
+    let system = SYSTEM_PROMPT;
+    try {
+      if (userId) {
+        const { data: prefs } = await supabase.from("user_preferences")
+          .select("ai_tone, communication_profile").eq("user_id", userId).maybeSingle();
+        if (prefs?.ai_tone === "detailed") {
+          system += "\n\n응답 톤: 이 사용자는 '자세히' 스타일을 선호합니다. 설명할 때 근거를 조금 더 구체적으로 풀어서 말하세요.";
+        } else if (prefs?.ai_tone === "concise") {
+          system += "\n\n응답 톤: 이 사용자는 '간결히' 스타일을 선호합니다. 짧고 명확하게, 군더더기 없이 대화하세요.";
+        }
+        if (prefs?.communication_profile) {
+          system += `\n이 사용자의 소통 스타일(참고용): ${prefs.communication_profile}`;
+        }
+      }
+    } catch {
+      // 톤 조회 실패해도 기본 동작은 계속
+    }
+
     const response = await client.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 2000,
-      system: SYSTEM_PROMPT,
+      system,
       messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
     });
 

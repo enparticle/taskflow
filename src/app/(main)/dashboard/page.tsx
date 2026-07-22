@@ -475,7 +475,6 @@ export default function DashboardPage() {
   const greet = now.getHours() < 12 ? "좋은 아침이에요" : now.getHours() < 18 ? "안녕하세요" : "수고하셨어요";
   const needsOnboarding = !isViewer && (!preferences || !preferences.onboarding_completed);
   const inputStyle = preferences?.input_style ?? "log";
-  const summaryFirst = preferences?.home_priority?.[0] === "summary";
   const hiddenWidgets: string[] = preferences?.hidden_widgets ?? [];
   const greetingEnabled = preferences?.greeting_enabled !== false; // 기본 true
   const briefingAutoExpand = !!preferences?.briefing_auto_expand;
@@ -527,12 +526,7 @@ export default function DashboardPage() {
 
       {!isViewer && (
         <>
-          {/* 계획형: 실제 할 일 목록을 보여줌 */}
-          {inputStyle === "plan" && !hiddenWidgets.includes("today") && (
-            <TodayTaskList tasks={myTasks} onOpen={(id: string) => setOpenDetail(id)} onAdd={() => setOpenForm(true)} />
-          )}
-
-          {/* 클릭형: 굳이 안 적어도 된다는 안내 */}
+          {/* 클릭형: 굳이 안 적어도 된다는 안내 (위젯은 아니라 순서 밖에서 항상 위에) */}
           {inputStyle === "click" && !hiddenWidgets.includes("recent") && (
             <div style={{ background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 18px" }}>
               <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>
@@ -541,23 +535,27 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {summaryFirst ? (
-            <>
-              {!hiddenWidgets.includes("summary") && <WeeklySummary tasks={myTasks} />}
-              {!hiddenWidgets.includes("recent") && (
-                <DailyLog myUser={myUser} myTasks={myTasks} onChanged={load} onOpen={(id: string) => setOpenDetail(id)}
-                  startCollapsed={inputStyle === "click"} autoApprove={aiAutoApprove} aiTone={preferences?.ai_tone} />
-              )}
-            </>
-          ) : (
-            <>
-              {!hiddenWidgets.includes("recent") && (
-                <DailyLog myUser={myUser} myTasks={myTasks} onChanged={load} onOpen={(id: string) => setOpenDetail(id)}
-                  startCollapsed={inputStyle === "click"} autoApprove={aiAutoApprove} aiTone={preferences?.ai_tone} />
-              )}
-              {!hiddenWidgets.includes("summary") && <WeeklySummary tasks={myTasks} />}
-            </>
-          )}
+          {/* 홈 위젯 3개(today/recent/summary) — 설정한 순서 그대로, 숨긴 건 제외 */}
+          {(preferences?.home_priority ?? ["today", "recent", "summary"])
+            .filter((key: string) => !hiddenWidgets.includes(key))
+            .map((key: string) => {
+              if (key === "today") {
+                // 계획형에서만 실제 할 일 목록으로 의미가 있음. 다른 스타일은 이 자리를 건너뜀
+                return inputStyle === "plan" ? (
+                  <TodayTaskList key="today" tasks={myTasks} onOpen={(id: string) => setOpenDetail(id)} onAdd={() => setOpenForm(true)} />
+                ) : null;
+              }
+              if (key === "recent") {
+                return (
+                  <DailyLog key="recent" myUser={myUser} myTasks={myTasks} onChanged={load} onOpen={(id: string) => setOpenDetail(id)}
+                    startCollapsed={inputStyle === "click"} autoApprove={aiAutoApprove} aiTone={preferences?.ai_tone} />
+                );
+              }
+              if (key === "summary") {
+                return <WeeklySummary key="summary" tasks={myTasks} />;
+              }
+              return null;
+            })}
 
           {/* AI 브리핑 */}
           <AIBriefing tasks={myTasks} myUser={myUser} startExpanded={briefingAutoExpand} />
