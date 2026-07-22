@@ -84,7 +84,15 @@ export default function TaskList({
     result.sort((a, b) => {
       switch (sortBy) {
         case "status": return (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9);
-        case "priority": return (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9);
+        case "priority": {
+          const diff = (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9);
+          if (diff !== 0) return diff;
+          // 우선순위가 같으면 마감일이 이른 것 먼저 (진태우님 피드백 반영)
+          if (!a.due_date && !b.due_date) return 0;
+          if (!a.due_date) return 1;
+          if (!b.due_date) return -1;
+          return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+        }
         case "due_date":
           if (!a.due_date && !b.due_date) return 0;
           if (!a.due_date) return 1; if (!b.due_date) return -1;
