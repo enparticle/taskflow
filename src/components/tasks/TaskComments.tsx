@@ -2,6 +2,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase";
+import { createNotification } from "@/lib/notifications";
 
 export default function TaskComments({ taskId }: { taskId: string }) {
   const supabase = createClient();
@@ -88,10 +89,10 @@ export default function TaskComments({ taskId }: { taskId: string }) {
       const name = m.slice(1);
       const mentioned = allUsers.find(u => u.name === name);
       if (mentioned && mentioned.id !== myUser?.id) {
-        await supabase.from("notifications").insert({
-          user_id: mentioned.id, type: "mention",
+        await createNotification({
+          userId: mentioned.id, type: "mention",
           title: `${myUser?.name ?? "누군가"}이(가) 댓글에서 멘션했습니다`,
-          body: content.trim().slice(0, 60), task_id: taskId,
+          body: content.trim().slice(0, 60), taskId,
         });
       }
     }
