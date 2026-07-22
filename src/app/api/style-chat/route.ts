@@ -40,7 +40,7 @@ const SYSTEM_PROMPT = `당신은 TaskFlow 개인화 설정을 도와주는 AI입
 18. calendar_default_view: 캘린더 기본 화면 — "week" | "month"
 
 [AI]
-19. ai_tone: AI 응답 스타일 — "concise"(간결) | "detailed"(자세히)
+19. ai_tone: AI 응답 스타일 — "concise"(간결) | "detailed"(자세히, 근거 포함) | "detailed_with_summary"(자세히 설명하되 맨 앞에 한 줄 요약도 같이)
 
 [고급 기능]
 20. enabled_features: 하단 "더보기" 메뉴에 추가로 켤 기능(배열) — "my-work","kanban","tree","recurring","project-assistant","report-export" 중 필요한 것만. 각각 뭔지 짧게 설명해주고 고르게 하세요

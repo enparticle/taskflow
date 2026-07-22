@@ -60,6 +60,8 @@ export async function POST(req: NextRequest) {
           .select("ai_tone, communication_profile").eq("user_id", userId).maybeSingle();
         if (prefs?.ai_tone === "detailed") {
           system += "\n\n응답 톤: 이 사용자는 '자세히' 스타일을 선호합니다. 설명할 때 근거를 조금 더 구체적으로 풀어서 말하세요.";
+        } else if (prefs?.ai_tone === "detailed_with_summary") {
+          system += "\n\n응답 톤: 이 사용자는 '자세히 + 요약' 스타일을 선호합니다. 긴 설명을 할 때는 먼저 한 줄로 핵심을 요약해서 말한 다음, 이어서 자세한 설명을 하세요.";
         } else if (prefs?.ai_tone === "concise") {
           system += "\n\n응답 톤: 이 사용자는 '간결히' 스타일을 선호합니다. 짧고 명확하게, 군더더기 없이 대화하세요.";
         }
