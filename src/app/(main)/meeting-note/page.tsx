@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase";
 import { getAuthUser } from "@/lib/auth";
+import { authFetch } from "@/lib/authFetch";
 import { useRouter } from "next/navigation";
 
 type Step = "write" | "analyzing" | "review" | "done";
@@ -265,7 +266,7 @@ export default function MeetingNotePage() {
         projectId: selectedProject,
         meetingMeta: { title, date: meetingDate, attendees: attendees.map(a => a.name) },
       });
-      const res = await fetch("/api/analyze-meeting", {
+      const res = await authFetch("/api/analyze-meeting", {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
         body: new TextEncoder().encode(payload),

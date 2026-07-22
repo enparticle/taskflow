@@ -65,9 +65,8 @@ function AIBriefing({ tasks, myUser, startExpanded }: { tasks: any[]; myUser: an
     if (briefing) return;
     setLoading(true);
     try {
-      const res = await fetch("/api/briefing", {
+      const res = await authFetch("/api/briefing", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tasks,
           userName: myUser?.name ?? "팀원",

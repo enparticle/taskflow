@@ -1,10 +1,12 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
+import { createAuthedClient } from "@/lib/supabaseServer";
 
 export async function POST(req: NextRequest) {
   try {
     const Anthropic = (await import("@anthropic-ai/sdk")).default;
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const supabase = createAuthedClient(req);
     // UTF-8 인코딩 명시적 처리
     const bodyText = await req.text();
     const body = JSON.parse(bodyText);
@@ -41,7 +43,30 @@ export async function POST(req: NextRequest) {
     prompt += `- 구체적인 업무 항목을 추출하고 담당자, 마감일, 우선순위를 파악하세요.\n`;
     prompt += `- 결정사항과 이슈를 명확히 구분하세요.\n`;
     prompt += `- 참석자 이름이 언급되면 담당자로 연결하세요.\n\n`;
-    prompt += `반드시 아래 JSON 형식으로만 응답하세요 (마크다운 없이 순수 JSON):\n`;
+
+    // 회의록을 올린 사람의 톤/소통 스타일 반영 (summary 문장 스타일에 반영)
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        const { data: me } = await supabase.from("users").select("id").eq("auth_id", authUser.id).single();
+        if (me) {
+          const { data: prefs } = await supabase.from("user_preferences")
+            .select("ai_tone, communication_profile").eq("user_id", me.id).maybeSingle();
+          if (prefs?.ai_tone === "detailed" || prefs?.ai_tone === "detailed_with_summary") {
+            prompt += `summary 작성 시: 이 사람은 '자세히' 스타일을 선호하니, summary를 3-4문장으로 조금 더 풀어서 작성하세요.\n`;
+          } else if (prefs?.ai_tone === "concise") {
+            prompt += `summary 작성 시: 이 사람은 '간결히' 스타일을 선호하니, summary를 2문장 이내로 짧게 작성하세요.\n`;
+          }
+          if (prefs?.communication_profile) {
+            prompt += `이 사용자의 소통 스타일(참고용): ${prefs.communication_profile}\n`;
+          }
+        }
+      }
+    } catch {
+      // 톤 조회 실패해도 기본 동작은 계속
+    }
+
+    prompt += `\n반드시 아래 JSON 형식으로만 응답하세요 (마크다운 없이 순수 JSON):\n`;
     prompt += `{
   "summary": "회의 전체 요약 2-3문장",
   "participants": ["참석자1", "참석자2"],
