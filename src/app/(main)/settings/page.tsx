@@ -361,6 +361,84 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
 }
 
 // ── 디자인 커스터마이징 — AI가 CSS 색상 변수만 생성 (4단계) ──────
+// 프리셋 테마 — 설명 없이 바로 골라서 크게크게 바꿀 수 있음 (AI 호출 없이 즉시 적용)
+const PRESET_THEMES = [
+  {
+    key: "default", emoji: "🌑", label: "기본 다크",
+    vars: {
+      "--bg": "#0D1B2E", "--bg-2": "#131F35", "--bg-3": "#1A2A45", "--bg-4": "#223655",
+      "--text-1": "#E8F0FF", "--text-2": "#A8BFDD", "--text-3": "#6B84A8",
+      "--border": "rgba(255,255,255,0.08)", "--border-2": "rgba(255,255,255,0.14)",
+      "--cyan": "#00C2CC", "--cyan-bg": "rgba(0,194,204,0.12)",
+      "--red": "#f87171", "--red-bg": "rgba(248,113,113,0.12)",
+      "--green": "#34d399", "--green-bg": "rgba(52,211,153,0.12)",
+      "--blue": "#60a5fa", "--blue-bg": "rgba(96,165,250,0.12)",
+      "--radius": "12px", "--radius-lg": "14px", "--shadow": "none",
+      "--font-family": "'Pretendard', -apple-system, sans-serif",
+    },
+  },
+  {
+    key: "white", emoji: "☀️", label: "화이트 미니멀",
+    vars: {
+      "--bg": "#FFFFFF", "--bg-2": "#F7F8FA", "--bg-3": "#EEF0F3", "--bg-4": "#E2E5EA",
+      "--text-1": "#16181D", "--text-2": "#4A4F58", "--text-3": "#8A909B",
+      "--border": "rgba(0,0,0,0.08)", "--border-2": "rgba(0,0,0,0.14)",
+      "--cyan": "#2563EB", "--cyan-bg": "rgba(37,99,235,0.08)",
+      "--red": "#DC2626", "--red-bg": "rgba(220,38,38,0.08)",
+      "--green": "#16A34A", "--green-bg": "rgba(22,163,74,0.08)",
+      "--blue": "#2563EB", "--blue-bg": "rgba(37,99,235,0.08)",
+      "--radius": "10px", "--radius-lg": "14px", "--shadow": "0 1px 3px rgba(0,0,0,0.08)",
+      "--font-family": "'Pretendard', -apple-system, sans-serif",
+    },
+  },
+  {
+    key: "modern", emoji: "⚫", label: "다크 모던",
+    vars: {
+      "--bg": "#000000", "--bg-2": "#0A0A0C", "--bg-3": "#16161A", "--bg-4": "#222226",
+      "--text-1": "#FFFFFF", "--text-2": "#C4C4CC", "--text-3": "#7A7A85",
+      "--border": "rgba(255,255,255,0.08)", "--border-2": "rgba(255,255,255,0.16)",
+      "--cyan": "#A78BFA", "--cyan-bg": "rgba(167,139,250,0.14)",
+      "--red": "#FF5C7A", "--red-bg": "rgba(255,92,122,0.12)",
+      "--green": "#2ED9A3", "--green-bg": "rgba(46,217,163,0.12)",
+      "--blue": "#5B9EFF", "--blue-bg": "rgba(91,158,255,0.12)",
+      "--radius": "20px", "--radius-lg": "26px", "--shadow": "0 12px 32px rgba(0,0,0,0.5)",
+      "--font-family": "-apple-system, 'Segoe UI', sans-serif",
+    },
+  },
+  {
+    key: "pastel", emoji: "🌸", label: "파스텔",
+    vars: {
+      "--bg": "#14151F", "--bg-2": "#1C1E2C", "--bg-3": "#262939", "--bg-4": "#313548",
+      "--text-1": "#F0EEF9", "--text-2": "#B9B6CC", "--text-3": "#7C7A94",
+      "--border": "rgba(255,255,255,0.07)", "--border-2": "rgba(255,255,255,0.12)",
+      "--cyan": "#B8A6F5", "--cyan-bg": "rgba(184,166,245,0.14)",
+      "--red": "#F5A0B0", "--red-bg": "rgba(245,160,176,0.12)",
+      "--green": "#A0E5C8", "--green-bg": "rgba(160,229,200,0.12)",
+      "--blue": "#A6C8F5", "--blue-bg": "rgba(166,200,245,0.12)",
+      "--radius": "18px", "--radius-lg": "22px", "--shadow": "0 4px 16px rgba(0,0,0,0.2)",
+      "--font-family": "'Pretendard', -apple-system, sans-serif",
+    },
+  },
+  {
+    key: "sharp", emoji: "▪️", label: "각지고 심플",
+    vars: {
+      "--bg": "#101317", "--bg-2": "#171B21", "--bg-3": "#1F242C", "--bg-4": "#272D37",
+      "--text-1": "#E4E7EB", "--text-2": "#A0A8B4", "--text-3": "#626B79",
+      "--border": "rgba(255,255,255,0.09)", "--border-2": "rgba(255,255,255,0.15)",
+      "--cyan": "#00D4A0", "--cyan-bg": "rgba(0,212,160,0.1)",
+      "--red": "#FF4D6A", "--red-bg": "rgba(255,77,106,0.1)",
+      "--green": "#00D4A0", "--green-bg": "rgba(0,212,160,0.1)",
+      "--blue": "#4A9EFF", "--blue-bg": "rgba(74,158,255,0.1)",
+      "--radius": "4px", "--radius-lg": "6px", "--shadow": "none",
+      "--font-family": "'Pretendard', -apple-system, sans-serif",
+    },
+  },
+];
+
+function buildPresetCss(vars: Record<string, string>) {
+  return `:root {\n  ${Object.entries(vars).map(([k, v]) => `${k}: ${v};`).join("\n  ")}\n}`;
+}
+
 function DesignThemeSection({ myUserId, supabase }: { myUserId: string; supabase: any }) {
   const [description, setDescription] = useState("");
   const [currentCss, setCurrentCss] = useState("");
@@ -399,6 +477,24 @@ function DesignThemeSection({ myUserId, supabase }: { myUserId: string; supabase
     setGenerating(false);
   }
 
+  async function applyPreset(preset: typeof PRESET_THEMES[number]) {
+    setGenerating(true); setError("");
+    try {
+      const css = buildPresetCss(preset.vars);
+      await supabase.from("user_theme").upsert({
+        user_id: myUserId,
+        css_text: css,
+        source_prompt: `프리셋: ${preset.label}`,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id" });
+      setCurrentCss(css);
+      setSourcePrompt(`프리셋: ${preset.label}`);
+    } catch (e: any) {
+      setError(e.message ?? "적용에 실패했어요");
+    }
+    setGenerating(false);
+  }
+
   async function reset() {
     if (!confirm("디자인을 기본값으로 되돌릴까요?")) return;
     await supabase.from("user_theme").delete().eq("user_id", myUserId);
@@ -417,6 +513,27 @@ function DesignThemeSection({ myUserId, supabase }: { myUserId: string; supabase
           현재 적용된 요청: "{sourcePrompt}"
         </p>
       )}
+
+      <p style={{ fontSize: 11, fontWeight: 600, color: "var(--text-2)", marginBottom: 8 }}>바로 골라서 크게 바꾸기</p>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 8, marginBottom: 16 }}>
+        {PRESET_THEMES.map(preset => (
+          <button key={preset.key} onClick={() => applyPreset(preset)} disabled={generating}
+            style={{
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "12px 8px",
+              borderRadius: preset.vars["--radius"], border: `1px solid ${sourcePrompt === `프리셋: ${preset.label}` ? "var(--cyan)" : "var(--border)"}`,
+              background: preset.vars["--bg-2"], cursor: "pointer", opacity: generating ? 0.5 : 1,
+            }}>
+            <span style={{ fontSize: 20 }}>{preset.emoji}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: preset.vars["--text-1"] }}>{preset.label}</span>
+            <div style={{ display: "flex", gap: 3 }}>
+              <div style={{ width: 12, height: 12, borderRadius: "50%", background: preset.vars["--cyan"] }} />
+              <div style={{ width: 12, height: 12, borderRadius: "50%", background: preset.vars["--bg-3"], border: `1px solid ${preset.vars["--border-2"]}` }} />
+            </div>
+          </button>
+        ))}
+      </div>
+
+      <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 8 }}>또는 직접 말로 설명하기</p>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
         <input value={description} onChange={e => setDescription(e.target.value)}
