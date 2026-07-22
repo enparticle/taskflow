@@ -49,8 +49,9 @@ const SYSTEM_PROMPT = `당신은 TaskFlow 개인화 설정을 도와주는 AI입
 - 친근하고 짧게, 이모지 하나 정도는 괜찮음
 - 이미 답한 내용은 다시 안 물어봄
 - 20개 다 모이면 카테고리별로 요약 정리해서 보여주고 확인 요청("이렇게 설정할까요?") 후, 확인되면 아래 JSON으로 응답
+- 확인 응답을 만들 때, 대화 내내 사용자가 어떻게 말했는지(문장 길이, 격식/캐주얼, 결정을 빨리 내리는지 망설이는지, 이모지 사용 여부, 말투 특징)를 관찰해서 "communication_profile"에 1~2문장으로 요약하세요. 이건 나중에 다른 AI 기능이 이 사람에게 응답할 때 톤을 맞추는 데 참고자료로만 쓰입니다 — 오타나 축약어까지 따라 하라는 뜻이 아니라, 간결함/격식 정도/결정 속도 같은 성향만 반영하면 됩니다.
 
-확인 완료 시 응답 형식 (반드시 이 마커 사용, 20개 필드 모두 포함):
+확인 완료 시 응답 형식 (반드시 이 마커 사용, 21개 필드 모두 포함):
 RESULT_JSON
 {
   "input_style": "plan|log|click",
@@ -72,7 +73,8 @@ RESULT_JSON
   "font_size": "medium",
   "calendar_default_view": "week",
   "ai_tone": "concise",
-  "enabled_features": []
+  "enabled_features": [],
+  "communication_profile": "짧고 캐주얼하게 말함. 애매하게 답하지 않고 바로 결정함. 이모지는 거의 안 씀."
 }
 END_JSON`;
 
@@ -128,6 +130,7 @@ export async function POST(req: NextRequest) {
         calendar_default_view: result.calendar_default_view,
         ai_tone: result.ai_tone,
         enabled_features: result.enabled_features ?? [],
+        communication_profile: result.communication_profile ?? null,
         onboarding_completed: true,
         updated_at: new Date().toISOString(),
       }, { onConflict: "user_id" });
