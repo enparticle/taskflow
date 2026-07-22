@@ -1,7 +1,6 @@
 // @ts-nocheck
 "use client";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { authFetch } from "@/lib/authFetch";
 import { getAuthUser } from "@/lib/auth";
@@ -9,6 +8,7 @@ import OnboardingWizard from "@/components/onboarding/OnboardingWizard";
 import TaskDetail from "@/components/tasks/TaskDetail";
 import TaskForm from "@/components/tasks/TaskForm";
 import TaskCard from "@/components/tasks/TaskCard";
+import TaskList from "@/components/tasks/TaskList";
 
 const STATUS_COLOR: Record<string, string> = {
   backlog: "#A8A8A4", todo: "#2563EB", doing: "#2563EB",
@@ -430,7 +430,6 @@ function DailyLog({ myUser, myTasks, onChanged, onOpen, startCollapsed, autoAppr
 
 export default function DashboardPage() {
   const supabase = createClient();
-  const router = useRouter();
   const [myUser, setMyUser] = useState<any>(null);
   const [myTasks, setMyTasks] = useState<any[]>([]);
   const [preferences, setPreferences] = useState<any>(null);
@@ -463,17 +462,6 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
-
-  // 로그인 후 기본 화면이 홈이 아니면 이동 (onboarding 중이거나 로딩 중이면 건너뜀)
-  // ⚠️ 반드시 아래 조기 return들보다 위에 있어야 함 — Hook 호출 순서가 매 렌더마다 같아야 하기 때문
-  useEffect(() => {
-    if (loading || !myUser || myUser.role === "viewer") return;
-    if (!preferences || !preferences.onboarding_completed) return;
-    const landing = preferences.landing_page;
-    if (landing && landing !== "dashboard") {
-      router.replace(`/${landing}`);
-    }
-  }, [loading, myUser, preferences]);
 
   if (loading) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200 }}>
@@ -534,6 +522,18 @@ export default function DashboardPage() {
               <p style={{ fontSize: 12, color: "var(--text-3)", margin: 0 }}>
                 🖱 글 쓰는 게 귀찮으면 <a href="/tasks" style={{ color: "var(--cyan)" }}>업무 탭</a>에서 상태만 클릭해서 바꾸셔도 똑같이 기록이 남아요.
               </p>
+            </div>
+          )}
+
+          {/* 로그인 후 기본 화면을 "내 업무"로 설정한 경우 — 홈 화면 안에 내 업무 목록을 띄움 (다른 페이지로 이동 아님) */}
+          {preferences?.landing_page === "my-work" && (
+            <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+              <div style={{ padding: "14px 18px", background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)" }}>📋 내 업무</span>
+              </div>
+              <div style={{ padding: 16 }}>
+                <TaskList tasks={myTasks} onRefresh={load} showBulkActions={false} />
+              </div>
             </div>
           )}
 

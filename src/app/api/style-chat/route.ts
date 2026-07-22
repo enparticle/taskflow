@@ -27,7 +27,7 @@ const SYSTEM_PROMPT = `당신은 TaskFlow 개인화 설정을 도와주는 AI입
 
 [소비/이동]
 11. consumption_style: 팀 전체 현황을 얼마나 자주 보는지 — "monitor"(자주) | "summary"(가끔) | "unsure"
-12. landing_page: 로그인 후 제일 먼저 보고 싶은 화면 — "dashboard"(홈) | "my-work"(내업무) | "kanban"(칸반)
+12. landing_page: 홈 화면에서 가장 강조해서 보고 싶은 내용 — "dashboard"(오늘 기록/요약 중심의 기본 홈 화면) | "my-work"(홈 화면 맨 위에 내 업무 전체 목록을 띄움). ⚠️ 다른 페이지로 이동시키는 게 아니라, 홈 화면 안에 무엇을 보여줄지 정하는 것입니다 — 사용자에게 설명할 때도 "로그인하면 홈 화면에 이게 먼저 보이게 할게요" 식으로, 페이지 이동처럼 들리지 않게 표현하세요.
 
 [알림]
 13. notification_style: 알림 받는 방식 — "immediate"(즉시) | "daily_digest"(하루 한번 모아서) | "off"
