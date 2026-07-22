@@ -123,16 +123,16 @@ function BottomNav({ userRole, enabledFeatures }: { userRole: string; enabledFea
                 display: "flex", flexDirection: "column", alignItems: "center",
                 gap: 2, padding: "7px 16px", borderRadius: 12, textDecoration: "none",
                 minWidth: 56, transition: "all 0.15s",
-                background: active ? (item.accent ? "var(--cyan-bg)" : "var(--cyan)") : item.accent && !active ? "var(--bg-3)" : "transparent",
+                background: active ? (item.accent ? "var(--cyan-bg)" : "var(--cyan)") : "transparent",
               }}>
               <span style={{
                 fontSize: 18, lineHeight: 1,
-                color: active ? (item.accent ? "var(--cyan)" : "#fff") : item.accent ? "var(--cyan)" : "var(--text-3)",
+                color: active ? (item.accent ? "var(--cyan)" : "#fff") : "var(--text-3)",
               }}>{item.icon}</span>
               <span style={{
                 fontSize: 10,
-                color: active ? (item.accent ? "var(--cyan)" : "#fff") : item.accent ? "var(--cyan)" : "var(--text-3)",
-                fontWeight: active || item.accent ? 600 : 400,
+                color: active ? (item.accent ? "var(--cyan)" : "#fff") : "var(--text-3)",
+                fontWeight: active ? 600 : 400,
               }}>{item.label}</span>
             </Link>
           );
