@@ -11,6 +11,7 @@ import ProjectMemberPanel from "@/components/team/ProjectMemberPanel";
 import MilestonePanel from "@/components/milestones/MilestonePanel";
 import PlanningFeedback from "@/components/tasks/PlanningFeedback";
 import TaskDraftPanel from "@/components/tasks/TaskDraftPanel";
+import MilestoneChatWizard from "@/components/projects/MilestoneChatWizard";
 import { getAuthUser, getProjectRole } from "@/lib/auth";
 
 const STATUS_CONFIG = {
@@ -111,6 +112,8 @@ export default function ProjectDetailPage() {
   const [openMilestone, setOpenMilestone] = useState(false);
   const [allProjects, setAllProjects] = useState<any[]>([]);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [projectMembers, setProjectMembers] = useState<{ name: string; role: string }[]>([]);
+  const [openMilestoneChat, setOpenMilestoneChat] = useState(false);
 
   const load = useCallback(async () => {
     const { data: p } = await supabase.from("projects")
@@ -124,6 +127,11 @@ export default function ProjectDetailPage() {
     }
     const { data: allProj } = await supabase.from("projects").select("id, name").eq("status", "active");
     setAllProjects(allProj ?? []);
+
+    // 마일스톤 인터뷰용 구성원 목록 (이름+역할)
+    const { data: pm } = await supabase.from("project_members")
+      .select("role, user:users(name)").eq("project_id", id);
+    setProjectMembers((pm ?? []).map((r: any) => ({ name: r.user?.name, role: r.role })).filter((m: any) => m.name));
     const { data: ms } = await supabase.from("milestones")
       .select("*").eq("project_id", id).neq("status", "cancelled").order("sort_order");
     setMilestones(ms ?? []);
@@ -213,6 +221,12 @@ export default function ProjectDetailPage() {
               <button onClick={() => setOpenEdit(true)}
                 style={{ padding: "7px 14px", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12, color: "var(--text-2)", cursor: "pointer" }}>
                 수정
+              </button>
+            )}
+            {canManage && (
+              <button onClick={() => setOpenMilestoneChat(true)}
+                style={{ padding: "7px 14px", background: "var(--bg-3)", border: "1px solid rgba(167,139,250,0.4)", borderRadius: 8, fontSize: 12, color: "#A78BFA", cursor: "pointer" }}>
+                🗂 마일스톤 인터뷰
               </button>
             )}
             {canManage && (
@@ -466,9 +480,19 @@ export default function ProjectDetailPage() {
         </div>
       )}
 
-      {openForm && <TaskForm onClose={() => setOpenForm(false)} onCreated={() => { load(); setOpenForm(false); }} defaultProjectId={id} />}
+      {openForm && <TaskForm onClose={() => setOpenForm(false)} onSaved={() => { load(); setOpenForm(false); }} defaultProjectId={id} />}
       {openDetail && <TaskDetail taskId={openDetail} onClose={() => setOpenDetail(null)} onRefresh={() => { setOpenDetail(null); load(); }} />}
       {openEdit && <ProjectForm project={project} onClose={() => setOpenEdit(false)} onSaved={() => { load(); setOpenEdit(false); }} />}
+
+      {openMilestoneChat && (
+        <MilestoneChatWizard
+          projectId={id}
+          projectName={project.name}
+          members={projectMembers}
+          onClose={() => setOpenMilestoneChat(false)}
+          onSaved={() => { setOpenMilestoneChat(false); load(); }}
+        />
+      )}
 
       {openMilestone && (
         <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.3)" }}
