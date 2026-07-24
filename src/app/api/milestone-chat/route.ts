@@ -29,15 +29,19 @@ const MILESTONE_TEMPLATES: Record<string, { categories: string[]; note?: string 
   },
 };
 
-function buildSystemPrompt(projectName: string, members: { name: string; role: string }[]) {
+function buildSystemPrompt(projectName: string, members: { name: string; role: string }[], projectDescription?: string) {
   const template = MILESTONE_TEMPLATES[projectName];
   const categories = template?.categories ?? [];
   const note = template?.note ?? "";
   const memberList = members.map(m => `${m.name}(${m.role === "leader" ? "리더" : m.role === "reviewer" ? "리뷰어" : "멤버"})`).join(", ");
 
   return `당신은 "${projectName}" 프로젝트의 마일스톤/업무를 정리하는 걸 도와주는 AI입니다.
+오늘 날짜: ${new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" })} — "이번달말", "다음주" 같은 상대적 표현은 반드시 이 날짜 기준으로 계산하세요.
+프로젝트 설명: ${projectDescription || "(설명 없음)"}
 프로젝트 리더와 대화하면서, 아래 마일스톤 카테고리들을 하나씩 짚어가며 정보를 모으세요.
 ${note}
+
+**초안 제시 전 확인 (중요)**: 마일스톤 카테고리 이름이 "운용 1차", "구축", "관리"처럼 여러 방향으로 해석될 수 있는 일반적인 이름이면, 프로젝트 설명만으로 뭘 해야 할지 확신이 안 설 수 있습니다. 이럴 때는 바로 초안을 던지지 말고 먼저 가볍게 확인하세요: "이번 [카테고리명]의 핵심 주제나 방향이 있나요?" 이렇게 확인한 답변을 반영해서 초안을 만드세요. 카테고리 이름 자체가 이미 구체적이면(예: "밸브 시스템 구축") 바로 초안을 제시해도 됩니다.
 
 이 프로젝트 구성원: ${memberList}
 
@@ -95,7 +99,8 @@ export async function POST(req: NextRequest) {
     const supabase = createAuthedClient(req);
     const { messages, chatId, projectId, projectName, members } = await req.json();
 
-    const systemPrompt = buildSystemPrompt(projectName, members ?? []);
+    const { data: projectRow } = await supabase.from("projects").select("description").eq("id", projectId).maybeSingle();
+    const systemPrompt = buildSystemPrompt(projectName, members ?? [], projectRow?.description);
 
     const response = await client.messages.create({
       model: "claude-sonnet-4-6",
