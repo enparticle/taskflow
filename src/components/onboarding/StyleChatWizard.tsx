@@ -79,10 +79,11 @@ export default function StyleChatWizard({ onClose, onSaved }: { onClose: () => v
 
         {!done && (
           <div style={{ padding: 14, borderTop: "1px solid var(--border)", display: "flex", gap: 8 }}>
-            <input value={input} onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") send(); }}
-              placeholder="편하게 답해주세요…" disabled={loading}
-              style={{ flex: 1, background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "var(--text-1)", outline: "none" }} />
+            <textarea value={input} onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && !e.altKey && !e.shiftKey) { e.preventDefault(); send(); } }}
+              placeholder="편하게 답해주세요… (Alt+Enter로 줄바꿈)" disabled={loading}
+              rows={1}
+              style={{ flex: 1, background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "var(--text-1)", outline: "none", resize: "none", maxHeight: 100, minHeight: 40, fontFamily: "inherit" }} />
             <button onClick={send} disabled={loading || !input.trim()}
               style={{ padding: "10px 18px", background: "var(--cyan)", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer", opacity: loading || !input.trim() ? 0.5 : 1 }}>
               보내기
