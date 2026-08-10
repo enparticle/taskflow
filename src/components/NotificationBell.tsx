@@ -1,6 +1,7 @@
 // @ts-nocheck
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 
 const TYPE_CONFIG: Record<string, { icon: string; color: string }> = {
@@ -15,6 +16,7 @@ const TYPE_CONFIG: Record<string, { icon: string; color: string }> = {
 
 export default function NotificationBell({ onTaskClick }: { onTaskClick?: (id: string) => void } = {}) {
   const supabase = createClient();
+  const router = useRouter();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
   const [myUser, setMyUser] = useState<any>(null);
@@ -65,12 +67,15 @@ export default function NotificationBell({ onTaskClick }: { onTaskClick?: (id: s
     setNotifications(data ?? []);
   }
 
-  async function markRead(id: string, taskId?: string) {
+  async function markRead(id: string, taskId?: string, linkUrl?: string) {
     await supabase.from("notifications").update({ is_read: true }).eq("id", id);
     loadNotifications();
     if (taskId && onTaskClick) {
       setOpen(false);
       onTaskClick(taskId);
+    } else if (linkUrl) {
+      setOpen(false);
+      router.push(linkUrl);
     }
   }
 
@@ -135,13 +140,13 @@ export default function NotificationBell({ onTaskClick }: { onTaskClick?: (id: s
                 const cfg = TYPE_CONFIG[n.type] ?? { icon: "●", color: "var(--text-3)" };
                 return (
                   <div key={n.id}
-                    className="flex gap-3 px-4 py-3 cursor-pointer transition-all"
+                    className="flex gap-3 px-4 py-3 transition-all"
                     style={{
                       background: n.is_read ? "transparent" : "rgba(46,134,255,0.05)",
                       borderBottom: "1px solid var(--border)",
+                      cursor: (n.task_id || n.link_url) ? "pointer" : "default",
                     }}
-                    onClick={() => markRead(n.id, n.task_id)}
-                    style={{ cursor: n.task_id ? "pointer" : "default" }}
+                    onClick={() => markRead(n.id, n.task_id, n.link_url)}
                     onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = "var(--bg-3)"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = n.is_read ? "transparent" : "rgba(46,134,255,0.05)"; }}>
                     <span className="shrink-0 text-sm mt-0.5" style={{ color: cfg.color }}>{cfg.icon}</span>
