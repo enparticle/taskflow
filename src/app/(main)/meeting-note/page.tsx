@@ -276,7 +276,10 @@ export default function MeetingNotePage() {
 
       const r = {
         ...data,
-        tasks: (data.tasks ?? []).map((t: any) => ({ ...t, selected: true, projectId: selectedProject || "" })),
+        tasks: (data.tasks ?? []).map((t: any) => {
+          const matched = t.project_name ? projects.find(p => p.name === t.project_name) : null;
+          return { ...t, selected: true, projectId: matched?.id || selectedProject || "" };
+        }),
         _meetingTitle: title,
         _meetingDate: meetingDate,
       };
@@ -536,6 +539,9 @@ export default function MeetingNotePage() {
                   <option value="">프로젝트 없음</option>
                   {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
+                {task.project_name && task.projectId && (
+                  <p style={{ fontSize: 10, color: "var(--cyan)", margin: "-4px 0 6px" }}>✦ AI가 자동으로 지정했어요 — 틀렸으면 위에서 바꿔주세요</p>
+                )}
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                   {task.assignee_name && <span style={{ fontSize: 11, color: "var(--text-3)" }}>담당: {task.assignee_name}</span>}
                   {task.due_date && <span style={{ fontSize: 11, color: "var(--text-3)" }}>마감: {task.due_date}</span>}

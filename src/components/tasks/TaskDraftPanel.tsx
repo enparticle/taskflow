@@ -18,6 +18,7 @@ export default function TaskDraftPanel({ projectId, onApproved }: { projectId: s
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
   const [processing, setProcessing] = useState<string | null>(null);
+  const [bulkApproving, setBulkApproving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -70,6 +71,31 @@ export default function TaskDraftPanel({ projectId, onApproved }: { projectId: s
     await load();
   }
 
+  async function bulkApprove() {
+    if (!confirm(`대기 중인 ${drafts.length}건을 전부 승인할까요? (개별 수정 없이 그대로 등록됩니다)`)) return;
+    setBulkApproving(true);
+    for (const draft of drafts) {
+      await supabase.from("tasks").insert({
+        title: draft.title,
+        task_type: draft.task_type ?? "other",
+        priority: draft.priority ?? "medium",
+        status: draft.is_blocked ? "blocked" : "todo",
+        blocked_reason: draft.is_blocked ? draft.blocked_reason : null,
+        due_date: draft.due_date ?? null,
+        assignee_id: draft.assignee_id ?? null,
+        assignee_ids: draft.assignee_ids ?? [],
+        project_id: projectId,
+      });
+      await supabase.from("task_drafts").update({
+        status: "approved",
+        reviewed_at: new Date().toISOString(),
+      }).eq("id", draft.id);
+    }
+    setBulkApproving(false);
+    await load();
+    onApproved?.();
+  }
+
   function startEdit(draft: any) {
     setEditingId(draft.id);
     setEditForm({
@@ -102,6 +128,13 @@ export default function TaskDraftPanel({ projectId, onApproved }: { projectId: s
           📋 회의록 업무 검토 대기 {drafts.length}건
         </p>
         <p className="text-xs" style={{ color: "var(--text-3)" }}>승인하면 프로젝트 업무에 추가됩니다</p>
+        {drafts.length > 1 && (
+          <button onClick={bulkApprove} disabled={bulkApproving}
+            className="rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-40"
+            style={{ marginLeft: "auto", background: "rgba(52,211,153,0.15)", color: "#34d399", border: "1px solid rgba(52,211,153,0.3)" }}>
+            {bulkApproving ? "처리 중…" : `✓ 전체 승인 (${drafts.length}건)`}
+          </button>
+        )}
       </div>
 
       <div className="divide-y" style={{ borderColor: "var(--border)" }}>

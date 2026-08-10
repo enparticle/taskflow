@@ -12,6 +12,10 @@ export async function POST(req: NextRequest) {
     const body = JSON.parse(bodyText);
     const { text, audioText, projectId, meetingMeta } = body;
 
+    // 프로젝트 자동 추론용 — 활성 프로젝트 목록(이름+설명) 조회
+    const { data: activeProjects } = await supabase.from("projects").select("name, description").eq("status", "active");
+    const projectListText = (activeProjects ?? []).map((p: any) => `- ${p.name}${p.description ? `: ${p.description}` : ""}`).join("\n");
+
     const hasBoth = !!(text?.trim() && audioText?.trim());
     const hasAudio = !!audioText?.trim();
     const hasText = !!text?.trim();
@@ -35,6 +39,8 @@ export async function POST(req: NextRequest) {
       prompt += `음성 녹음 변환 내용:\n${audioText}\n\n`;
     }
 
+    prompt += `현재 활성 프로젝트 목록:\n${projectListText || "(없음)"}\n\n`;
+
     prompt += `분석 지시사항:\n`;
     if (hasBoth) {
       prompt += `- 회의록과 음성 녹음 두 가지를 교차 분석해서 서로 보완하여 완전한 정보를 추출하세요.\n`;
@@ -42,7 +48,8 @@ export async function POST(req: NextRequest) {
     }
     prompt += `- 구체적인 업무 항목을 추출하고 담당자, 마감일, 우선순위를 파악하세요.\n`;
     prompt += `- 결정사항과 이슈를 명확히 구분하세요.\n`;
-    prompt += `- 참석자 이름이 언급되면 담당자로 연결하세요.\n\n`;
+    prompt += `- 참석자 이름이 언급되면 담당자로 연결하세요.\n`;
+    prompt += `- **각 업무마다 위 프로젝트 목록 중 어느 프로젝트에 속하는지 판단해서 project_name에 정확히 그 이름을 넣으세요.** 회의 중 언급된 맥락(장비명, 작업 내용, 프로젝트 설명과의 연관성)으로 판단하세요. 여러 프로젝트에 걸쳐있거나 확신이 안 서면 억지로 끼워맞추지 말고 null로 두세요 — 틀린 프로젝트에 넣는 것보다 미지정이 낫습니다.\n\n`;
 
     // 회의록을 올린 사람의 톤/소통 스타일 반영 (summary 문장 스타일에 반영)
     try {
@@ -78,6 +85,7 @@ export async function POST(req: NextRequest) {
       "priority": "urgent|high|medium|low",
       "due_date": "YYYY-MM-DD 또는 null",
       "assignee_name": "담당자 이름 또는 null",
+      "project_name": "위 프로젝트 목록에 있는 이름 정확히 그대로, 확신 없으면 null",
       "is_blocked": false,
       "blocked_reason": null
     }
