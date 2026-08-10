@@ -1,6 +1,6 @@
 // @ts-nocheck
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase";
 
 const INPUT_STYLES = [
@@ -28,6 +28,19 @@ export default function OnboardingWizard({ userId, onDone }: { userId: string; o
   const [homePriority, setHomePriority] = useState("today");
   const [consumptionStyle, setConsumptionStyle] = useState("unsure");
   const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    supabase.from("user_preferences").select("input_style, home_priority, consumption_style")
+      .eq("user_id", userId).maybeSingle().then(({ data }) => {
+        if (data) {
+          if (data.input_style) setInputStyle(data.input_style);
+          if (data.home_priority?.[0]) setHomePriority(data.home_priority[0]);
+          if (data.consumption_style) setConsumptionStyle(data.consumption_style);
+        }
+        setLoaded(true);
+      });
+  }, [userId]);
 
   async function save(completed: boolean) {
     setSaving(true);
@@ -45,7 +58,7 @@ export default function OnboardingWizard({ userId, onDone }: { userId: string; o
   }
 
   function skip() {
-    save(true); // 기본값 그대로 완료 처리, 다시 안 뜨게
+    save(true); // 기존 값 그대로(또는 기본값) 완료 처리, 다시 안 뜨게
   }
 
   const totalSteps = 5;
