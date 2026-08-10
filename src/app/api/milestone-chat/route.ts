@@ -168,6 +168,7 @@ export async function POST(req: NextRequest) {
               user_id: targetUser.id, type: "mention",
               title: `[${projectName}] 마일스톤 질문`,
               body: d.question,
+              link_url: `/projects/${projectId}`,
             });
 
             delegateDisplayMsg = `📨 ${d.to_name}님께 물어봤어요: "${d.question}"\n답변 오면 알려드릴게요. 그동안 다음 카테고리로 넘어갈까요?`;

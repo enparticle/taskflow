@@ -54,12 +54,13 @@ export default function MilestoneChatWizard({
     }).eq("id", q.id);
 
     // 원래 질문한 사람한테 답변 도착 알림
-    const { data: qRow } = await supabase.from("milestone_questions").select("asked_by").eq("id", q.id).single();
+    const { data: qRow } = await supabase.from("milestone_questions").select("asked_by, project_id").eq("id", q.id).single();
     if (qRow?.asked_by) {
       await supabase.from("notifications").insert({
         user_id: qRow.asked_by, type: "mention",
         title: `[${q.project?.name ?? ""}] 질문 답변 도착`,
         body: answer,
+        link_url: qRow.project_id ? `/projects/${qRow.project_id}` : null,
       });
     }
 
