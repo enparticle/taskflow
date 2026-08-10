@@ -85,6 +85,14 @@ ${categories.map((c, i) => `${i + 1}. ${c}`).join("\n")}
 - 담당자는 반드시 위 구성원 목록에 있는 이름 중에서만 매칭하세요(없는 이름이면 다시 확인)
 - 모든 카테고리를 다 물어보면 전체 요약을 보여주고 확인 요청("이대로 등록할까요?") 후, 확인되면 아래 JSON으로 응답하세요
 
+**다른 사람에게 물어봐야 할 때 (위임 질문)**: 대화 중인 사람이 "OO한테 물어봐야 해요", "그건 제가 몰라요, △△가 알아요" 같은 말을 하면, 그 자리에서 억지로 답을 끌어내지 마세요. 대신 그 사람(구성원 목록에 있는 이름)에게 보낼 질문을 만들어서 아래 형식으로만 응답하세요(다른 텍스트 없이):
+
+DELEGATE_QUESTION
+{"to_name": "받을 사람 이름", "question": "구체적인 질문 내용", "category": "지금 다루던 마일스톤 카테고리명"}
+END_DELEGATE
+
+**답변이 도착한 경우**: 이전에 위임했던 질문에 대한 답변이 시스템 메시지로 주어지면, 그 내용을 자연스럽게 대화에 반영하세요. 만약 원래 대화하던 사람이 그 답변에 동의하지 않거나 다른 의견을 내면, 양쪽 의견을 종합해서 **절충안을 하나 제안**하세요(예: "두 분 의견을 보니 A는 이렇고 B는 저런데, 이렇게 하면 어떨까요: ..."). 무조건 한쪽 편을 들지 말고, AI로서 중립적으로 중재하세요.
+
 확인 완료 시 응답 형식 (반드시 이 마커 사용):
 RESULT_JSON
 {
@@ -110,7 +118,18 @@ export async function POST(req: NextRequest) {
     const { data: projectRow } = await supabase.from("projects").select("description").eq("id", projectId).maybeSingle();
     const { data: existingMs } = await supabase.from("milestones")
       .select("title, status, due_date").eq("project_id", projectId).neq("status", "cancelled").order("sort_order");
-    const systemPrompt = buildSystemPrompt(projectName, members ?? [], projectRow?.description, existingMs ?? []);
+    let systemPrompt = buildSystemPrompt(projectName, members ?? [], projectRow?.description, existingMs ?? []);
+
+    // 이 대화로 위임했던 질문 중 새로 답변된 게 있으면 참고자료로 추가
+    if (chatId) {
+      const { data: answered } = await supabase.from("milestone_questions")
+        .select("id, milestone_category, question, answer, asked_to:users!milestone_questions_asked_to_fkey(name)")
+        .eq("chat_id", chatId).eq("status", "answered");
+      if (answered && answered.length > 0) {
+        systemPrompt += `\n\n다음 위임 질문에 대한 답변이 도착했습니다. 대화에 자연스럽게 반영하세요:\n` +
+          answered.map((a: any) => `- [${a.milestone_category}] "${a.question}" → ${a.asked_to?.name}님 답변: "${a.answer}"`).join("\n");
+      }
+    }
 
     const response = await client.messages.create({
       model: "claude-sonnet-4-6",
@@ -121,19 +140,52 @@ export async function POST(req: NextRequest) {
 
     const assistantMsg = response.content[0].type === "text" ? response.content[0].text : "";
 
-    let result = null;
-    if (assistantMsg.includes("RESULT_JSON")) {
-      const match = assistantMsg.match(/RESULT_JSON\s*(\{[\s\S]*?\})\s*END_JSON/);
-      if (match) {
-        try { result = JSON.parse(match[1]); } catch {}
-      }
-    }
-
     const { data: { user: authUser } } = await supabase.auth.getUser();
     let me: any = null;
     if (authUser) {
       const { data } = await supabase.from("users").select("id").eq("auth_id", authUser.id).single();
       me = data;
+    }
+
+    // 위임 질문 마커 처리 — 다른 사람에게 물어봐야 하는 경우
+    let delegateDisplayMsg: string | null = null;
+    if (assistantMsg.includes("DELEGATE_QUESTION") && me) {
+      const dMatch = assistantMsg.match(/DELEGATE_QUESTION\s*(\{[\s\S]*?\})\s*END_DELEGATE/);
+      if (dMatch) {
+        try {
+          const d = JSON.parse(dMatch[1]);
+          const { data: targetUser } = await supabase.from("users").select("id").eq("name", d.to_name).maybeSingle();
+          if (targetUser) {
+            const { data: q } = await supabase.from("milestone_questions").insert({
+              project_id: projectId, chat_id: chatId ?? null,
+              milestone_category: d.category ?? "", asked_by: me.id, asked_to: targetUser.id,
+              question: d.question,
+            }).select("id").single();
+
+            await supabase.from("notifications").insert({
+              user_id: targetUser.id, type: "mention",
+              title: `[${projectName}] 마일스톤 질문`,
+              body: d.question,
+            });
+
+            delegateDisplayMsg = `📨 ${d.to_name}님께 물어봤어요: "${d.question}"\n답변 오면 알려드릴게요. 그동안 다음 카테고리로 넘어갈까요?`;
+          }
+        } catch {}
+      }
+    }
+
+    // 답변된 질문을 참고자료로 썼으면 다시 안 뜨게 acknowledged 처리
+    if (chatId) {
+      await supabase.from("milestone_questions").update({ status: "acknowledged" })
+        .eq("chat_id", chatId).eq("status", "answered");
+    }
+
+    let result = null;
+    if (!delegateDisplayMsg && assistantMsg.includes("RESULT_JSON")) {
+      const match = assistantMsg.match(/RESULT_JSON\s*(\{[\s\S]*?\})\s*END_JSON/);
+      if (match) {
+        try { result = JSON.parse(match[1]); } catch {}
+      }
     }
 
     // 확정되면 실제로 마일스톤 + 업무 등록
@@ -185,7 +237,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 대화 기록 저장
-    const updatedMessages = [...messages, { role: "assistant", content: assistantMsg }];
+    const savedAssistantContent = delegateDisplayMsg ?? assistantMsg;
+    const updatedMessages = [...messages, { role: "assistant", content: savedAssistantContent }];
     let newChatId = chatId;
     if (me) {
       if (chatId) {
@@ -204,7 +257,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const displayMsg = assistantMsg.split("RESULT_JSON")[0].trim();
+    const displayMsg = delegateDisplayMsg ?? assistantMsg.split("RESULT_JSON")[0].trim();
     return NextResponse.json({ message: displayMsg || "마일스톤과 업무가 등록됐어요! ✓", result, chatId: newChatId });
   } catch (err: any) {
     console.error("milestone-chat error:", err);

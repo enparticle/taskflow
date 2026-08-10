@@ -2,6 +2,8 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { authFetch } from "@/lib/authFetch";
+import { createClient } from "@/lib/supabase";
+import { getAuthUser } from "@/lib/auth";
 
 export default function MilestoneChatWizard({
   projectId, projectName, members, onClose, onSaved,
@@ -12,6 +14,11 @@ export default function MilestoneChatWizard({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const supabase = createClient();
+  const [pendingQuestions, setPendingQuestions] = useState<any[]>([]);
+  const [answerDrafts, setAnswerDrafts] = useState<Record<string, string>>({});
+  const [answering, setAnswering] = useState<string | null>(null);
+  const [myUserId, setMyUserId] = useState<string | null>(null);
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([
     { role: "assistant", content: `안녕하세요! "${projectName}" 프로젝트의 마일스톤과 업무를 정리해볼게요. 카테고리별로 하나씩 담당자·마감일·세부 업무를 여쭤볼게요. 잘 모르는 항목은 "나중에"라고 하시면 건너뛸게요.\n\n첫 번째 카테고리부터 시작할까요?` },
   ]);
@@ -24,6 +31,41 @@ export default function MilestoneChatWizard({
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    (async () => {
+      const u = await getAuthUser();
+      if (!u?.userId) return;
+      setMyUserId(u.userId);
+      const { data } = await supabase.from("milestone_questions")
+        .select("id, milestone_category, question, project:projects(name), asked_by:users!milestone_questions_asked_by_fkey(name)")
+        .eq("asked_to", u.userId).eq("status", "pending")
+        .order("created_at", { ascending: false });
+      setPendingQuestions(data ?? []);
+    })();
+  }, []);
+
+  async function submitAnswer(q: any) {
+    const answer = answerDrafts[q.id]?.trim();
+    if (!answer) return;
+    setAnswering(q.id);
+    await supabase.from("milestone_questions").update({
+      answer, status: "answered", answered_at: new Date().toISOString(),
+    }).eq("id", q.id);
+
+    // 원래 질문한 사람한테 답변 도착 알림
+    const { data: qRow } = await supabase.from("milestone_questions").select("asked_by").eq("id", q.id).single();
+    if (qRow?.asked_by) {
+      await supabase.from("notifications").insert({
+        user_id: qRow.asked_by, type: "mention",
+        title: `[${q.project?.name ?? ""}] 질문 답변 도착`,
+        body: answer,
+      });
+    }
+
+    setPendingQuestions(prev => prev.filter(p => p.id !== q.id));
+    setAnswering(null);
+  }
 
   async function send() {
     if (!input.trim() || loading) return;
@@ -56,6 +98,30 @@ export default function MilestoneChatWizard({
           </div>
           <button onClick={onClose} style={{ color: "var(--text-3)", fontSize: 18 }}>✕</button>
         </div>
+
+        {pendingQuestions.length > 0 && (
+          <div style={{ padding: "12px 18px", background: "#FFFBEB", borderBottom: "1px solid #FCD34D", maxHeight: 200, overflowY: "auto" }}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: "#D97706", marginBottom: 8 }}>
+              📨 다른 사람이 나한테 물어본 질문 ({pendingQuestions.length}건) — 답하면 자동으로 전달돼요
+            </p>
+            {pendingQuestions.map(q => (
+              <div key={q.id} style={{ background: "#fff", border: "1px solid #FDE68A", borderRadius: 10, padding: 10, marginBottom: 8 }}>
+                <p style={{ fontSize: 11, color: "#92400E", margin: "0 0 2px" }}>
+                  {q.asked_by?.name}님 · {q.project?.name} · {q.milestone_category}
+                </p>
+                <p style={{ fontSize: 12, color: "#1F2937", margin: "0 0 6px" }}>{q.question}</p>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input value={answerDrafts[q.id] ?? ""} onChange={e => setAnswerDrafts(prev => ({ ...prev, [q.id]: e.target.value }))}
+                    placeholder="답변 입력…" style={{ flex: 1, fontSize: 12, padding: "6px 10px", borderRadius: 6, border: "1px solid #FDE68A", outline: "none" }} />
+                  <button onClick={() => submitAnswer(q)} disabled={answering === q.id || !answerDrafts[q.id]?.trim()}
+                    style={{ fontSize: 11, padding: "6px 12px", background: "#D97706", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", opacity: answering === q.id ? 0.5 : 1 }}>
+                    답변
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "16px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
           {messages.map((m, i) => (
