@@ -113,20 +113,34 @@ ${aiTone === "detailed" ? "\n응답 톤: 사용자가 '자세히' 스타일을 �
 
           if (texts.length > 0 && texts.length % 5 === 0) {
             const { data: myPrefs } = await supabase.from("user_preferences")
-              .select("ai_tone, communication_profile").eq("user_id", me2.id).maybeSingle();
+              .select("ai_tone, communication_profile, input_style, home_priority, consumption_style").eq("user_id", me2.id).maybeSingle();
 
-            // 프로필 갱신
+            // 프로필 갱신 — 요약 문장 + 3개 축(격식도/말길이/결정속도)을 구조화된 JSON으로 같이 받음
             const profileMsg = await client.messages.create({
               model: "claude-haiku-4-5-20251001",
-              max_tokens: 150,
+              max_tokens: 200,
               messages: [{
                 role: "user",
-                content: `아래는 한 사용자가 최근에 남긴 업무 기록 문장들입니다:\n${texts.map((t: string) => `- "${t}"`).join("\n")}\n\n이 사람의 소통 스타일(문장 길이, 격식/캐주얼, 이모지 사용 여부, 결정 속도)을 1~2문장으로 요약하세요. 요약 문장만 출력하세요.`,
+                content: `아래는 한 사용자가 최근에 남긴 업무 기록 문장들입니다:\n${texts.map((t: string) => `- "${t}"`).join("\n")}\n\n이 사람의 소통 스타일을 분석해서 아래 JSON으로만 응답하세요(다른 텍스트 없이):\n{\n  "summary": "1~2문장 요약(문장 길이, 격식/캐주얼, 이모지 사용, 결정 속도 포함)",\n  "formality_level": "formal 또는 casual (존댓말/격식 있게 쓰는지, 반말/편하게 쓰는지)",\n  "message_length_pref": "short, medium, long 중 하나 (평소 문장 길이)",\n  "decision_speed": "fast 또는 deliberate (빠르게 결정하는 편인지, 신중하게 고민하는 편인지)"\n}`,
               }],
             });
-            const newProfile = profileMsg.content[0].type === "text" ? profileMsg.content[0].text.trim() : null;
-            if (newProfile) {
-              await supabase.from("user_preferences").update({ communication_profile: newProfile }).eq("user_id", me2.id);
+            const rawProfile = profileMsg.content[0].type === "text" ? profileMsg.content[0].text.trim() : "";
+            try {
+              const cleanProfile = rawProfile.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+              const parsedProfile = JSON.parse(cleanProfile);
+              if (parsedProfile.summary) {
+                await supabase.from("user_preferences").update({
+                  communication_profile: parsedProfile.summary,
+                  formality_level: parsedProfile.formality_level ?? undefined,
+                  message_length_pref: parsedProfile.message_length_pref ?? undefined,
+                  decision_speed: parsedProfile.decision_speed ?? undefined,
+                }).eq("user_id", me2.id);
+              }
+            } catch {
+              // 구조화 파싱 실패하면 요약 문장만이라도 저장 시도
+              if (rawProfile) {
+                await supabase.from("user_preferences").update({ communication_profile: rawProfile }).eq("user_id", me2.id);
+              }
             }
 
             // 불일치 감지: concise인데 평균 문장이 너무 길거나, detailed인데 너무 짧으면 제안 생성
@@ -144,6 +158,30 @@ ${aiTone === "detailed" ? "\n응답 톤: 사용자가 '자세히' 스타일을 �
                   user_id: me2.id, field: "ai_tone",
                   current_value: declaredTone, suggested_value: suggestedTone,
                   reason: `최근 기록 문장 길이 평균 ${Math.round(avgLen)}자 — 설정한 톤이랑 실제 패턴이 달라 보여요`,
+                });
+              }
+            }
+
+            // 4. 홈 위젯 순서 불일치 감지 — 계획형인데 할일목록이 1순위가 아니거나, 자주확인형인데 요약이 1순위가 아니면 제안
+            const currentPriority = myPrefs?.home_priority ?? ["today", "recent", "summary"];
+            let suggestedFirst: string | null = null;
+            let widgetReason = "";
+            if (myPrefs?.input_style === "plan" && currentPriority[0] !== "today") {
+              suggestedFirst = "today";
+              widgetReason = "계획형으로 설정하셨는데, 홈 화면 첫 위젯이 '오늘 할 일'이 아니에요";
+            } else if (myPrefs?.consumption_style === "monitor" && currentPriority[0] !== "summary") {
+              suggestedFirst = "summary";
+              widgetReason = "팀 현황을 자주 보신다고 하셨는데, 홈 화면 첫 위젯이 '요약'이 아니에요";
+            }
+            if (suggestedFirst) {
+              const { data: existingWidgetSug } = await supabase.from("preference_suggestions")
+                .select("id").eq("user_id", me2.id).eq("field", "home_priority").eq("status", "pending").maybeSingle();
+              if (!existingWidgetSug) {
+                const newOrder = [suggestedFirst, ...currentPriority.filter((v: string) => v !== suggestedFirst)];
+                await supabase.from("preference_suggestions").insert({
+                  user_id: me2.id, field: "home_priority",
+                  current_value: currentPriority.join(","), suggested_value: newOrder.join(","),
+                  reason: widgetReason,
                 });
               }
             }

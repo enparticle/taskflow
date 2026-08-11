@@ -16,8 +16,16 @@ export async function POST(req: NextRequest) {
       .from("tasks").select("assignee_id, assignee_ids, status, task_type")
       .not("status", "eq", "done");
 
+    // 실제 완료 이력 — 이 유형을 얼마나 많이 완료해봤는지(진짜 경험치 신호)
+    const { data: doneTasks } = await supabase
+      .from("tasks").select("assignee_id, assignee_ids, task_type")
+      .eq("status", "done");
+
     const memberStats = (users ?? []).map(u => {
       const mine = (tasks ?? []).filter(t =>
+        t.assignee_id === u.id || (t.assignee_ids ?? []).includes(u.id)
+      );
+      const doneMine = (doneTasks ?? []).filter(t =>
         t.assignee_id === u.id || (t.assignee_ids ?? []).includes(u.id)
       );
       return {
@@ -29,6 +37,8 @@ export async function POST(req: NextRequest) {
         total: mine.length,
         blocked: mine.filter(t => t.status === "blocked").length,
         sameType: mine.filter(t => t.task_type === task_type).length,
+        completedSameType: doneMine.filter(t => t.task_type === task_type).length, // 실제 완료 경험
+        totalCompleted: doneMine.length,
       };
     });
 
@@ -72,7 +82,7 @@ export async function POST(req: NextRequest) {
 팀원 현황:
 ${JSON.stringify(eligible)}
 
-추천 기준: 진행 중 업무 적은 사람, 같은 유형 경험 있는 사람, Blocked 없는 사람
+추천 기준: 진행 중 업무 적은 사람, **실제로 이 유형(completedSameType)을 완료해본 경험이 많은 사람 우선**, Blocked 없는 사람. 단순히 지금 같은 유형 업무를 들고 있는 것(sameType)보다 실제 완료 경험(completedSameType)을 더 신뢰할 만한 신호로 보세요.
 ${toneBlock}
 JSON으로만 응답:
 {"recommendations":[{"user_id":"uuid","name":"이름","score":1-100,"reason":"이유${reasonLenHint}"}]}

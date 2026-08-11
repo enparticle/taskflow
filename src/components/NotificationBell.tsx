@@ -47,7 +47,10 @@ export default function NotificationBell({ onTaskClick }: { onTaskClick?: (id: s
         event: "INSERT", schema: "public", table: "notifications",
         filter: `user_id=eq.${myUser.id}`,
       }, (payload) => {
-        setNotifications(prev => [payload.new, ...prev]);
+        const n = payload.new;
+        if (!n.scheduled_for || new Date(n.scheduled_for) <= new Date()) {
+          setNotifications(prev => [n, ...prev]);
+        }
       })
       .subscribe((status) => {
         console.log("notification subscription:", status);
@@ -62,6 +65,7 @@ export default function NotificationBell({ onTaskClick }: { onTaskClick?: (id: s
       .from("notifications")
       .select("*, task:tasks(title)")
       .eq("user_id", myUser.id)
+      .or(`scheduled_for.is.null,scheduled_for.lte.${new Date().toISOString()}`)
       .order("created_at", { ascending: false })
       .limit(20);
     setNotifications(data ?? []);

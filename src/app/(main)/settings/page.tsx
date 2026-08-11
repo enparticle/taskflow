@@ -209,12 +209,21 @@ function PreferenceSuggestions({ myUserId, supabase, onApplied }: { myUserId: st
   };
   useEffect(() => { load(); }, [myUserId]);
 
-  const FIELD_LABEL: Record<string, string> = { ai_tone: "AI 응답 톤" };
-  const VALUE_LABEL: Record<string, string> = { concise: "간결히", detailed: "자세히", detailed_with_summary: "요약+자세히" };
+  const FIELD_LABEL: Record<string, string> = { ai_tone: "AI 응답 톤", home_priority: "홈 위젯 순서" };
+  const VALUE_LABEL: Record<string, string> = {
+    concise: "간결히", detailed: "자세히", detailed_with_summary: "요약+자세히",
+    today: "오늘 할 일", recent: "최근 기록", summary: "주간 요약", calendar: "캘린더",
+  };
+
+  function displayValue(field: string, value: string) {
+    if (field === "home_priority") return value.split(",").map(v => VALUE_LABEL[v] ?? v).join(" → ");
+    return VALUE_LABEL[value] ?? value;
+  }
 
   async function respond(s: any, accept: boolean) {
     if (accept) {
-      await supabase.from("user_preferences").update({ [s.field]: s.suggested_value }).eq("user_id", myUserId);
+      const value = s.field === "home_priority" ? s.suggested_value.split(",") : s.suggested_value;
+      await supabase.from("user_preferences").update({ [s.field]: value }).eq("user_id", myUserId);
       onApplied();
     }
     await supabase.from("preference_suggestions").update({ status: accept ? "accepted" : "dismissed" }).eq("id", s.id);
@@ -230,7 +239,7 @@ function PreferenceSuggestions({ myUserId, supabase, onApplied }: { myUserId: st
           <span style={{ fontSize: 18 }}>💡</span>
           <div style={{ flex: 1 }}>
             <p style={{ fontSize: 12, color: "#92400E", margin: 0, fontWeight: 600 }}>
-              {FIELD_LABEL[s.field] ?? s.field}을(를) "{VALUE_LABEL[s.suggested_value] ?? s.suggested_value}"로 바꿔볼까요?
+              {FIELD_LABEL[s.field] ?? s.field}을(를) "{displayValue(s.field, s.suggested_value)}"로 바꿔볼까요?
             </p>
             <p style={{ fontSize: 11, color: "#B45309", margin: "2px 0 0" }}>{s.reason}</p>
           </div>
