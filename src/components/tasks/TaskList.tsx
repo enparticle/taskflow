@@ -53,25 +53,31 @@ export default function TaskList({
   const [bulkValue, setBulkValue] = useState("");
   const [applying, setApplying] = useState(false);
   const [myUser, setMyUser] = useState<any>(null);
+  const [prefsReady, setPrefsReady] = useState(false);
 
   useEffect(() => {
-    getAuthUser().then(u => setMyUser(u));
+    getAuthUser().then(u => {
+      setMyUser(u);
+      if (!u?.userId) setPrefsReady(true); // userId 없으면 두 번째 useEffect가 절대 안 돌아서 여기서 대신 풀어줌
+    });
   }, []);
 
   useEffect(() => {
     if (!myUser?.userId) return;
     supabase.from("user_preferences").select("default_sort, default_hide_done, default_status_filter, default_priority_filter")
       .eq("user_id", myUser.userId).maybeSingle().then(({ data }: any) => {
-        if (!data) return;
-        if (data.default_sort) setSortBy(data.default_sort);
-        if (data.default_hide_done != null) setShowDone(!data.default_hide_done);
-        // 여러 개가 배열로 잘못 저장된 예전 값 방어 — 문자열로 시작하는 값만 실제 필터로 사용
-        if (data.default_status_filter && typeof data.default_status_filter === "string" && !data.default_status_filter.startsWith("[")) {
-          setStatusFilter(data.default_status_filter);
+        if (data) {
+          if (data.default_sort) setSortBy(data.default_sort);
+          if (data.default_hide_done != null) setShowDone(!data.default_hide_done);
+          // 여러 개가 배열로 잘못 저장된 예전 값 방어 — 문자열로 시작하는 값만 실제 필터로 사용
+          if (data.default_status_filter && typeof data.default_status_filter === "string" && !data.default_status_filter.startsWith("[")) {
+            setStatusFilter(data.default_status_filter);
+          }
+          if (data.default_priority_filter && typeof data.default_priority_filter === "string" && !data.default_priority_filter.startsWith("[")) {
+            setPriorityFilter(data.default_priority_filter);
+          }
         }
-        if (data.default_priority_filter && typeof data.default_priority_filter === "string" && !data.default_priority_filter.startsWith("[")) {
-          setPriorityFilter(data.default_priority_filter);
-        }
+        setPrefsReady(true); // 기본 필터 적용이 끝난 뒤에야 목록을 그림 — 그 전엔 안 보여줘서 "떴다 사라짐" 방지
       });
   }, [myUser?.userId]);
 
@@ -154,6 +160,16 @@ export default function TaskList({
     background: "var(--bg-3)", border: "1px solid var(--border)", color: "var(--text-2)",
     borderRadius: 8, padding: "5px 8px", fontSize: 12, outline: "none", colorScheme: "dark" as const,
   };
+
+  if (!prefsReady) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-center" style={{ height: 120 }}>
+          <p style={{ fontSize: 12, color: "var(--text-3)" }}>불러오는 중…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
