@@ -158,7 +158,7 @@ export default function MeetingNotePage() {
     setHistoryLoading(false);
   }
 
-  useEffect(() => { if (view === "history" && myUser) loadHistory(); }, [view, myUser]);
+  useEffect(() => { if (myUser) loadHistory(); }, [myUser]);
 
   // 자동 저장
   async function autoSave(overrideResult?: any) {
@@ -542,6 +542,11 @@ export default function MeetingNotePage() {
                 {task.project_name && task.projectId && (
                   <p style={{ fontSize: 10, color: "var(--cyan)", margin: "-4px 0 6px" }}>✦ AI가 자동으로 지정했어요 — 틀렸으면 위에서 바꿔주세요</p>
                 )}
+                {task.possible_duplicate_of && (
+                  <p style={{ fontSize: 10, color: "#D97706", margin: "-4px 0 6px", background: "rgba(251,191,36,0.1)", padding: "4px 8px", borderRadius: 6 }}>
+                    ⚠ "{task.possible_duplicate_of}"랑 비슷한 업무 같아요 — 새로 만들기 전에 확인해보세요
+                  </p>
+                )}
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                   {task.assignee_name && <span style={{ fontSize: 11, color: "var(--text-3)" }}>담당: {task.assignee_name}</span>}
                   {task.due_date && <span style={{ fontSize: 11, color: "var(--text-3)" }}>마감: {task.due_date}</span>}
@@ -586,6 +591,34 @@ export default function MeetingNotePage() {
           </button>
         </div>
       </div>
+
+      {/* 지난 회의 이어받기 (5번) */}
+      {history.length > 0 && !title && (
+        <button onClick={() => {
+          const last = history[0];
+          setTitle(last.group_title || last.result?.title || "");
+          if (last.project_id) setSelectedProject(last.project_id);
+          const lastAttendees = last.result?.participants ?? [];
+          if (lastAttendees.length > 0) setAttendees(lastAttendees.map((n: string) => ({ name: n })));
+        }}
+          style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", background: "var(--bg-3)", border: "1px dashed var(--border-2)", borderRadius: 10, fontSize: 12, color: "var(--text-2)", cursor: "pointer", width: "100%", textAlign: "left" }}>
+          🔁 지난 회의(<b>{history[0].group_title || history[0].result?.title || "제목없음"}</b>) 설정 불러오기 — 회의명·프로젝트·참석자
+        </button>
+      )}
+
+      {/* 지난 회의 미완료 이슈 (1번) */}
+      {history.length > 0 && history[0].result?.issues?.length > 0 && (
+        <div style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 12, padding: "12px 16px" }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "#D97706", marginBottom: 6 }}>
+            ⚠ 지난 회의("{history[0].group_title || history[0].result?.title}")에서 남았던 이슈
+          </p>
+          <ul style={{ margin: 0, paddingLeft: 18 }}>
+            {history[0].result.issues.map((issue: string, i: number) => (
+              <li key={i} style={{ fontSize: 12, color: "var(--text-2)" }}>{issue}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* ① 기본 정보 */}
       <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 18, display: "flex", flexDirection: "column", gap: 12 }}>

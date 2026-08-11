@@ -16,6 +16,11 @@ export async function POST(req: NextRequest) {
     const { data: activeProjects } = await supabase.from("projects").select("name, description").eq("status", "active");
     const projectListText = (activeProjects ?? []).map((p: any) => `- ${p.name}${p.description ? `: ${p.description}` : ""}`).join("\n");
 
+    // 중복 업무 감지용 — 아직 안 끝난 업무 제목 목록 (프로젝트별)
+    const { data: openTasks } = await supabase.from("tasks")
+      .select("title, project:projects(name)").not("status", "eq", "done").limit(300);
+    const openTaskListText = (openTasks ?? []).map((t: any) => `- [${t.project?.name ?? "미지정"}] ${t.title}`).join("\n");
+
     const hasBoth = !!(text?.trim() && audioText?.trim());
     const hasAudio = !!audioText?.trim();
     const hasText = !!text?.trim();
@@ -40,6 +45,7 @@ export async function POST(req: NextRequest) {
     }
 
     prompt += `현재 활성 프로젝트 목록:\n${projectListText || "(없음)"}\n\n`;
+    prompt += `현재 진행 중인(미완료) 업무 목록 — 중복 등록 방지용:\n${openTaskListText || "(없음)"}\n\n`;
 
     prompt += `분석 지시사항:\n`;
     if (hasBoth) {
@@ -49,7 +55,8 @@ export async function POST(req: NextRequest) {
     prompt += `- 구체적인 업무 항목을 추출하고 담당자, 마감일, 우선순위를 파악하세요.\n`;
     prompt += `- 결정사항과 이슈를 명확히 구분하세요.\n`;
     prompt += `- 참석자 이름이 언급되면 담당자로 연결하세요.\n`;
-    prompt += `- **각 업무마다 위 프로젝트 목록 중 어느 프로젝트에 속하는지 판단해서 project_name에 정확히 그 이름을 넣으세요.** 회의 중 언급된 맥락(장비명, 작업 내용, 프로젝트 설명과의 연관성)으로 판단하세요. 여러 프로젝트에 걸쳐있거나 확신이 안 서면 억지로 끼워맞추지 말고 null로 두세요 — 틀린 프로젝트에 넣는 것보다 미지정이 낫습니다.\n\n`;
+    prompt += `- **각 업무마다 위 프로젝트 목록 중 어느 프로젝트에 속하는지 판단해서 project_name에 정확히 그 이름을 넣으세요.** 회의 중 언급된 맥락(장비명, 작업 내용, 프로젝트 설명과의 연관성)으로 판단하세요. 여러 프로젝트에 걸쳐있거나 확신이 안 서면 억지로 끼워맞추지 말고 null로 두세요 — 틀린 프로젝트에 넣는 것보다 미지정이 낫습니다.\n`;
+    prompt += `- **위 "진행 중인 업무 목록"에 내용이 겹치는 게 있으면(예: 같은 부품/작업을 계속 언급) 새 업무로 만들지 말고 possible_duplicate_of에 그 기존 업무명을 그대로 적으세요.** 확신 없으면 null로 두세요.\n\n`;
 
     // 회의록을 올린 사람의 톤/소통 스타일 반영 (summary 문장 스타일에 반영)
     try {
@@ -86,6 +93,7 @@ export async function POST(req: NextRequest) {
       "due_date": "YYYY-MM-DD 또는 null",
       "assignee_name": "담당자 이름 또는 null",
       "project_name": "위 프로젝트 목록에 있는 이름 정확히 그대로, 확신 없으면 null",
+      "possible_duplicate_of": "겹치는 기존 업무명 정확히 그대로, 없으면 null",
       "is_blocked": false,
       "blocked_reason": null
     }

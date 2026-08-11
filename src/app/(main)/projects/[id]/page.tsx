@@ -94,7 +94,7 @@ function MilestoneStatusBadge({ milestone, canManage, onUpdate }: any) {
   );
 }
 
-type Tab = "overview" | "tasks" | "members";
+type Tab = "overview" | "tasks" | "members" | "decisions";
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -180,6 +180,7 @@ export default function ProjectDetailPage() {
   const TABS: { id: Tab; label: string }[] = [
     { id: "overview", label: "개요" },
     { id: "tasks",    label: `업무 (${total})` },
+    { id: "decisions", label: "📋 회의 결정사항" },
     ...(canManage ? [{ id: "members" as Tab, label: "팀" }] : []),
   ];
 
@@ -477,6 +478,9 @@ export default function ProjectDetailPage() {
         </div>
       )}
 
+      {/* 회의 결정사항 탭 (4번) */}
+      {tab === "decisions" && <ProjectDecisions projectId={id} />}
+
       {/* 팀 탭 */}
       {tab === "members" && (
         <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 20 }}>
@@ -597,6 +601,49 @@ function ProjectToneModal({ projectId, onClose }: { projectId: string; onClose: 
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── 이 프로젝트와 연결된 회의들의 결정사항 모음 (4번 기능) ──
+function ProjectDecisions({ projectId }: { projectId: string }) {
+  const supabase = createClient();
+  const [meetings, setMeetings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.from("meeting_drafts")
+      .select("id, group_title, created_at, result")
+      .eq("project_id", projectId)
+      .not("result", "is", null)
+      .order("created_at", { ascending: false })
+      .then(({ data }: any) => {
+        setMeetings((data ?? []).filter((m: any) => (m.result?.decisions ?? []).length > 0));
+        setLoading(false);
+      });
+  }, [projectId]);
+
+  if (loading) return <p style={{ fontSize: 13, color: "var(--text-3)" }}>불러오는 중…</p>;
+  if (meetings.length === 0) return (
+    <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 24, textAlign: "center" }}>
+      <p style={{ fontSize: 12, color: "var(--text-3)" }}>이 프로젝트로 지정된 회의에서 나온 결정사항이 아직 없어요</p>
+    </div>
+  );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {meetings.map(m => (
+        <div key={m.id} style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
+          <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-1)", marginBottom: 8 }}>
+            🗓 {m.group_title || m.result?.title || "회의"} · {new Date(m.created_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
+          </p>
+          <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 }}>
+            {(m.result?.decisions ?? []).map((d: string, i: number) => (
+              <li key={i} style={{ fontSize: 12, color: "var(--text-2)" }}>{d}</li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </div>
   );
 }
