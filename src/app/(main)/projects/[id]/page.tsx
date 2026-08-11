@@ -114,6 +114,7 @@ export default function ProjectDetailPage() {
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [projectMembers, setProjectMembers] = useState<{ name: string; role: string }[]>([]);
   const [openMilestoneChat, setOpenMilestoneChat] = useState(false);
+  const [openToneSetting, setOpenToneSetting] = useState(false);
 
   const load = useCallback(async () => {
     const { data: p } = await supabase.from("projects")
@@ -217,6 +218,10 @@ export default function ProjectDetailPage() {
             {project.description && <p style={{ fontSize: 13, color: "var(--text-2)", margin: 0 }}>{project.description}</p>}
           </div>
           <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+            <button onClick={() => setOpenToneSetting(true)}
+              style={{ padding: "7px 14px", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12, color: "var(--text-2)", cursor: "pointer" }}>
+              🎯 내 AI 톤
+            </button>
             {canManage && (
               <button onClick={() => setOpenEdit(true)}
                 style={{ padding: "7px 14px", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12, color: "var(--text-2)", cursor: "pointer" }}>
@@ -494,6 +499,8 @@ export default function ProjectDetailPage() {
         />
       )}
 
+      {openToneSetting && <ProjectToneModal projectId={id} onClose={() => setOpenToneSetting(false)} />}
+
       {openMilestone && (
         <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.3)" }}
           onClick={() => { setOpenMilestone(false); load(); }}>
@@ -510,6 +517,86 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── 이 프로젝트에서만 다르게 적용할 내 AI 톤 (4번 기능) ──
+function ProjectToneModal({ projectId, onClose }: { projectId: string; onClose: () => void }) {
+  const supabase = createClient();
+  const [myUserId, setMyUserId] = useState<string | null>(null);
+  const [globalTone, setGlobalTone] = useState<string | null>(null);
+  const [override, setOverride] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const u = await getAuthUser();
+      if (!u?.userId) return;
+      setMyUserId(u.userId);
+      const { data: prefs } = await supabase.from("user_preferences").select("ai_tone").eq("user_id", u.userId).maybeSingle();
+      setGlobalTone(prefs?.ai_tone ?? "concise");
+      const { data: proj } = await supabase.from("user_project_preferences").select("ai_tone").eq("user_id", u.userId).eq("project_id", projectId).maybeSingle();
+      setOverride(proj?.ai_tone ?? "");
+      setLoaded(true);
+    })();
+  }, [projectId]);
+
+  async function save() {
+    if (!myUserId) return;
+    setSaving(true);
+    if (override) {
+      await supabase.from("user_project_preferences").upsert({
+        user_id: myUserId, project_id: projectId, ai_tone: override, updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id,project_id" });
+    } else {
+      await supabase.from("user_project_preferences").delete().eq("user_id", myUserId).eq("project_id", projectId);
+    }
+    setSaving(false);
+    onClose();
+  }
+
+  const TONE_OPTIONS = [
+    { value: "", label: `기본값 사용 (${globalTone === "detailed" ? "자세히" : globalTone === "detailed_with_summary" ? "요약+자세히" : "간결히"})` },
+    { value: "concise", label: "간결히" },
+    { value: "detailed", label: "자세히" },
+    { value: "detailed_with_summary", label: "요약+자세히" },
+  ];
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.5)" }}
+      onClick={onClose}>
+      <div style={{ width: 340, background: "var(--bg-2)", border: "1px solid var(--border-2)", borderRadius: 14, padding: 20 }}
+        onClick={e => e.stopPropagation()}>
+        <h2 style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)", marginBottom: 4 }}>🎯 이 프로젝트에서 내 AI 톤</h2>
+        <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 14 }}>
+          이 프로젝트의 AI 피드백/마일스톤 인터뷰에서만 다르게 적용돼요. 다른 프로젝트는 그대로예요.
+        </p>
+        {!loaded ? (
+          <p style={{ fontSize: 12, color: "var(--text-3)" }}>불러오는 중…</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+            {TONE_OPTIONS.map(opt => (
+              <button key={opt.value} onClick={() => setOverride(opt.value)}
+                style={{
+                  textAlign: "left", padding: "10px 14px", borderRadius: 10, cursor: "pointer",
+                  background: override === opt.value ? "var(--cyan-bg)" : "var(--bg-3)",
+                  border: `1px solid ${override === opt.value ? "var(--cyan)" : "var(--border)"}`,
+                  color: override === opt.value ? "var(--cyan)" : "var(--text-1)", fontSize: 12,
+                }}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: "8px 0", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12, color: "var(--text-3)", cursor: "pointer" }}>취소</button>
+          <button onClick={save} disabled={saving} style={{ flex: 2, padding: "8px 0", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+            {saving ? "저장 중…" : "저장"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
