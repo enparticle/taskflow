@@ -256,6 +256,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
 function NotificationButton({ onTaskClick }: { onTaskClick: (id: string) => void }) {
   const supabase = createClient();
+  const router = useRouter();
   const [count, setCount] = useState(0);
   const [open, setOpen] = useState(false);
   const [notifs, setNotifs] = useState<any[]>([]);
@@ -268,6 +269,7 @@ function NotificationButton({ onTaskClick }: { onTaskClick: (id: string) => void
       if (!u) return;
       const { data } = await supabase.from("notifications")
         .select("*").eq("user_id", u.id).eq("is_read", false)
+        .or(`scheduled_for.is.null,scheduled_for.lte.${new Date().toISOString()}`)
         .order("created_at", { ascending: false }).limit(10);
       setNotifs(data ?? []);
       setCount((data ?? []).length);
@@ -279,6 +281,17 @@ function NotificationButton({ onTaskClick }: { onTaskClick: (id: string) => void
     await supabase.from("notifications").update({ is_read: true }).eq("id", id);
     setNotifs(prev => prev.filter(n => n.id !== id));
     setCount(c => Math.max(0, c - 1));
+  }
+
+  function handleNotifClick(n: any) {
+    if (n.task_id) {
+      onTaskClick(n.task_id);
+      setOpen(false);
+    } else if (n.link_url) {
+      router.push(n.link_url);
+      setOpen(false);
+    }
+    markRead(n.id);
   }
 
   return (
@@ -306,8 +319,8 @@ function NotificationButton({ onTaskClick }: { onTaskClick: (id: string) => void
                 onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = "var(--bg-3)"; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}>
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-                  <div style={{ flex: 1, cursor: n.task_id ? "pointer" : "default" }}
-                    onClick={() => { if (n.task_id) { onTaskClick(n.task_id); setOpen(false); } }}>
+                  <div style={{ flex: 1, cursor: (n.task_id || n.link_url) ? "pointer" : "default" }}
+                    onClick={() => handleNotifClick(n)}>
                     <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-1)", margin: 0 }}>{n.title}</p>
                     {n.body && <p style={{ fontSize: 11, color: "var(--text-3)", margin: "2px 0 0" }}>{n.body}</p>}
                   </div>
