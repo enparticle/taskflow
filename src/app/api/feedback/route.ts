@@ -135,11 +135,20 @@ export async function POST(req: NextRequest) {
         if (me) {
           const { data: prefs } = await supabase.from("user_preferences")
             .select("ai_tone, communication_profile").eq("user_id", me.id).maybeSingle();
-          if (prefs?.ai_tone === "detailed") {
+
+          // 프로젝트별 톤 오버라이드가 있으면 그걸 우선 사용
+          let effectiveTone = prefs?.ai_tone;
+          if (snapshot.project_id) {
+            const { data: projOverride } = await supabase.from("user_project_preferences")
+              .select("ai_tone").eq("user_id", me.id).eq("project_id", snapshot.project_id).maybeSingle();
+            if (projOverride?.ai_tone) effectiveTone = projOverride.ai_tone;
+          }
+
+          if (effectiveTone === "detailed") {
             prompt += "\n\n응답 톤: 이 사용자는 '자세히' 스타일을 선호합니다. summary와 각 item의 detail에 근거를 조금 더 구체적으로 풀어서 설명하세요.";
-          } else if (prefs?.ai_tone === "detailed_with_summary") {
+          } else if (effectiveTone === "detailed_with_summary") {
             prompt += "\n\n응답 톤: 이 사용자는 '자세히 + 요약' 스타일을 선호합니다. summary는 한 줄로 핵심만 짧게 유지하고(원래 역할 그대로), 대신 각 item의 detail은 근거를 구체적으로 풀어서 설명하세요 — summary가 요약 역할, item.detail이 자세한 설명 역할을 하게 하세요.";
-          } else if (prefs?.ai_tone === "concise") {
+          } else if (effectiveTone === "concise") {
             prompt += "\n\n응답 톤: 이 사용자는 '간결히' 스타일을 선호합니다. summary와 detail을 짧고 명확하게 작성하세요.";
           }
           if (prefs?.communication_profile) {

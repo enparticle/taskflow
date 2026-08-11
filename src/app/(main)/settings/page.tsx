@@ -182,6 +182,7 @@ const HOME_PRIORITY_OPTIONS = [
   { value: "today", label: "오늘 해야 할 일" },
   { value: "recent", label: "최근에 내가 남긴 기록" },
   { value: "summary", label: "주간 요약 (완료/진행중/Blocked)" },
+  { value: "calendar", label: "캘린더 미리보기 (이번주 일정)" },
 ];
 const CONSUMPTION_STYLE_OPTIONS = [
   { value: "monitor", title: "네, 자주 봐요" },
@@ -197,11 +198,62 @@ const ADVANCED_FEATURES = [
   { key: "report-export", emoji: "📄", label: "외부용 보고서", desc: "팀 외부 공유용 진행 보고서 작성", path: "/report-export" },
 ];
 
+// AI가 감지한 설정-실제행동 불일치 제안 (5번 기능)
+function PreferenceSuggestions({ myUserId, supabase, onApplied }: { myUserId: string; supabase: any; onApplied: () => void }) {
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+
+  const load = () => {
+    if (!myUserId) return;
+    supabase.from("preference_suggestions").select("*").eq("user_id", myUserId).eq("status", "pending")
+      .then(({ data }: any) => setSuggestions(data ?? []));
+  };
+  useEffect(() => { load(); }, [myUserId]);
+
+  const FIELD_LABEL: Record<string, string> = { ai_tone: "AI 응답 톤" };
+  const VALUE_LABEL: Record<string, string> = { concise: "간결히", detailed: "자세히", detailed_with_summary: "요약+자세히" };
+
+  async function respond(s: any, accept: boolean) {
+    if (accept) {
+      await supabase.from("user_preferences").update({ [s.field]: s.suggested_value }).eq("user_id", myUserId);
+      onApplied();
+    }
+    await supabase.from("preference_suggestions").update({ status: accept ? "accepted" : "dismissed" }).eq("id", s.id);
+    load();
+  }
+
+  if (suggestions.length === 0) return null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {suggestions.map(s => (
+        <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 12, padding: "12px 16px" }}>
+          <span style={{ fontSize: 18 }}>💡</span>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 12, color: "#92400E", margin: 0, fontWeight: 600 }}>
+              {FIELD_LABEL[s.field] ?? s.field}을(를) "{VALUE_LABEL[s.suggested_value] ?? s.suggested_value}"로 바꿔볼까요?
+            </p>
+            <p style={{ fontSize: 11, color: "#B45309", margin: "2px 0 0" }}>{s.reason}</p>
+          </div>
+          <button onClick={() => respond(s, true)}
+            style={{ fontSize: 11, padding: "5px 12px", background: "#16A34A", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", flexShrink: 0 }}>
+            바꾸기
+          </button>
+          <button onClick={() => respond(s, false)}
+            style={{ fontSize: 11, padding: "5px 12px", background: "transparent", color: "#92400E", border: "1px solid #FCD34D", borderRadius: 6, cursor: "pointer", flexShrink: 0 }}>
+            괜찮아요
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
   const [inputStyle, setInputStyle] = useState("log");
   const [homePriority, setHomePriority] = useState("today");
   const [consumptionStyle, setConsumptionStyle] = useState("unsure");
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
+  const [mirrorCasualTone, setMirrorCasualTone] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -215,6 +267,7 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
         setHomePriority(data.home_priority?.[0] ?? "today");
         setConsumptionStyle(data.consumption_style ?? "unsure");
         setEnabledFeatures(data.enabled_features ?? []);
+        setMirrorCasualTone(!!data.mirror_casual_tone);
       }
       setLoaded(true);
     });
@@ -235,6 +288,7 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
       home_priority: priorityOrder,
       consumption_style: consumptionStyle,
       enabled_features: enabledFeatures,
+      mirror_casual_tone: mirrorCasualTone,
       onboarding_completed: true,
       updated_at: new Date().toISOString(),
     }, { onConflict: "user_id" });
@@ -246,6 +300,8 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <PreferenceSuggestions myUserId={myUserId} supabase={supabase} onApplied={loadPrefs} />
+
       <button onClick={() => setShowChat(true)}
         style={{
           display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderRadius: 12, cursor: "pointer", textAlign: "left",
@@ -323,6 +379,18 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
             </button>
           ))}
         </div>
+      </div>
+
+      <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius, 12px)", padding: 18, boxShadow: "var(--shadow, none)" }}>
+        <h2 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", marginBottom: 4 }}>AI가 내 말투를 따라해도 될까요?</h2>
+        <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 12 }}>
+          말투 학습(communication_profile)은 항상 켜져 있지만, 켜두면 AI가 캐주얼한 표현("ㅋㅋ" 등)까지 따라해요. 기본은 꺼짐 — AI는 항상 정중하게 답해요.
+        </p>
+        <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+          <input type="checkbox" checked={mirrorCasualTone} onChange={e => setMirrorCasualTone(e.target.checked)}
+            style={{ width: 16, height: 16, accentColor: "var(--cyan)", cursor: "pointer" }} />
+          <span style={{ fontSize: 12, color: "var(--text-1)" }}>AI가 제 캐주얼한 말투도 따라하게 해주세요</span>
+        </label>
       </div>
 
       <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius, 12px)", padding: 18, boxShadow: "var(--shadow, none)" }}>
@@ -733,7 +801,7 @@ function AccountTab({
 
 // ── 팀 현황 탭 (구 TeamPage + 서브탭으로 구 AdminMembersPage) ──────
 function TeamTab({ isAdmin, myUserId, supabase }: { isAdmin: boolean; myUserId: string; supabase: any }) {
-  const [teamSubTab, setTeamSubTab] = useState<"overview" | "profiles" | "ai_learning" | "pending_changes">("overview");
+  const [teamSubTab, setTeamSubTab] = useState<"overview" | "profiles" | "ai_learning" | "pending_changes" | "persona_map">("overview");
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
@@ -746,9 +814,10 @@ function TeamTab({ isAdmin, myUserId, supabase }: { isAdmin: boolean; myUserId: 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {isAdmin && (
-        <div style={{ display: "flex", gap: 2, padding: 3, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 10, width: "fit-content" }}>
+        <div style={{ display: "flex", gap: 2, padding: 3, background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 10, width: "fit-content", flexWrap: "wrap" }}>
           {[
             { v: "overview", l: "현황" },
+            { v: "persona_map", l: "🧭 팀 성향 지도" },
             { v: "profiles", l: "🧠 팀원 프로필 관리" },
             { v: "pending_changes", l: `⏳ 변경 승인${pendingCount > 0 ? ` (${pendingCount})` : ""}` },
             { v: "ai_learning", l: "🤖 AI 학습 데이터" },
@@ -762,6 +831,8 @@ function TeamTab({ isAdmin, myUserId, supabase }: { isAdmin: boolean; myUserId: 
       )}
       {(!isAdmin || teamSubTab === "overview") ? (
         <TeamOverview isAdmin={isAdmin} supabase={supabase} />
+      ) : teamSubTab === "persona_map" ? (
+        <PersonaMap supabase={supabase} />
       ) : teamSubTab === "profiles" ? (
         <MemberProfiles myUserId={myUserId} supabase={supabase} />
       ) : teamSubTab === "pending_changes" ? (
@@ -769,6 +840,57 @@ function TeamTab({ isAdmin, myUserId, supabase }: { isAdmin: boolean; myUserId: 
       ) : (
         <AILearningData supabase={supabase} />
       )}
+    </div>
+  );
+}
+
+// ── 팀 성향 지도 (Admin 전용) — 팀 전체의 개인화 설정을 한눈에 ──
+function PersonaMap({ supabase }: { supabase: any }) {
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.from("user_preferences")
+      .select("*, user:users(name, role)")
+      .then(({ data }: any) => { setRows(data ?? []); setLoading(false); });
+  }, []);
+
+  const INPUT_LABEL: Record<string, string> = { plan: "📋 계획형", log: "📝 기록형", click: "🖱 클릭형" };
+  const TONE_LABEL: Record<string, string> = { concise: "간결", detailed: "자세히", detailed_with_summary: "요약+자세히" };
+  const CONSUME_LABEL: Record<string, string> = { monitor: "자주 확인", summary: "가끔만", unsure: "모름" };
+
+  if (loading) return <p style={{ fontSize: 13, color: "var(--text-3)" }}>불러오는 중…</p>;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <p style={{ fontSize: 11, color: "var(--text-3)" }}>팀원별로 설정한 스타일을 한눈에 볼 수 있어요.</p>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid var(--border)" }}>
+              {["이름", "기록스타일", "소비성향", "AI톤", "말투학습", "고급기능"].map(h => (
+                <th key={h} style={{ textAlign: "left", padding: "8px 10px", color: "var(--text-3)", fontWeight: 600, whiteSpace: "nowrap" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.user_id} style={{ borderBottom: "1px solid var(--border)" }}>
+                <td style={{ padding: "10px", fontWeight: 600, color: "var(--text-1)" }}>{r.user?.name}</td>
+                <td style={{ padding: "10px", color: "var(--text-2)" }}>{INPUT_LABEL[r.input_style] ?? r.input_style ?? "-"}</td>
+                <td style={{ padding: "10px", color: "var(--text-2)" }}>{CONSUME_LABEL[r.consumption_style] ?? "-"}</td>
+                <td style={{ padding: "10px", color: "var(--text-2)" }}>{TONE_LABEL[r.ai_tone] ?? "-"}</td>
+                <td style={{ padding: "10px", maxWidth: 260 }}>
+                  {r.communication_profile
+                    ? <span style={{ color: "var(--text-3)", fontSize: 11 }}>{r.communication_profile}</span>
+                    : <span style={{ color: "var(--text-3)", fontSize: 11, fontStyle: "italic" }}>미학습</span>}
+                </td>
+                <td style={{ padding: "10px", color: "var(--text-3)", fontSize: 11 }}>{(r.enabled_features ?? []).length}개</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

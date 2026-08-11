@@ -31,9 +31,12 @@ export async function POST(req: NextRequest) {
         const { data: me } = await supabase.from("users").select("id").eq("auth_id", authUser.id).single();
         if (me) {
           const { data: prefs } = await supabase.from("user_preferences")
-            .select("communication_profile").eq("user_id", me.id).maybeSingle();
+            .select("communication_profile, mirror_casual_tone").eq("user_id", me.id).maybeSingle();
           if (prefs?.communication_profile) {
-            profileBlock = `\n이 사용자의 소통 스타일(참고용, 톤을 맞추는 데만 쓰고 내용 판단에는 영향 주지 마세요): ${prefs.communication_profile}\n`;
+            profileBlock = `\n이 사용자의 소통 스타일(참고용, 톤을 맞추는 데만 쓰고 내용 판단에는 영향 주지 마세요): ${prefs.communication_profile}\n` +
+              (prefs.mirror_casual_tone
+                ? "이 사용자는 AI가 자기 캐주얼한 말투(반말, 이모지 등)까지 따라해도 괜찮다고 했습니다.\n"
+                : "단, 사용자가 아무리 캐주얼하게 말해도 AI는 항상 정중한 존댓말을 유지하세요 — 편한 정도(문장 길이 등)만 참고하고 반말/은어는 따라하지 마세요.\n");
           }
 
           const { data: history } = await supabase.from("ai_suggestions")
@@ -95,6 +98,60 @@ ${aiTone === "detailed" ? "\n응답 톤: 사용자가 '자세히' 스타일을 �
       parsed = JSON.parse(cleaned);
     } catch {
       parsed = { reply: "기록은 남겼지만, 제안을 만드는 데 실패했어요.", suggestions: [] };
+    }
+
+    // 2. 소통 프로필 자동 갱신 + 5. 설정-실제행동 불일치 감지 (비용 절약을 위해 5건마다 한 번만)
+    try {
+      const { data: { user: authUser2 } } = await supabase.auth.getUser();
+      if (authUser2) {
+        const { data: me2 } = await supabase.from("users").select("id").eq("auth_id", authUser2.id).single();
+        if (me2) {
+          const { data: recentTexts } = await supabase.from("ai_suggestions")
+            .select("source_text").eq("user_id", me2.id).eq("source", "daily_log")
+            .order("created_at", { ascending: false }).limit(10);
+          const texts = (recentTexts ?? []).map((r: any) => r.source_text).filter(Boolean);
+
+          if (texts.length > 0 && texts.length % 5 === 0) {
+            const { data: myPrefs } = await supabase.from("user_preferences")
+              .select("ai_tone, communication_profile").eq("user_id", me2.id).maybeSingle();
+
+            // 프로필 갱신
+            const profileMsg = await client.messages.create({
+              model: "claude-haiku-4-5-20251001",
+              max_tokens: 150,
+              messages: [{
+                role: "user",
+                content: `아래는 한 사용자가 최근에 남긴 업무 기록 문장들입니다:\n${texts.map((t: string) => `- "${t}"`).join("\n")}\n\n이 사람의 소통 스타일(문장 길이, 격식/캐주얼, 이모지 사용 여부, 결정 속도)을 1~2문장으로 요약하세요. 요약 문장만 출력하세요.`,
+              }],
+            });
+            const newProfile = profileMsg.content[0].type === "text" ? profileMsg.content[0].text.trim() : null;
+            if (newProfile) {
+              await supabase.from("user_preferences").update({ communication_profile: newProfile }).eq("user_id", me2.id);
+            }
+
+            // 불일치 감지: concise인데 평균 문장이 너무 길거나, detailed인데 너무 짧으면 제안 생성
+            const avgLen = texts.reduce((s: number, t: string) => s + t.length, 0) / texts.length;
+            const declaredTone = myPrefs?.ai_tone ?? "concise";
+            let suggestedTone: string | null = null;
+            if (declaredTone === "concise" && avgLen > 80) suggestedTone = "detailed";
+            else if ((declaredTone === "detailed" || declaredTone === "detailed_with_summary") && avgLen < 20) suggestedTone = "concise";
+
+            if (suggestedTone) {
+              const { data: existingSug } = await supabase.from("preference_suggestions")
+                .select("id").eq("user_id", me2.id).eq("field", "ai_tone").eq("status", "pending").maybeSingle();
+              if (!existingSug) {
+                await supabase.from("preference_suggestions").insert({
+                  user_id: me2.id, field: "ai_tone",
+                  current_value: declaredTone, suggested_value: suggestedTone,
+                  reason: `최근 기록 문장 길이 평균 ${Math.round(avgLen)}자 — 설정한 톤이랑 실제 패턴이 달라 보여요`,
+                });
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      // 부가 기능 실패해도 메인 응답에는 영향 없음
     }
 
     return NextResponse.json({
