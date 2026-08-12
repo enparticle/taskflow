@@ -13,7 +13,7 @@ const MILESTONE_TEMPLATES: Record<string, { categories: string[]; note?: string 
   "enCELL-Master 관리 및 개발": {
     categories: ["제작/조립", "품질/소음 검증", "인증/서류", "재고 관리", "고객/AS 대응", "외주 협업"],
   },
-  "압력-유량 예측 시스템": {
+  "ChipFlow": {
     categories: ["데이터/전처리", "물리 모델 개발", "보정/ML 모델 개발", "검증/평가", "서비스화", "UI/문서화 + 확장"],
   },
   "연속생산설비구축": {
@@ -121,6 +121,38 @@ export async function POST(req: NextRequest) {
     const { data: existingMs } = await supabase.from("milestones")
       .select("title, status, due_date").eq("project_id", projectId).neq("status", "cancelled").order("sort_order");
     let systemPrompt = buildSystemPrompt(projectName, members ?? [], projectRow?.description, existingMs ?? []);
+
+    // 이 대화를 진행하는 사람의 톤/소통 스타일 반영 (기본 설정 + 프로젝트별 오버라이드 우선)
+    try {
+      const { data: { user: authUser0 } } = await supabase.auth.getUser();
+      if (authUser0) {
+        const { data: me0 } = await supabase.from("users").select("id").eq("auth_id", authUser0.id).single();
+        if (me0) {
+          const { data: prefs0 } = await supabase.from("user_preferences")
+            .select("ai_tone, communication_profile, mirror_casual_tone").eq("user_id", me0.id).maybeSingle();
+          let effectiveTone = prefs0?.ai_tone;
+          const { data: override0 } = await supabase.from("user_project_preferences")
+            .select("ai_tone").eq("user_id", me0.id).eq("project_id", projectId).maybeSingle();
+          if (override0?.ai_tone) effectiveTone = override0.ai_tone;
+
+          if (effectiveTone === "detailed") {
+            systemPrompt += "\n\n응답 톤: 이 사용자는 '자세히' 스타일을 선호합니다. 설명할 때 근거를 조금 더 구체적으로 풀어서 말하세요.";
+          } else if (effectiveTone === "detailed_with_summary") {
+            systemPrompt += "\n\n응답 톤: 이 사용자는 '자세히 + 요약' 스타일을 선호합니다. 긴 설명은 먼저 한 줄 요약 후 자세한 설명을 이어가세요.";
+          } else if (effectiveTone === "concise") {
+            systemPrompt += "\n\n응답 톤: 이 사용자는 '간결히' 스타일을 선호합니다. 짧고 명확하게 진행하세요.";
+          }
+          if (prefs0?.communication_profile) {
+            systemPrompt += `\n이 사용자의 소통 스타일(참고용): ${prefs0.communication_profile}`;
+            systemPrompt += prefs0.mirror_casual_tone
+              ? "\n이 사용자의 캐주얼한 말투는 따라해도 됩니다."
+              : "\n단, 항상 정중한 존댓말을 유지하세요 — 캐주얼함은 문장 길이 정도만 참고하세요.";
+          }
+        }
+      }
+    } catch {
+      // 톤 조회 실패해도 기본 동작은 계속
+    }
 
     // 이 대화로 위임했던 질문 중 새로 답변된 게 있으면 참고자료로 추가
     if (chatId) {
