@@ -21,6 +21,21 @@ export async function POST(req: NextRequest) {
       .select("title, project:projects(name)").not("status", "eq", "done").limit(300);
     const openTaskListText = (openTasks ?? []).map((t: any) => `- [${t.project?.name ?? "미지정"}] ${t.title}`).join("\n");
 
+    // 마감일 자동 제안용 — 유형별 평균 소요일수(생성일→완료일)
+    const { data: doneTasksForTiming } = await supabase.from("tasks")
+      .select("task_type, created_at, updated_at").eq("status", "done").not("task_type", "is", null).limit(500);
+    const typeDays: Record<string, number[]> = {};
+    (doneTasksForTiming ?? []).forEach((t: any) => {
+      const days = (new Date(t.updated_at).getTime() - new Date(t.created_at).getTime()) / 86400000;
+      if (days > 0 && days < 180) {
+        (typeDays[t.task_type] ??= []).push(days);
+      }
+    });
+    const avgDaysByType = Object.fromEntries(
+      Object.entries(typeDays).map(([type, arr]) => [type, Math.round(arr.reduce((a, b) => a + b, 0) / arr.length)])
+    );
+    const avgDaysText = Object.entries(avgDaysByType).map(([type, days]) => `- ${type}: 평균 ${days}일`).join("\n");
+
     const hasBoth = !!(text?.trim() && audioText?.trim());
     const hasAudio = !!audioText?.trim();
     const hasText = !!text?.trim();
@@ -46,6 +61,7 @@ export async function POST(req: NextRequest) {
 
     prompt += `현재 활성 프로젝트 목록:\n${projectListText || "(없음)"}\n\n`;
     prompt += `현재 진행 중인(미완료) 업무 목록 — 중복 등록 방지용:\n${openTaskListText || "(없음)"}\n\n`;
+    prompt += `과거 유형별 평균 완료 소요일수 — 마감일 추정 참고용:\n${avgDaysText || "(데이터 없음)"}\n\n`;
 
     prompt += `분석 지시사항:\n`;
     if (hasBoth) {
@@ -56,7 +72,9 @@ export async function POST(req: NextRequest) {
     prompt += `- 결정사항과 이슈를 명확히 구분하세요.\n`;
     prompt += `- 참석자 이름이 언급되면 담당자로 연결하세요.\n`;
     prompt += `- **각 업무마다 위 프로젝트 목록 중 어느 프로젝트에 속하는지 판단해서 project_name에 정확히 그 이름을 넣으세요.** 회의 중 언급된 맥락(장비명, 작업 내용, 프로젝트 설명과의 연관성)으로 판단하세요. 여러 프로젝트에 걸쳐있거나 확신이 안 서면 억지로 끼워맞추지 말고 null로 두세요 — 틀린 프로젝트에 넣는 것보다 미지정이 낫습니다.\n`;
-    prompt += `- **위 "진행 중인 업무 목록"에 내용이 겹치는 게 있으면(예: 같은 부품/작업을 계속 언급) 새 업무로 만들지 말고 possible_duplicate_of에 그 기존 업무명을 그대로 적으세요.** 확신 없으면 null로 두세요.\n\n`;
+    prompt += `- **위 "진행 중인 업무 목록"에 내용이 겹치는 게 있으면(예: 같은 부품/작업을 계속 언급) 새 업무로 만들지 말고 possible_duplicate_of에 그 기존 업무명을 그대로 적으세요.** 확신 없으면 null로 두세요.\n`;
+    prompt += `- 회의 중 마감일이 명시적으로 언급되지 않은 업무는, 위 "과거 유형별 평균 완료 소요일수"를 참고해서 오늘(${new Date().toLocaleDateString("ko-KR")})로부터 대략적인 날짜를 due_date에 채우고 due_date_is_estimated를 true로 표시하세요. 추정할 근거(해당 유형 데이터)가 없으면 null로 두고 due_date_is_estimated는 false로 하세요.\n`;
+    prompt += `- **참석자별로 주로 어떤 주제를 이야기했는지도 파악해서 participant_summary에 담으세요.** 발언 비중이 뚜렷하지 않은 참석자는 생략해도 됩니다.\n\n`;
 
     // 회의록을 올린 사람의 톤/소통 스타일 반영 (summary 문장 스타일에 반영)
     try {
@@ -84,6 +102,7 @@ export async function POST(req: NextRequest) {
     prompt += `{
   "summary": "회의 전체 요약 2-3문장",
   "participants": ["참석자1", "참석자2"],
+  "participant_summary": { "참석자1 이름": "이 사람이 주로 이야기한 주제 한 줄", "참석자2 이름": "..." },
   "decisions": ["결정사항1", "결정사항2"],
   "tasks": [
     {
@@ -91,6 +110,7 @@ export async function POST(req: NextRequest) {
       "task_type": "planning|development|design|qa|operation|documentation|meeting|research|customer|other",
       "priority": "urgent|high|medium|low",
       "due_date": "YYYY-MM-DD 또는 null",
+      "due_date_is_estimated": false,
       "assignee_name": "담당자 이름 또는 null",
       "project_name": "위 프로젝트 목록에 있는 이름 정확히 그대로, 확신 없으면 null",
       "possible_duplicate_of": "겹치는 기존 업무명 정확히 그대로, 없으면 null",

@@ -25,6 +25,66 @@ const FS = {
 const PC: Record<string, string> = { urgent: "#DC2626", high: "#D97706", medium: "#2563EB", low: "#A8A8A4" };
 const PL: Record<string, string> = { urgent: "긴급", high: "높음", medium: "보통", low: "낮음" };
 
+// ── 회의 시작 전, Blocked·마감임박 업무를 모아 아젠다 초안 생성 (1번 기능) ──
+function AgendaGenerator({ supabase, projects, selectedProject }: { supabase: any; projects: any[]; selectedProject: string }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [agenda, setAgenda] = useState<{ blocked: any[]; dueSoon: any[] } | null>(null);
+
+  async function generate() {
+    setLoading(true);
+    setOpen(true);
+    let q1 = supabase.from("tasks").select("title, blocked_reason, project:projects(name)").eq("status", "blocked");
+    let q2 = supabase.from("tasks").select("title, due_date, project:projects(name)")
+      .not("due_date", "is", null).not("status", "eq", "done")
+      .lte("due_date", new Date(Date.now() + 7 * 86400000).toISOString());
+    if (selectedProject) { q1 = q1.eq("project_id", selectedProject); q2 = q2.eq("project_id", selectedProject); }
+    const [{ data: blocked }, { data: dueSoon }] = await Promise.all([q1.limit(10), q2.order("due_date").limit(10)]);
+    setAgenda({ blocked: blocked ?? [], dueSoon: dueSoon ?? [] });
+    setLoading(false);
+  }
+
+  if (!open) {
+    return (
+      <button onClick={generate}
+        style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", background: "var(--bg-3)", border: "1px dashed var(--border-2)", borderRadius: 10, fontSize: 12, color: "var(--text-2)", cursor: "pointer", width: "100%", textAlign: "left" }}>
+        📋 이번 회의 아젠다 초안 만들기 {selectedProject ? "(선택한 프로젝트 기준)" : "(전체 기준)"}
+      </button>
+    );
+  }
+
+  return (
+    <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-1)", margin: 0 }}>📋 아젠다 초안</p>
+        <button onClick={() => setOpen(false)} style={{ fontSize: 12, color: "var(--text-3)", background: "transparent", border: "none", cursor: "pointer" }}>접기</button>
+      </div>
+      {loading ? (
+        <p style={{ fontSize: 12, color: "var(--text-3)" }}>불러오는 중…</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 600, color: "#DC2626", marginBottom: 4 }}>⊘ Blocked 업무 ({agenda?.blocked.length ?? 0})</p>
+            {(agenda?.blocked.length ?? 0) === 0 ? (
+              <p style={{ fontSize: 11, color: "var(--text-3)" }}>없음</p>
+            ) : agenda!.blocked.map((t, i) => (
+              <p key={i} style={{ fontSize: 12, color: "var(--text-2)", margin: "2px 0" }}>· [{t.project?.name ?? "-"}] {t.title}{t.blocked_reason ? ` — ${t.blocked_reason}` : ""}</p>
+            ))}
+          </div>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 600, color: "#D97706", marginBottom: 4 }}>◷ 7일 내 마감 ({agenda?.dueSoon.length ?? 0})</p>
+            {(agenda?.dueSoon.length ?? 0) === 0 ? (
+              <p style={{ fontSize: 11, color: "var(--text-3)" }}>없음</p>
+            ) : agenda!.dueSoon.map((t, i) => (
+              <p key={i} style={{ fontSize: 12, color: "var(--text-2)", margin: "2px 0" }}>· [{t.project?.name ?? "-"}] {t.title} ({new Date(t.due_date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })})</p>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MeetingNotePage() {
   const supabase = createClient();
   const router = useRouter();
@@ -63,6 +123,7 @@ export default function MeetingNotePage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
+  const [historySearch, setHistorySearch] = useState("");
   const [historyLoading, setHistoryLoading] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -496,6 +557,15 @@ export default function MeetingNotePage() {
         {result.participants?.length > 0 && (
           <p style={{ fontSize: 11, color: "var(--text-3)", marginTop: 8, marginBottom: 0 }}>참석자: {result.participants.join(", ")}</p>
         )}
+        {result.participant_summary && Object.keys(result.participant_summary).length > 0 && (
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #DDD6FE" }}>
+            {Object.entries(result.participant_summary).map(([name, topic]: [string, any]) => (
+              <p key={name} style={{ fontSize: 11, color: "var(--text-3)", margin: "2px 0" }}>
+                <b style={{ color: "#7C3AED" }}>{name}</b>: {topic}
+              </p>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 결정사항 */}
@@ -549,7 +619,12 @@ export default function MeetingNotePage() {
                 )}
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                   {task.assignee_name && <span style={{ fontSize: 11, color: "var(--text-3)" }}>담당: {task.assignee_name}</span>}
-                  {task.due_date && <span style={{ fontSize: 11, color: "var(--text-3)" }}>마감: {task.due_date}</span>}
+                  {task.due_date && (
+                    <span style={{ fontSize: 11, color: "var(--text-3)" }}>
+                      마감: {task.due_date}
+                      {task.due_date_is_estimated && <span style={{ color: "var(--cyan)" }}> (AI 추정치)</span>}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -591,6 +666,23 @@ export default function MeetingNotePage() {
           </button>
         </div>
       </div>
+
+      {/* 회의 생산성 트렌드 (4번) */}
+      {history.length >= 3 && (() => {
+        const recent = history.slice(0, 5);
+        const totalDecisions = recent.reduce((s, h) => s + (h.result?.decisions?.length ?? 0), 0);
+        const totalTasks = recent.reduce((s, h) => s + (h.result?.tasks?.length ?? 0), 0);
+        const emptyMeetings = recent.filter(h => (h.result?.decisions?.length ?? 0) === 0 && (h.result?.tasks?.length ?? 0) === 0).length;
+        return (
+          <div style={{ display: "flex", gap: 16, fontSize: 11, color: "var(--text-3)", padding: "0 4px" }}>
+            <span>📊 최근 {recent.length}회: 결정사항 평균 {(totalDecisions / recent.length).toFixed(1)}건, 업무 평균 {(totalTasks / recent.length).toFixed(1)}건</span>
+            {emptyMeetings > 0 && <span style={{ color: "#D97706" }}>⚠ {emptyMeetings}회는 결정사항·업무 없이 끝남</span>}
+          </div>
+        );
+      })()}
+
+      {/* 사전 아젠다 생성 (1번) */}
+      <AgendaGenerator supabase={supabase} projects={projects} selectedProject={selectedProject} />
 
       {/* 지난 회의 이어받기 (5번) */}
       {history.length > 0 && !title && (
@@ -847,17 +939,32 @@ export default function MeetingNotePage() {
           onClick={() => setView("main")}>
           <div style={{ width: "100%", maxWidth: 720, maxHeight: "80vh", background: "var(--bg-2)", borderRadius: "14px 14px 0 0", padding: 24, overflowY: "auto" }}
             onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-1)", margin: 0 }}>이전 기록</h2>
               <button onClick={() => setView("main")} style={{ fontSize: 18, color: "var(--text-3)", background: "transparent", border: "none", cursor: "pointer" }}>✕</button>
             </div>
+            <input value={historySearch} onChange={e => setHistorySearch(e.target.value)}
+              placeholder="🔍 회의명, 요약, 결정사항, 업무명으로 검색…"
+              style={{ width: "100%", marginBottom: 16, background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--text-1)", outline: "none" }} />
             {historyLoading ? (
               <p style={{ fontSize: 13, color: "var(--text-3)", textAlign: "center", padding: "24px 0" }}>불러오는 중…</p>
             ) : history.length === 0 ? (
               <p style={{ fontSize: 13, color: "var(--text-3)", textAlign: "center", padding: "24px 0" }}>저장된 기록이 없습니다</p>
-            ) : (
+            ) : (() => {
+              const q = historySearch.trim().toLowerCase();
+              const filteredHistory = !q ? history : history.filter(h => {
+                const haystack = [
+                  h.group_title, h.result?.title, h.result?.summary,
+                  ...(h.result?.decisions ?? []), ...(h.result?.tasks ?? []).map((t: any) => t.title),
+                ].filter(Boolean).join(" ").toLowerCase();
+                return haystack.includes(q);
+              });
+              if (filteredHistory.length === 0) {
+                return <p style={{ fontSize: 13, color: "var(--text-3)", textAlign: "center", padding: "24px 0" }}>"{historySearch}"에 대한 검색 결과가 없어요</p>;
+              }
+              return (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {history.map(h => {
+                {filteredHistory.map(h => {
                   const isMyRecord = h.user_id === myUser?.userId;
                   const hasResult = h.result && (h.result.summary || h.result.tasks?.length > 0);
                   return (
@@ -926,7 +1033,8 @@ export default function MeetingNotePage() {
                   );
                 })}
               </div>
-            )}
+              );
+            })()}
           </div>
         </div>
       )}
