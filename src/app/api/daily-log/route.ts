@@ -129,12 +129,43 @@ ${aiTone === "detailed" ? "\n응답 톤: 사용자가 '자세히' 스타일을 �
               const cleanProfile = rawProfile.replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
               const parsedProfile = JSON.parse(cleanProfile);
               if (parsedProfile.summary) {
-                await supabase.from("user_preferences").update({
-                  communication_profile: parsedProfile.summary,
-                  formality_level: parsedProfile.formality_level ?? undefined,
-                  message_length_pref: parsedProfile.message_length_pref ?? undefined,
-                  decision_speed: parsedProfile.decision_speed ?? undefined,
-                }).eq("user_id", me2.id);
+                const isNewMember = !myPrefs; // 6. 온보딩 자체를 안 거친 신규 팀원 — 관찰만으로 초기 설정
+                if (isNewMember) {
+                  const avgLenForTone = texts.reduce((s: number, t: string) => s + t.length, 0) / texts.length;
+                  await supabase.from("user_preferences").upsert({
+                    user_id: me2.id,
+                    input_style: "log", // 대화로 직접 안 물어봤으니 무난한 기본값
+                    home_priority: ["today", "recent", "summary"],
+                    consumption_style: "unsure",
+                    ai_tone: avgLenForTone > 80 ? "detailed" : "concise",
+                    communication_profile: parsedProfile.summary,
+                    formality_level: parsedProfile.formality_level ?? undefined,
+                    message_length_pref: parsedProfile.message_length_pref ?? undefined,
+                    decision_speed: parsedProfile.decision_speed ?? undefined,
+                    onboarding_completed: true,
+                    updated_at: new Date().toISOString(),
+                  }, { onConflict: "user_id" });
+                  await supabase.from("notifications").insert({
+                    user_id: me2.id, type: "mention",
+                    title: "나의 스타일이 자동으로 설정됐어요",
+                    body: "최근 사용 패턴을 보고 초기 설정을 잡아봤어요. 설정 화면에서 확인하고 다르면 언제든 바꿔주세요.",
+                    link_url: "/settings",
+                  });
+                } else {
+                  await supabase.from("user_preferences").update({
+                    communication_profile: parsedProfile.summary,
+                    formality_level: parsedProfile.formality_level ?? undefined,
+                    message_length_pref: parsedProfile.message_length_pref ?? undefined,
+                    decision_speed: parsedProfile.decision_speed ?? undefined,
+                  }).eq("user_id", me2.id);
+                }
+                // 4. 변화 히스토리 기록 (덮어쓰기 대신 누적)
+                await supabase.from("communication_profile_history").insert({
+                  user_id: me2.id, profile_text: parsedProfile.summary,
+                  formality_level: parsedProfile.formality_level ?? null,
+                  message_length_pref: parsedProfile.message_length_pref ?? null,
+                  decision_speed: parsedProfile.decision_speed ?? null,
+                });
               }
             } catch {
               // 구조화 파싱 실패하면 요약 문장만이라도 저장 시도
@@ -185,6 +216,26 @@ ${aiTone === "detailed" ? "\n응답 톤: 사용자가 '자세히' 스타일을 �
                 });
               }
             }
+
+            // 3. 행동 기반 코칭 — 최근 완료 업무 중 마감일 놓친 비율이 높으면 조언
+            const { data: recentDone } = await supabase.from("tasks")
+              .select("due_date, updated_at").eq("assignee_id", me2.id).eq("status", "done")
+              .not("due_date", "is", null).order("updated_at", { ascending: false }).limit(10);
+            if (recentDone && recentDone.length >= 5) {
+              const missedCount = recentDone.filter((t: any) => new Date(t.updated_at) > new Date(t.due_date)).length;
+              const missRate = missedCount / recentDone.length;
+              if (missRate >= 0.5) {
+                const { data: existingCoach } = await supabase.from("preference_suggestions")
+                  .select("id").eq("user_id", me2.id).eq("field", "deadline_coaching").eq("status", "pending").maybeSingle();
+                if (!existingCoach) {
+                  await supabase.from("preference_suggestions").insert({
+                    user_id: me2.id, field: "deadline_coaching",
+                    current_value: "as_is", suggested_value: "buffer",
+                    reason: `최근 완료한 업무 ${recentDone.length}건 중 ${missedCount}건이 마감일을 넘겨서 끝났어요 — 다음부턴 마감일을 조금 여유있게 잡아보는 게 어떨까요?`,
+                  });
+                }
+              }
+            }
           }
         }
       }
@@ -195,6 +246,7 @@ ${aiTone === "detailed" ? "\n응답 톤: 사용자가 '자세히' 스타일을 �
     return NextResponse.json({
       reply: parsed.reply ?? "",
       suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions : [],
+      appliedTone: aiTone ?? "concise", // 1. "왜 이렇게 답했는지" 표시용
     });
   } catch (err: any) {
     console.error("Daily log error:", err);

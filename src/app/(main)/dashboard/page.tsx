@@ -20,6 +20,61 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 // 주간 요약 (기존 유지)
+// 이번 주 캘린더 미리보기 위젯 (강승구님 피드백 반영)
+function CalendarPreview({ myUserId }: { myUserId: string }) {
+  const supabase = createClient();
+  const [events, setEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const now = new Date();
+      const start = new Date(now); start.setDate(now.getDate() - now.getDay());
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start); end.setDate(start.getDate() + 7);
+
+      const { data } = await supabase.from("calendar_events")
+        .select("id, title, start_date, type, color")
+        .or(`is_public.eq.true,user_id.eq.${myUserId}`)
+        .gte("start_date", start.toISOString())
+        .lt("start_date", end.toISOString())
+        .order("start_date");
+      setEvents(data ?? []);
+      setLoading(false);
+    })();
+  }, [myUserId]);
+
+  const TYPE_COLOR: Record<string, string> = { personal: "#a78bfa", vacation: "#34d399", holiday: "#f87171", meeting: "#60a5fa", deadline: "#fbbf24" };
+
+  return (
+    <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg, 14px)", overflow: "hidden", boxShadow: "var(--shadow, none)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
+        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)" }}>📅 이번 주 일정</span>
+        <a href="/calendar" style={{ fontSize: 11, color: "var(--cyan)", textDecoration: "none" }}>전체 보기 →</a>
+      </div>
+      <div style={{ padding: 14 }}>
+        {loading ? (
+          <p style={{ fontSize: 12, color: "var(--text-3)", textAlign: "center", padding: "8px 0" }}>불러오는 중…</p>
+        ) : events.length === 0 ? (
+          <p style={{ fontSize: 12, color: "var(--text-3)", textAlign: "center", padding: "8px 0" }}>이번 주 일정이 없어요</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {events.slice(0, 5).map(ev => (
+              <div key={ev.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: ev.color || TYPE_COLOR[ev.type] || "var(--text-3)", flexShrink: 0 }} />
+                <span style={{ fontSize: 12, color: "var(--text-2)", flex: 1 }}>{ev.title}</span>
+                <span style={{ fontSize: 11, color: "var(--text-3)" }}>
+                  {new Date(ev.start_date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function WeeklySummary({ tasks }: { tasks: any[] }) {
   const done = tasks.filter(t => t.status === "done").length;
   const doing = tasks.filter(t => t.status === "doing").length;
@@ -184,6 +239,7 @@ function DailyLog({ myUser, myTasks, onChanged, onOpen, startCollapsed, autoAppr
   const [asking, setAsking] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]); // { type, taskId?, title, status?, reason }
   const [reply, setReply] = useState("");
+  const [appliedTone, setAppliedTone] = useState<string | null>(null);
   const [dismissedIdx, setDismissedIdx] = useState<Set<number>>(new Set());
   const [appliedIdx, setAppliedIdx] = useState<Set<number>>(new Set());
   const [applying, setApplying] = useState<number | null>(null);
@@ -234,6 +290,7 @@ function DailyLog({ myUser, myTasks, onChanged, onOpen, startCollapsed, autoAppr
         setSuggestions([]);
       } else {
         setReply(data.reply ?? "");
+        setAppliedTone(data.appliedTone ?? null);
         setSuggestions(data.suggestions ?? []);
         // 자동 승인 설정이면 확인 없이 바로 전부 반영
         if (autoApprove && data.suggestions?.length > 0) {
@@ -361,9 +418,16 @@ function DailyLog({ myUser, myTasks, onChanged, onOpen, startCollapsed, autoAppr
         </div>
 
         {reply && (
-          <p style={{ fontSize: 12, color: "var(--text-2)", background: "var(--bg-3)", borderRadius: 8, padding: "8px 12px", margin: 0 }}>
-            {reply}
-          </p>
+          <div>
+            <p style={{ fontSize: 12, color: "var(--text-2)", background: "var(--bg-3)", borderRadius: 8, padding: "8px 12px", margin: 0 }}>
+              {reply}
+            </p>
+            {appliedTone && (
+              <p style={{ fontSize: 10, color: "var(--text-3)", margin: "4px 0 0 4px" }}>
+                ({appliedTone === "detailed" ? "자세히" : appliedTone === "detailed_with_summary" ? "요약+자세히" : "간결하게"} — 내 설정 기준)
+              </p>
+            )}
+          </div>
         )}
 
         {suggestions.length > 0 && (
@@ -571,6 +635,9 @@ export default function DashboardPage() {
               }
               if (key === "summary") {
                 return <WeeklySummary key="summary" tasks={myTasks} />;
+              }
+              if (key === "calendar") {
+                return <CalendarPreview key="calendar" myUserId={myUser.id} />;
               }
               return null;
             })}

@@ -199,6 +199,43 @@ const ADVANCED_FEATURES = [
 ];
 
 // AI가 감지한 설정-실제행동 불일치 제안 (5번 기능)
+// 4. 소통 프로필 변화 히스토리
+function ProfileHistory({ myUserId, supabase }: { myUserId: string; supabase: any }) {
+  const [history, setHistory] = useState<any[]>([]);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!myUserId) return;
+    supabase.from("communication_profile_history").select("*").eq("user_id", myUserId)
+      .order("created_at", { ascending: false }).limit(10)
+      .then(({ data }: any) => setHistory(data ?? []));
+  }, [myUserId]);
+
+  if (history.length < 2) return null; // 변화를 보여줄 게 없으면 숨김
+
+  return (
+    <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius, 12px)", padding: 16 }}>
+      <button onClick={() => setOpen(!open)}
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-1)" }}>📈 내 소통 스타일 변화 ({history.length}회 기록)</span>
+        <span style={{ fontSize: 11, color: "var(--text-3)" }}>{open ? "접기" : "펼치기"}</span>
+      </button>
+      {open && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+          {history.map((h, i) => (
+            <div key={h.id} style={{ display: "flex", gap: 10, paddingBottom: 8, borderBottom: i < history.length - 1 ? "1px solid var(--border)" : "none" }}>
+              <span style={{ fontSize: 10, color: "var(--text-3)", whiteSpace: "nowrap", paddingTop: 1 }}>
+                {new Date(h.created_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
+              </span>
+              <p style={{ fontSize: 11, color: i === 0 ? "var(--text-1)" : "var(--text-3)", margin: 0 }}>{h.profile_text}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PreferenceSuggestions({ myUserId, supabase, onApplied }: { myUserId: string; supabase: any; onApplied: () => void }) {
   const [suggestions, setSuggestions] = useState<any[]>([]);
 
@@ -220,8 +257,10 @@ function PreferenceSuggestions({ myUserId, supabase, onApplied }: { myUserId: st
     return VALUE_LABEL[value] ?? value;
   }
 
+  const ADVISORY_ONLY_FIELDS = ["deadline_coaching"]; // 실제 컬럼 없는 순수 조언성 제안
+
   async function respond(s: any, accept: boolean) {
-    if (accept) {
+    if (accept && !ADVISORY_ONLY_FIELDS.includes(s.field)) {
       const value = s.field === "home_priority" ? s.suggested_value.split(",") : s.suggested_value;
       await supabase.from("user_preferences").update({ [s.field]: value }).eq("user_id", myUserId);
       onApplied();
@@ -234,25 +273,32 @@ function PreferenceSuggestions({ myUserId, supabase, onApplied }: { myUserId: st
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      {suggestions.map(s => (
+      {suggestions.map(s => {
+        const isAdvisory = ADVISORY_ONLY_FIELDS.includes(s.field);
+        return (
         <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 12, padding: "12px 16px" }}>
           <span style={{ fontSize: 18 }}>💡</span>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 12, color: "#92400E", margin: 0, fontWeight: 600 }}>
-              {FIELD_LABEL[s.field] ?? s.field}을(를) "{displayValue(s.field, s.suggested_value)}"로 바꿔볼까요?
-            </p>
-            <p style={{ fontSize: 11, color: "#B45309", margin: "2px 0 0" }}>{s.reason}</p>
+            {!isAdvisory && (
+              <p style={{ fontSize: 12, color: "#92400E", margin: 0, fontWeight: 600 }}>
+                {FIELD_LABEL[s.field] ?? s.field}을(를) "{displayValue(s.field, s.suggested_value)}"로 바꿔볼까요?
+              </p>
+            )}
+            <p style={{ fontSize: 11, color: "#B45309", margin: isAdvisory ? 0 : "2px 0 0", fontWeight: isAdvisory ? 600 : 400 }}>{s.reason}</p>
           </div>
-          <button onClick={() => respond(s, true)}
-            style={{ fontSize: 11, padding: "5px 12px", background: "#16A34A", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", flexShrink: 0 }}>
-            바꾸기
-          </button>
-          <button onClick={() => respond(s, false)}
-            style={{ fontSize: 11, padding: "5px 12px", background: "transparent", color: "#92400E", border: "1px solid #FCD34D", borderRadius: 6, cursor: "pointer", flexShrink: 0 }}>
-            괜찮아요
+          {!isAdvisory && (
+            <button onClick={() => respond(s, true)}
+              style={{ fontSize: 11, padding: "5px 12px", background: "#16A34A", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", flexShrink: 0 }}>
+              바꾸기
+            </button>
+          )}
+          <button onClick={() => respond(s, isAdvisory)}
+            style={{ fontSize: 11, padding: "5px 12px", background: isAdvisory ? "#16A34A" : "transparent", color: isAdvisory ? "#fff" : "#92400E", border: isAdvisory ? "none" : "1px solid #FCD34D", borderRadius: 6, cursor: "pointer", flexShrink: 0 }}>
+            {isAdvisory ? "명심할게요" : "괜찮아요"}
           </button>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -310,6 +356,7 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <PreferenceSuggestions myUserId={myUserId} supabase={supabase} onApplied={loadPrefs} />
+      <ProfileHistory myUserId={myUserId} supabase={supabase} />
 
       <button onClick={() => setShowChat(true)}
         style={{

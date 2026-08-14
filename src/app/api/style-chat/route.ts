@@ -141,6 +141,15 @@ export async function POST(req: NextRequest) {
         onboarding_completed: true,
         updated_at: new Date().toISOString(),
       }, { onConflict: "user_id" });
+
+      if (result.communication_profile) {
+        await supabase.from("communication_profile_history").insert({
+          user_id: me.id, profile_text: result.communication_profile,
+          formality_level: result.formality_level ?? null,
+          message_length_pref: result.message_length_pref ?? null,
+          decision_speed: result.decision_speed ?? null,
+        });
+      }
     }
 
     // 대화 기록 저장 — chatId 있으면 이어쓰기, 없으면 새로 생성

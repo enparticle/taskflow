@@ -16,6 +16,8 @@ export default function MilestoneChatWizard({
 }) {
   const supabase = createClient();
   const [pendingQuestions, setPendingQuestions] = useState<any[]>([]);
+  const [memberHints, setMemberHints] = useState<any[]>([]);
+  const [showHints, setShowHints] = useState(false);
   const [answerDrafts, setAnswerDrafts] = useState<Record<string, string>>({});
   const [answering, setAnswering] = useState<string | null>(null);
   const [myUserId, setMyUserId] = useState<string | null>(null);
@@ -44,6 +46,21 @@ export default function MilestoneChatWizard({
       setPendingQuestions(data ?? []);
     })();
   }, []);
+
+  useEffect(() => {
+    (async () => {
+      if (!members || members.length === 0) return;
+      const names = members.map(m => m.name);
+      const { data: userRows } = await supabase.from("users").select("id, name").in("name", names);
+      const { data: prefRows } = await supabase.from("user_preferences")
+        .select("user_id, ai_tone, decision_speed, formality_level").in("user_id", (userRows ?? []).map((u: any) => u.id));
+      const merged = (userRows ?? []).map((u: any) => {
+        const p = (prefRows ?? []).find((pr: any) => pr.user_id === u.id);
+        return { name: u.name, ai_tone: p?.ai_tone, decision_speed: p?.decision_speed, formality_level: p?.formality_level };
+      }).filter((m: any) => m.ai_tone || m.decision_speed);
+      setMemberHints(merged);
+    })();
+  }, [members]);
 
   async function submitAnswer(q: any) {
     const answer = answerDrafts[q.id]?.trim();
@@ -99,6 +116,26 @@ export default function MilestoneChatWizard({
           </div>
           <button onClick={onClose} style={{ color: "var(--text-3)", fontSize: 18 }}>✕</button>
         </div>
+
+        {memberHints.length > 0 && (
+          <div style={{ padding: "8px 18px", borderBottom: "1px solid var(--border)" }}>
+            <button onClick={() => setShowHints(!showHints)}
+              style={{ fontSize: 10, color: "var(--text-3)", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}>
+              👥 팀원 힌트 {showHints ? "접기" : "펼치기"}
+            </button>
+            {showHints && (
+              <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 3 }}>
+                {memberHints.map(h => (
+                  <p key={h.name} style={{ fontSize: 11, color: "var(--text-3)", margin: 0 }}>
+                    <b style={{ color: "var(--text-2)" }}>{h.name}</b>:{" "}
+                    {h.ai_tone === "detailed" ? "자세히 선호" : h.ai_tone === "detailed_with_summary" ? "요약+자세히 선호" : "간결히 선호"}
+                    {h.decision_speed && `, 결정 ${h.decision_speed === "fast" ? "빠른" : "신중한"} 편`}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {pendingQuestions.length > 0 && (
           <div style={{ padding: "12px 18px", background: "#FFFBEB", borderBottom: "1px solid #FCD34D", maxHeight: 200, overflowY: "auto" }}>

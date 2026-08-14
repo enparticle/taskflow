@@ -41,6 +41,25 @@ export async function createNotification({
     }
   }
 
+  // 5. 부재/휴가 모드 — 오늘이 이 사람의 휴가 기간이면, 복귀일 다음날 아침으로 알림 예약
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: vacation } = await supabase.from("calendar_events")
+      .select("end_date").eq("user_id", userId).eq("type", "vacation")
+      .lte("start_date", today).gte("end_date", today).maybeSingle();
+    if (vacation?.end_date) {
+      const returnDay = new Date(vacation.end_date);
+      returnDay.setDate(returnDay.getDate() + 1);
+      returnDay.setHours(9, 0, 0, 0);
+      // 다이제스트 예약보다 더 늦게 잡히는 경우에만 덮어씀(휴가가 더 길면 휴가 기준 우선)
+      if (!scheduledFor || new Date(returnDay) > new Date(scheduledFor)) {
+        scheduledFor = returnDay.toISOString();
+      }
+    }
+  } catch {
+    // 휴가 확인 실패해도 알림 생성 자체는 계속 진행 (일반 알림 규칙만 적용)
+  }
+
   await supabase.from("notifications").insert({
     user_id: userId, type, title, body, task_id: taskId, link_url: linkUrl ?? null,
     scheduled_for: scheduledFor,
