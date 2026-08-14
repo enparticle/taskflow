@@ -79,8 +79,84 @@ function AgendaGenerator({ supabase, projects, selectedProject }: { supabase: an
               <p key={i} style={{ fontSize: 12, color: "var(--text-2)", margin: "2px 0" }}>· [{t.project?.name ?? "-"}] {t.title} ({new Date(t.due_date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })})</p>
             ))}
           </div>
+          {agenda && (() => {
+            const volume = agenda.blocked.length + agenda.dueSoon.length;
+            const suggestion = volume >= 6 ? "이번 주 안에 (안건이 많아요)" : volume >= 3 ? "3~4일 내" : "다음 정기회의 때 (급한 건 없어요)";
+            return (
+              <div style={{ paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+                <p style={{ fontSize: 11, color: "var(--cyan)" }}>💡 다음 회의는 <b>{suggestion}</b> 잡는 걸 추천해요 (Blocked+마감임박 {volume}건 기준)</p>
+              </div>
+            );
+          })()}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── 지난 회의 결정사항이 실제로 이행됐는지 확인 (1번 기능) ──
+function DecisionFollowupPanel({ supabase, history }: { supabase: any; history: any[] }) {
+  const [pending, setPending] = useState<{ meetingId: string; meetingTitle: string; decision: string }[]>([]);
+  const [resolving, setResolving] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      // 최근 3개 회의의 결정사항 중, 아직 이행 확인이 안 된 것만 추림
+      const recent = history.slice(0, 3).filter(h => h.result?.decisions?.length > 0);
+      if (recent.length === 0) { setPending([]); return; }
+
+      const meetingIds = recent.map(h => h.id);
+      const { data: existing } = await supabase.from("decision_followups")
+        .select("source_meeting_id, decision_text").in("source_meeting_id", meetingIds);
+      const answeredSet = new Set((existing ?? []).map((e: any) => `${e.source_meeting_id}::${e.decision_text}`));
+
+      const unanswered: { meetingId: string; meetingTitle: string; decision: string }[] = [];
+      recent.forEach(h => {
+        (h.result.decisions as string[]).forEach(d => {
+          if (!answeredSet.has(`${h.id}::${d}`)) {
+            unanswered.push({ meetingId: h.id, meetingTitle: h.group_title || h.result?.title || "회의", decision: d });
+          }
+        });
+      });
+      setPending(unanswered.slice(0, 5)); // 너무 많으면 5개까지만
+    })();
+  }, [history]);
+
+  async function resolve(item: { meetingId: string; decision: string }, status: "confirmed" | "not_done") {
+    const key = `${item.meetingId}::${item.decision}`;
+    setResolving(key);
+    await supabase.from("decision_followups").insert({
+      source_meeting_id: item.meetingId, decision_text: item.decision, status, resolved_at: new Date().toISOString(),
+    });
+    setPending(prev => prev.filter(p => `${p.meetingId}::${p.decision}` !== key));
+    setResolving(null);
+  }
+
+  if (pending.length === 0) return null;
+
+  return (
+    <div style={{ background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.25)", borderRadius: 12, padding: "12px 16px" }}>
+      <p style={{ fontSize: 11, fontWeight: 600, color: "#16A34A", marginBottom: 8 }}>✓ 지난 결정사항, 실제로 이행됐나요?</p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {pending.map((item, i) => {
+          const key = `${item.meetingId}::${item.decision}`;
+          return (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+              <span style={{ flex: 1, color: "var(--text-2)" }}>
+                <span style={{ color: "var(--text-3)", fontSize: 10 }}>[{item.meetingTitle}]</span> {item.decision}
+              </span>
+              <button onClick={() => resolve(item, "confirmed")} disabled={resolving === key}
+                style={{ fontSize: 10, padding: "3px 8px", background: "rgba(52,211,153,0.15)", color: "#16A34A", border: "none", borderRadius: 6, cursor: "pointer" }}>
+                이행됨
+              </button>
+              <button onClick={() => resolve(item, "not_done")} disabled={resolving === key}
+                style={{ fontSize: 10, padding: "3px 8px", background: "rgba(248,113,113,0.1)", color: "#DC2626", border: "none", borderRadius: 6, cursor: "pointer" }}>
+                아직
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -98,6 +174,7 @@ export default function MeetingNotePage() {
 
   // 회의록 폼
   const [title, setTitle] = useState("");
+  const [meetingType, setMeetingType] = useState<string>("weekly");
   const [meetingDate, setMeetingDate] = useState(new Date().toISOString().slice(0, 10));
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
@@ -326,6 +403,7 @@ export default function MeetingNotePage() {
         audioText: audioText || undefined,
         projectId: selectedProject,
         meetingMeta: { title, date: meetingDate, attendees: attendees.map(a => a.name) },
+        meetingType,
       });
       const res = await authFetch("/api/analyze-meeting", {
         method: "POST",
@@ -388,6 +466,29 @@ export default function MeetingNotePage() {
       }
     }
     if (draftId) await supabase.from("meeting_drafts").update({ status: "completed" }).eq("id", draftId);
+
+    // 완료되면 참석자 전원에게 요약 + 본인 관련 업무 자동 공유 (2번 기능)
+    try {
+      const participantNames: string[] = result.participants ?? attendees.map((a: any) => a.name);
+      if (participantNames.length > 0) {
+        const { data: matchedUsers } = await supabase.from("users").select("id, name").in("name", participantNames);
+        for (const u of matchedUsers ?? []) {
+          if (u.id === myUser?.userId) continue; // 작성자 본인 제외
+          const myTasksInMeeting = (result.tasks ?? []).filter((t: any) => t.assignee_name === u.name);
+          const taskLine = myTasksInMeeting.length > 0
+            ? `\n담당 업무: ${myTasksInMeeting.map((t: any) => t.title).join(", ")}`
+            : "";
+          await supabase.from("notifications").insert({
+            user_id: u.id, type: "mention",
+            title: `[${title || result._meetingTitle || "회의"}] 회의록 공유`,
+            body: `${result.summary ?? ""}${taskLine}`,
+            link_url: draftId ? `/meeting-note` : null,
+          });
+        }
+      }
+    } catch {
+      // 공유 알림 실패해도 회의록 저장 자체는 이미 완료됨
+    }
     setResult((r: any) => ({ ...r, _applied: count }));
     setStep("done");
     setApplying(false);
@@ -581,6 +682,18 @@ export default function MeetingNotePage() {
         </div>
       )}
 
+      {result.concerns?.length > 0 && (
+        <div style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 12, padding: 16 }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "#D97706", marginBottom: 10 }}>⚠ 우려사항/이견</p>
+          {result.concerns.map((c: string, i: number) => (
+            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
+              <span style={{ color: "#D97706", fontSize: 13, marginTop: 1 }}>!</span>
+              <p style={{ fontSize: 13, color: "var(--text-2)", margin: 0 }}>{c}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* 업무 목록 */}
       <div style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
@@ -698,6 +811,9 @@ export default function MeetingNotePage() {
         </button>
       )}
 
+      {/* 지난 회의 결정사항 이행 확인 (1번 기능) */}
+      <DecisionFollowupPanel supabase={supabase} history={history} />
+
       {/* 지난 회의 미완료 이슈 (1번) */}
       {history.length > 0 && history[0].result?.issues?.length > 0 && (
         <div style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 12, padding: "12px 16px" }}>
@@ -715,6 +831,20 @@ export default function MeetingNotePage() {
       {/* ① 기본 정보 */}
       <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 18, display: "flex", flexDirection: "column", gap: 12 }}>
         <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-2)", margin: 0 }}>📋 기본 정보</p>
+
+        <div style={{ display: "flex", gap: 6 }}>
+          {[{ v: "weekly", l: "📅 주간회의" }, { v: "urgent", l: "🚨 긴급이슈" }, { v: "customer", l: "🤝 고객미팅" }].map(({ v, l }) => (
+            <button key={v} onClick={() => setMeetingType(v)}
+              style={{
+                padding: "6px 12px", borderRadius: 8, fontSize: 11, cursor: "pointer",
+                background: meetingType === v ? "var(--cyan-bg)" : "var(--bg-3)",
+                border: `1px solid ${meetingType === v ? "var(--cyan)" : "var(--border)"}`,
+                color: meetingType === v ? "var(--cyan)" : "var(--text-3)",
+              }}>
+              {l}
+            </button>
+          ))}
+        </div>
 
         <input value={title} onChange={e => setTitle(e.target.value)}
           placeholder="회의명 (예: 6월 주간 업무 회의)"

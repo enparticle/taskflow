@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     // UTF-8 인코딩 명시적 처리
     const bodyText = await req.text();
     const body = JSON.parse(bodyText);
-    const { text, audioText, projectId, meetingMeta } = body;
+    const { text, audioText, projectId, meetingMeta, meetingType } = body;
 
     // 프로젝트 자동 추론용 — 활성 프로젝트 목록(이름+설명) 조회
     const { data: activeProjects } = await supabase.from("projects").select("name, description").eq("status", "active");
@@ -49,6 +49,15 @@ export async function POST(req: NextRequest) {
       prompt += `- 참석자: ${meetingMeta.attendees?.join(", ") || "미정"}\n\n`;
     }
 
+    const MEETING_TYPE_HINT: Record<string, string> = {
+      weekly: "주간 정기회의입니다. 여러 프로젝트를 순회하며 다뤘을 가능성이 높으니, project_name 분류에 특히 신경 쓰세요.",
+      urgent: "긴급 이슈 회의입니다. 원인 파악 → 대응 방안 → 후속 조치 순서로 내용을 정리하는 데 무게를 두세요. 우려사항(concerns)도 놓치지 마세요.",
+      customer: "고객/외부 미팅입니다. 고객 요청사항과 우리 쪽 약속사항을 명확히 구분해서 정리하세요.",
+    };
+    if (meetingType && MEETING_TYPE_HINT[meetingType]) {
+      prompt += `회의 유형 참고사항: ${MEETING_TYPE_HINT[meetingType]}\n\n`;
+    }
+
     if (hasText) {
       prompt += `회의록 내용:\n${text}\n\n`;
     }
@@ -74,7 +83,8 @@ export async function POST(req: NextRequest) {
     prompt += `- **각 업무마다 위 프로젝트 목록 중 어느 프로젝트에 속하는지 판단해서 project_name에 정확히 그 이름을 넣으세요.** 회의 중 언급된 맥락(장비명, 작업 내용, 프로젝트 설명과의 연관성)으로 판단하세요. 여러 프로젝트에 걸쳐있거나 확신이 안 서면 억지로 끼워맞추지 말고 null로 두세요 — 틀린 프로젝트에 넣는 것보다 미지정이 낫습니다.\n`;
     prompt += `- **위 "진행 중인 업무 목록"에 내용이 겹치는 게 있으면(예: 같은 부품/작업을 계속 언급) 새 업무로 만들지 말고 possible_duplicate_of에 그 기존 업무명을 그대로 적으세요.** 확신 없으면 null로 두세요.\n`;
     prompt += `- 회의 중 마감일이 명시적으로 언급되지 않은 업무는, 위 "과거 유형별 평균 완료 소요일수"를 참고해서 오늘(${new Date().toLocaleDateString("ko-KR")})로부터 대략적인 날짜를 due_date에 채우고 due_date_is_estimated를 true로 표시하세요. 추정할 근거(해당 유형 데이터)가 없으면 null로 두고 due_date_is_estimated는 false로 하세요.\n`;
-    prompt += `- **참석자별로 주로 어떤 주제를 이야기했는지도 파악해서 participant_summary에 담으세요.** 발언 비중이 뚜렷하지 않은 참석자는 생략해도 됩니다.\n\n`;
+    prompt += `- **참석자별로 주로 어떤 주제를 이야기했는지도 파악해서 participant_summary에 담으세요.** 발언 비중이 뚜렷하지 않은 참석자는 생략해도 됩니다.\n`;
+    prompt += `- **결정사항과 별개로, 특정 안건에 대해 우려나 반대의견이 나왔으면 concerns에 담으세요** (예: "밸브 교체 시기에 대해 홍성무님이 예산 우려 표함"). 단순 논의는 제외하고, 명확히 걱정/반대/유보 의사가 드러난 것만 담으세요.\n\n`;
 
     // 회의록을 올린 사람의 톤/소통 스타일 반영 (summary 문장 스타일에 반영)
     try {
@@ -104,6 +114,7 @@ export async function POST(req: NextRequest) {
   "participants": ["참석자1", "참석자2"],
   "participant_summary": { "참석자1 이름": "이 사람이 주로 이야기한 주제 한 줄", "참석자2 이름": "..." },
   "decisions": ["결정사항1", "결정사항2"],
+  "concerns": ["우려/반대의견1", "우려/반대의견2"],
   "tasks": [
     {
       "title": "업무명",
