@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
 import { getAuthUser } from "@/lib/auth";
+import { authFetch } from "@/lib/authFetch";
 import StyleChatWizard from "@/components/onboarding/StyleChatWizard";
 import UserForm from "@/components/team/UserForm";
 
@@ -304,6 +305,97 @@ function PreferenceSuggestions({ myUserId, supabase, onApplied }: { myUserId: st
 }
 
 // 5. 설정 프리셋 — 전체 설정 스냅샷을 저장하고 버튼 하나로 전환
+// 홈 화면 생성형 구성 — AI가 정해진 블록 팔레트 안에서만 조합 (안전한 "레고 블록" 방식)
+const BLOCK_LABELS: Record<string, string> = { today: "오늘 할 일", recent: "최근 기록", summary: "주간 요약", calendar: "캘린더" };
+
+function HomeLayoutGenerator({ myUserId, supabase, onApplied }: { myUserId: string; supabase: any; onApplied: () => void }) {
+  const [description, setDescription] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [preview, setPreview] = useState<{ reply: string; layout: any[] } | null>(null);
+  const [currentPrompt, setCurrentPrompt] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!myUserId) return;
+    supabase.from("user_preferences").select("home_layout_prompt").eq("user_id", myUserId).maybeSingle()
+      .then(({ data }: any) => setCurrentPrompt(data?.home_layout_prompt ?? null));
+  }, [myUserId]);
+
+  async function generate() {
+    if (!description.trim()) return;
+    setGenerating(true); setError(""); setPreview(null);
+    try {
+      const res = await authFetch("/api/generate-home-layout", { method: "POST", body: JSON.stringify({ description }) });
+      const data = await res.json();
+      if (data.error) setError(data.error);
+      else setPreview(data);
+    } catch {
+      setError("생성에 실패했어요, 다시 시도해주세요");
+    }
+    setGenerating(false);
+  }
+
+  async function reset() {
+    await supabase.from("user_preferences").update({ home_layout: null, home_layout_prompt: null }).eq("user_id", myUserId);
+    setCurrentPrompt(null);
+    setPreview(null);
+    onApplied();
+  }
+
+  return (
+    <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius, 12px)", padding: 18, boxShadow: "var(--shadow, none)" }}>
+      <h2 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", marginBottom: 4 }}>🏠 나만의 홈 화면 만들기</h2>
+      <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 12 }}>
+        업무 스타일을 자유롭게 설명해주세요. AI가 검증된 블록들(오늘할일/최근기록/요약/캘린더)만 골라서 순서·크기·제목을 그 사람 맞춤으로 구성해요 — 정해진 몇 개 조합이 아니라, 설명에 따라 매번 다르게 짜여요.
+      </p>
+
+      {currentPrompt && (
+        <p style={{ fontSize: 11, color: "var(--cyan)", background: "var(--cyan-bg)", padding: "8px 12px", borderRadius: 8, marginBottom: 10 }}>
+          현재 적용된 설명: "{currentPrompt}"
+        </p>
+      )}
+
+      <textarea value={description} onChange={e => setDescription(e.target.value)}
+        placeholder="예: 저는 아침에 출근하면 제일 급한 업무부터 훑어보고, 오후엔 팀 전체 상황을 확인해요. 캘린더는 잘 안 봐요."
+        rows={3}
+        style={{ width: "100%", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 12px", fontSize: 12, color: "var(--text-1)", outline: "none", resize: "none", marginBottom: 10, fontFamily: "inherit" }} />
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={generate} disabled={generating || !description.trim()}
+          style={{ padding: "8px 16px", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer", opacity: generating || !description.trim() ? 0.5 : 1 }}>
+          {generating ? "구성 중…" : "✦ 생성"}
+        </button>
+        {currentPrompt && (
+          <button onClick={reset} style={{ padding: "8px 14px", background: "transparent", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12, color: "var(--text-3)", cursor: "pointer" }}>
+            기본값으로 되돌리기
+          </button>
+        )}
+      </div>
+
+      {error && <p style={{ fontSize: 11, color: "#DC2626", marginTop: 10 }}>{error}</p>}
+
+      {preview && (
+        <div style={{ marginTop: 14, padding: 14, background: "var(--bg-3)", borderRadius: 10 }}>
+          <p style={{ fontSize: 12, color: "var(--text-2)", marginBottom: 10 }}>{preview.reply}</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {preview.layout.map((b: any, i: number) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--bg-2)", borderRadius: 8, padding: "8px 12px" }}>
+                <span style={{ fontSize: 11, color: "var(--text-3)", width: 16 }}>{i + 1}</span>
+                <span style={{ fontSize: 12, color: "var(--text-1)", flex: 1 }}>{b.title || BLOCK_LABELS[b.block]}</span>
+                <span style={{ fontSize: 10, color: "var(--text-3)" }}>{BLOCK_LABELS[b.block]}</span>
+                <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: b.size === "compact" ? "var(--bg-4)" : "var(--cyan-bg)", color: b.size === "compact" ? "var(--text-3)" : "var(--cyan)" }}>
+                  {b.size === "compact" ? "작게" : "크게"}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p style={{ fontSize: 11, color: "var(--cyan)", marginTop: 10 }}>✓ 이미 적용됐어요 — 홈 화면에서 새로고침해서 확인해보세요</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PresetManager({ myUserId, supabase, onApplied }: { myUserId: string; supabase: any; onApplied: () => void }) {
   const [presets, setPresets] = useState<any[]>([]);
   const [newName, setNewName] = useState("");
@@ -438,6 +530,7 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <PreferenceSuggestions myUserId={myUserId} supabase={supabase} onApplied={loadPrefs} />
       <ProfileHistory myUserId={myUserId} supabase={supabase} />
+      <HomeLayoutGenerator myUserId={myUserId} supabase={supabase} onApplied={loadPrefs} />
       <PresetManager myUserId={myUserId} supabase={supabase} onApplied={loadPrefs} />
 
       <button onClick={() => setShowChat(true)}

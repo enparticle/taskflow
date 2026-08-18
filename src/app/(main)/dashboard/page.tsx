@@ -21,7 +21,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 // 주간 요약 (기존 유지)
 // 이번 주 캘린더 미리보기 위젯 (강승구님 피드백 반영)
-function CalendarPreview({ myUserId }: { myUserId: string }) {
+function CalendarPreview({ myUserId, title, compact }: { myUserId: string; title?: string; compact?: boolean }) {
   const supabase = createClient();
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +49,7 @@ function CalendarPreview({ myUserId }: { myUserId: string }) {
   return (
     <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg, 14px)", overflow: "hidden", boxShadow: "var(--shadow, none)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
-        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)" }}>📅 이번 주 일정</span>
+        <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)" }}>{title || "📅 이번 주 일정"}</span>
         <a href="/calendar" style={{ fontSize: 11, color: "var(--cyan)", textDecoration: "none" }}>전체 보기 →</a>
       </div>
       <div style={{ padding: 14 }}>
@@ -59,7 +59,7 @@ function CalendarPreview({ myUserId }: { myUserId: string }) {
           <p style={{ fontSize: 12, color: "var(--text-3)", textAlign: "center", padding: "8px 0" }}>이번 주 일정이 없어요</p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {events.slice(0, 5).map(ev => (
+            {events.slice(0, compact ? 3 : 7).map(ev => (
               <div key={ev.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <div style={{ width: 6, height: 6, borderRadius: "50%", background: ev.color || TYPE_COLOR[ev.type] || "var(--text-3)", flexShrink: 0 }} />
                 <span style={{ fontSize: 12, color: "var(--text-2)", flex: 1 }}>{ev.title}</span>
@@ -75,7 +75,7 @@ function CalendarPreview({ myUserId }: { myUserId: string }) {
   );
 }
 
-function WeeklySummary({ tasks }: { tasks: any[] }) {
+function WeeklySummary({ tasks, title, compact }: { tasks: any[]; title?: string; compact?: boolean }) {
   const done = tasks.filter(t => t.status === "done").length;
   const doing = tasks.filter(t => t.status === "doing").length;
   const blocked = tasks.filter(t => t.status === "blocked").length;
@@ -86,22 +86,30 @@ function WeeklySummary({ tasks }: { tasks: any[] }) {
     { label: "Blocked", value: blocked, color: "#DC2626", bg: "#FEF2F2", href: "/tasks?status=blocked" },
   ];
 
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+  const grid = (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: compact ? 6 : 10 }}>
       {items.map(item => (
         <a key={item.label} href={item.href} style={{ textDecoration: "none" }}>
           <div style={{
             background: item.bg, border: `1px solid ${item.color}20`,
-            borderRadius: 10, padding: "14px 16px", textAlign: "center",
+            borderRadius: 10, padding: compact ? "8px 10px" : "14px 16px", textAlign: "center",
             transition: "all 0.15s",
           }}
             onMouseEnter={e => (e.currentTarget as any).style.borderColor = item.color}
             onMouseLeave={e => (e.currentTarget as any).style.borderColor = `${item.color}20`}>
-            <p style={{ fontSize: 24, fontWeight: 800, color: item.color, margin: "0 0 4px" }}>{item.value}</p>
+            <p style={{ fontSize: compact ? 18 : 24, fontWeight: 800, color: item.color, margin: "0 0 4px" }}>{item.value}</p>
             <p style={{ fontSize: 11, color: item.color, margin: 0, fontWeight: 500 }}>{item.label}</p>
           </div>
         </a>
       ))}
+    </div>
+  );
+
+  if (!title) return grid;
+  return (
+    <div>
+      <p style={{ fontSize: 12, fontWeight: 600, color: "var(--text-2)", margin: "0 0 8px 2px" }}>{title}</p>
+      {grid}
     </div>
   );
 }
@@ -198,7 +206,7 @@ function AIBriefing({ tasks, myUser, startExpanded }: { tasks: any[]; myUser: an
 
 // ── 신규: 오늘 한 일 기록 입력 + AI 제안 ─────────────────────────
 // 계획형 전용 — 실제 할 일 목록 (WeeklySummary 위에 배치)
-function TodayTaskList({ tasks, onOpen, onAdd }: { tasks: any[]; onOpen: (id: string) => void; onAdd: () => void }) {
+function TodayTaskList({ tasks, onOpen, onAdd, title, compact }: { tasks: any[]; onOpen: (id: string) => void; onAdd: () => void; title?: string; compact?: boolean }) {
   const list = [...tasks]
     .filter(t => t.status !== "done")
     .sort((a, b) => {
@@ -207,19 +215,21 @@ function TodayTaskList({ tasks, onOpen, onAdd }: { tasks: any[]; onOpen: (id: st
       if (!b.due_date) return -1;
       return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
     })
-    .slice(0, 6);
+    .slice(0, compact ? 3 : 8);
 
   return (
     <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg, 14px)", overflow: "hidden", boxShadow: "var(--shadow, none)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: "var(--bg-3)", borderBottom: "1px solid var(--border)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 16 }}>📋</span>
-          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)" }}>오늘 할 일</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)" }}>{title || "오늘 할 일"}</span>
         </div>
-        <button onClick={onAdd}
-          style={{ padding: "5px 12px", background: "var(--cyan)", border: "none", borderRadius: 7, fontSize: 11, fontWeight: 600, color: "#fff", cursor: "pointer" }}>
-          + 업무 추가
-        </button>
+        {!compact && (
+          <button onClick={onAdd}
+            style={{ padding: "5px 12px", background: "var(--cyan)", border: "none", borderRadius: 7, fontSize: 11, fontWeight: 600, color: "#fff", cursor: "pointer" }}>
+            + 업무 추가
+          </button>
+        )}
       </div>
       <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 6 }}>
         {list.length === 0 ? (
@@ -232,7 +242,7 @@ function TodayTaskList({ tasks, onOpen, onAdd }: { tasks: any[]; onOpen: (id: st
   );
 }
 
-function DailyLog({ myUser, myTasks, onChanged, onOpen, startCollapsed, autoApprove, aiTone }: { myUser: any; myTasks: any[]; onChanged: () => void; onOpen: (id: string) => void; startCollapsed?: boolean; autoApprove?: boolean; aiTone?: string }) {
+function DailyLog({ myUser, myTasks, onChanged, onOpen, startCollapsed, autoApprove, aiTone, title }: { myUser: any; myTasks: any[]; onChanged: () => void; onOpen: (id: string) => void; startCollapsed?: boolean; autoApprove?: boolean; aiTone?: string; title?: string }) {
   const supabase = createClient();
   const [text, setText] = useState("");
   const [inputOpen, setInputOpen] = useState(!startCollapsed);
@@ -385,7 +395,7 @@ function DailyLog({ myUser, myTasks, onChanged, onOpen, startCollapsed, autoAppr
         style={{ width: "100%", padding: "14px 18px", background: "var(--bg-3)", borderBottom: inputOpen ? "1px solid var(--border)" : "none", border: "none", cursor: "pointer", textAlign: "left" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 16 }}>📝</span>
-          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)" }}>오늘 한 일을 적어주세요</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)" }}>{title || "오늘 한 일을 적어주세요"}</span>
           {startCollapsed && (
             <span style={{ fontSize: 11, color: "var(--text-3)", marginLeft: "auto" }}>{inputOpen ? "▾ 접기" : "▸ 펼치기"}</span>
           )}
@@ -647,30 +657,48 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* 홈 위젯 3개(today/recent/summary) — 설정한 순서 그대로, 숨긴 건 제외 */}
-          {(preferences?.home_priority ?? ["today", "recent", "summary"])
-            .filter((key: string) => !hiddenWidgets.includes(key))
-            .map((key: string) => {
-              if (key === "today") {
-                // 계획형에서만 실제 할 일 목록으로 의미가 있음. 다른 스타일은 이 자리를 건너뜀
-                return inputStyle === "plan" ? (
-                  <TodayTaskList key="today" tasks={myTasks} onOpen={(id: string) => setOpenDetail(id)} onAdd={() => setOpenForm(true)} />
-                ) : null;
-              }
-              if (key === "recent") {
-                return (
-                  <DailyLog key="recent" myUser={myUser} myTasks={myTasks} onChanged={load} onOpen={(id: string) => setOpenDetail(id)}
-                    startCollapsed={inputStyle === "click"} autoApprove={aiAutoApprove} aiTone={preferences?.ai_tone} />
-                );
-              }
-              if (key === "summary") {
-                return <WeeklySummary key="summary" tasks={myTasks} />;
-              }
-              if (key === "calendar") {
-                return <CalendarPreview key="calendar" myUserId={myUser.id} />;
-              }
-              return null;
-            })}
+          {/* 홈 화면 블록 — home_layout(생성형, AI가 조합)이 있으면 그걸 우선, 없으면 예전 방식(순서/숨김만) */}
+          {preferences?.home_layout && Array.isArray(preferences.home_layout) && preferences.home_layout.length > 0
+            ? preferences.home_layout.map((b: any, i: number) => {
+                const compact = b.size === "compact";
+                if (b.block === "today") {
+                  return inputStyle === "plan" ? (
+                    <TodayTaskList key={`gen-${i}`} tasks={myTasks} onOpen={(id: string) => setOpenDetail(id)} onAdd={() => setOpenForm(true)} title={b.title} compact={compact} />
+                  ) : null;
+                }
+                if (b.block === "recent") {
+                  return (
+                    <DailyLog key={`gen-${i}`} myUser={myUser} myTasks={myTasks} onChanged={load} onOpen={(id: string) => setOpenDetail(id)}
+                      startCollapsed={compact || inputStyle === "click"} autoApprove={aiAutoApprove} aiTone={preferences?.ai_tone} title={b.title} />
+                  );
+                }
+                if (b.block === "summary") return <WeeklySummary key={`gen-${i}`} tasks={myTasks} title={b.title} compact={compact} />;
+                if (b.block === "calendar") return <CalendarPreview key={`gen-${i}`} myUserId={myUser.id} title={b.title} compact={compact} />;
+                return null;
+              })
+            : (preferences?.home_priority ?? ["today", "recent", "summary"])
+              .filter((key: string) => !hiddenWidgets.includes(key))
+              .map((key: string) => {
+                if (key === "today") {
+                  // 계획형에서만 실제 할 일 목록으로 의미가 있음. 다른 스타일은 이 자리를 건너뜀
+                  return inputStyle === "plan" ? (
+                    <TodayTaskList key="today" tasks={myTasks} onOpen={(id: string) => setOpenDetail(id)} onAdd={() => setOpenForm(true)} />
+                  ) : null;
+                }
+                if (key === "recent") {
+                  return (
+                    <DailyLog key="recent" myUser={myUser} myTasks={myTasks} onChanged={load} onOpen={(id: string) => setOpenDetail(id)}
+                      startCollapsed={inputStyle === "click"} autoApprove={aiAutoApprove} aiTone={preferences?.ai_tone} />
+                  );
+                }
+                if (key === "summary") {
+                  return <WeeklySummary key="summary" tasks={myTasks} />;
+                }
+                if (key === "calendar") {
+                  return <CalendarPreview key="calendar" myUserId={myUser.id} />;
+                }
+                return null;
+              })}
 
           {/* AI 브리핑 */}
           <AIBriefing tasks={myTasks} myUser={myUser} startExpanded={briefingAutoExpand} />
