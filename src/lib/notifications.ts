@@ -21,7 +21,7 @@ export async function createNotification({
 
   const { data: prefs } = await supabase
     .from("user_preferences")
-    .select("notification_style, notification_types")
+    .select("notification_style, notification_types, dnd_start_time, dnd_end_time")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -38,6 +38,28 @@ export async function createNotification({
       next9am.setDate(next9am.getDate() + 1);
       next9am.setHours(9, 0, 0, 0);
       scheduledFor = next9am.toISOString();
+    }
+
+    // 1. 방해금지 시간대 — 지금이 그 시간대면, 시간대가 끝나는 시점으로 미룸
+    if (prefs.dnd_start_time && prefs.dnd_end_time) {
+      const now = new Date();
+      const [sh, sm] = prefs.dnd_start_time.split(":").map(Number);
+      const [eh, em] = prefs.dnd_end_time.split(":").map(Number);
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+      const startMinutes = sh * 60 + sm;
+      const endMinutes = eh * 60 + em;
+      // 자정을 넘는 방해금지(예: 저녁7시~아침9시)도 처리
+      const inDnd = startMinutes > endMinutes
+        ? (nowMinutes >= startMinutes || nowMinutes < endMinutes)
+        : (nowMinutes >= startMinutes && nowMinutes < endMinutes);
+      if (inDnd) {
+        const dndEnd = new Date(now);
+        if (nowMinutes >= startMinutes && startMinutes > endMinutes) dndEnd.setDate(dndEnd.getDate() + 1);
+        dndEnd.setHours(eh, em, 0, 0);
+        if (!scheduledFor || new Date(dndEnd) < new Date(scheduledFor)) {
+          scheduledFor = dndEnd.toISOString();
+        }
+      }
     }
   }
 

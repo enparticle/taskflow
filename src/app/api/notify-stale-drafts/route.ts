@@ -32,6 +32,8 @@ export async function POST(req: NextRequest) {
     });
 
     let notifiedCount = 0;
+    const today = new Date().toISOString().slice(0, 10);
+
     for (const [projectId, info] of Object.entries(byProject)) {
       const { data: leaders } = await supabase
         .from("project_members").select("user_id").eq("project_id", projectId).eq("role", "leader");
@@ -43,9 +45,29 @@ export async function POST(req: NextRequest) {
         if (prefs?.notification_style === "off") continue;
         if (prefs?.notification_types?.length > 0 && !prefs.notification_types.includes("approval")) continue;
 
+        // 2. 휴가 중이면 같은 프로젝트의 다른 리더(없으면 admin)에게 대신 위임
+        const { data: onVacation } = await supabase.from("calendar_events")
+          .select("id").eq("user_id", leader.user_id).eq("type", "vacation")
+          .lte("start_date", today).gte("end_date", today).maybeSingle();
+
+        let targetUserId = leader.user_id;
+        let delegatedNote = "";
+        if (onVacation) {
+          const { data: otherLeader } = await supabase.from("project_members")
+            .select("user_id, user:users(name)").eq("project_id", projectId).eq("role", "leader").neq("user_id", leader.user_id).limit(1).maybeSingle();
+          if (otherLeader) {
+            targetUserId = otherLeader.user_id;
+            delegatedNote = " (담당 리더가 휴가 중이라 대신 전달드려요)";
+          } else {
+            const { data: admin } = await supabase.from("users").select("id").eq("role", "admin").limit(1).maybeSingle();
+            if (admin) { targetUserId = admin.id; delegatedNote = " (담당 리더가 휴가 중이라 admin에게 대신 전달드려요)"; }
+            else continue; // 위임할 곳이 없으면 건너뜀
+          }
+        }
+
         await supabase.from("notifications").insert({
-          user_id: leader.user_id, type: "approval",
-          title: `[${info.name}] 승인 대기 업무 ${info.count}건이 ${staleDays}일째 방치되고 있어요`,
+          user_id: targetUserId, type: "approval",
+          title: `[${info.name}] 승인 대기 업무 ${info.count}건이 ${staleDays}일째 방치되고 있어요${delegatedNote}`,
           body: "회의록에서 추출된 업무예요. 확인해서 승인하거나 반려해주세요.",
           link_url: `/projects/${projectId}`,
         });

@@ -516,6 +516,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [openDetail, setOpenDetail] = useState<string | null>(null);
   const [openForm, setOpenForm] = useState(false);
+  const [catchup, setCatchup] = useState<{ days: number; doneCount: number; notifCount: number; blockedCount: number } | null>(null);
   const now = new Date();
 
   const load = useCallback(async () => {
@@ -530,6 +531,23 @@ export default function DashboardPage() {
 
     const { data: prefs } = await supabase.from("user_preferences").select("*").eq("user_id", authUser.userId).maybeSingle();
     setPreferences(prefs); // null이면 온보딩 마법사 노출
+
+    // 3. 로그인 캐치업 브리핑 — "가끔만 확인" 성향인 사람이 며칠 만에 왔으면 그동안 요약
+    if (prefs?.consumption_style === "summary" && me?.last_seen_at) {
+      const gapDays = (Date.now() - new Date(me.last_seen_at).getTime()) / 86400000;
+      if (gapDays >= 2) {
+        const since = me.last_seen_at;
+        const [{ count: doneCount }, { count: notifCount }, { count: blockedCount }] = await Promise.all([
+          supabase.from("tasks").select("id", { count: "exact", head: true }).eq("status", "done").gte("updated_at", since),
+          supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", authUser.userId).gte("created_at", since),
+          supabase.from("tasks").select("id", { count: "exact", head: true }).eq("status", "blocked").gte("updated_at", since),
+        ]);
+        setCatchup({ days: Math.floor(gapDays), doneCount: doneCount ?? 0, notifCount: notifCount ?? 0, blockedCount: blockedCount ?? 0 });
+      }
+    }
+    if (me?.id) {
+      await supabase.from("users").update({ last_seen_at: new Date().toISOString() }).eq("id", me.id);
+    }
 
     const { data: tasks } = await supabase.from("tasks")
       .select("*, project:projects(name)")
@@ -593,6 +611,18 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* 3. 캐치업 브리핑 — 며칠 만에 로그인한 "가끔만 확인" 성향인 사람용 */}
+      {catchup && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--cyan-bg)", border: "1px solid var(--cyan)", borderRadius: 12, padding: "12px 16px" }}>
+          <span style={{ fontSize: 18 }}>👋</span>
+          <p style={{ flex: 1, fontSize: 12, color: "var(--text-1)", margin: 0 }}>
+            {catchup.days}일 만에 오셨네요 — 그동안 <b>완료 {catchup.doneCount}건</b>, <b>새 알림 {catchup.notifCount}건</b>
+            {catchup.blockedCount > 0 && <>, <b style={{ color: "#DC2626" }}>Blocked {catchup.blockedCount}건</b></>} 있었어요.
+          </p>
+          <button onClick={() => setCatchup(null)} style={{ fontSize: 16, color: "var(--text-3)", background: "transparent", border: "none", cursor: "pointer" }}>✕</button>
+        </div>
+      )}
 
       {!isViewer && (
         <>

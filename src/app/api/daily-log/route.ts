@@ -236,6 +236,20 @@ ${aiTone === "detailed" ? "\n응답 톤: 사용자가 '자세히' 스타일을 �
                 }
               }
             }
+
+            // 4. 기록 명확성 코칭 — 최근 기록이 너무 짧으면(AI가 잘 못 잡아낼 가능성) 안내
+            const shortTexts = texts.filter((t: string) => t.length < 10).length;
+            if (texts.length >= 5 && shortTexts / texts.length >= 0.6) {
+              const { data: existingClarity } = await supabase.from("preference_suggestions")
+                .select("id").eq("user_id", me2.id).eq("field", "record_clarity").eq("status", "pending").maybeSingle();
+              if (!existingClarity) {
+                await supabase.from("preference_suggestions").insert({
+                  user_id: me2.id, field: "record_clarity",
+                  current_value: "as_is", suggested_value: "more_detail",
+                  reason: "최근 기록이 짧아서 AI가 업무를 정확히 못 잡아낼 수 있어요 — \"업무명 + 상태\"만이라도 적어주시면 훨씬 정확해져요 (예: \"밸브 발주 완료\")",
+                });
+              }
+            }
           }
         }
       }

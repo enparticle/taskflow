@@ -257,7 +257,7 @@ function PreferenceSuggestions({ myUserId, supabase, onApplied }: { myUserId: st
     return VALUE_LABEL[value] ?? value;
   }
 
-  const ADVISORY_ONLY_FIELDS = ["deadline_coaching"]; // 실제 컬럼 없는 순수 조언성 제안
+  const ADVISORY_ONLY_FIELDS = ["deadline_coaching", "record_clarity"]; // 실제 컬럼 없는 순수 조언성 제안
 
   async function respond(s: any, accept: boolean) {
     if (accept && !ADVISORY_ONLY_FIELDS.includes(s.field)) {
@@ -303,12 +303,89 @@ function PreferenceSuggestions({ myUserId, supabase, onApplied }: { myUserId: st
   );
 }
 
+// 5. 설정 프리셋 — 전체 설정 스냅샷을 저장하고 버튼 하나로 전환
+function PresetManager({ myUserId, supabase, onApplied }: { myUserId: string; supabase: any; onApplied: () => void }) {
+  const [presets, setPresets] = useState<any[]>([]);
+  const [newName, setNewName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [applying, setApplying] = useState<string | null>(null);
+
+  const load = () => {
+    if (!myUserId) return;
+    supabase.from("preference_presets").select("*").eq("user_id", myUserId)
+      .order("created_at", { ascending: false }).then(({ data }: any) => setPresets(data ?? []));
+  };
+  useEffect(() => { load(); }, [myUserId]);
+
+  async function saveCurrentAsPreset() {
+    if (!newName.trim()) return;
+    setSaving(true);
+    const { data: current } = await supabase.from("user_preferences").select("*").eq("user_id", myUserId).single();
+    if (current) {
+      const { id, user_id, updated_at, ...settings } = current;
+      await supabase.from("preference_presets").insert({ user_id: myUserId, name: newName.trim(), settings });
+    }
+    setNewName("");
+    setSaving(false);
+    load();
+  }
+
+  async function applyPreset(preset: any) {
+    setApplying(preset.id);
+    await supabase.from("user_preferences").update({ ...preset.settings, updated_at: new Date().toISOString() }).eq("user_id", myUserId);
+    setApplying(null);
+    onApplied();
+  }
+
+  async function deletePreset(id: string) {
+    if (!confirm("이 프리셋을 삭제할까요?")) return;
+    await supabase.from("preference_presets").delete().eq("id", id);
+    load();
+  }
+
+  return (
+    <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius, 12px)", padding: 18, boxShadow: "var(--shadow, none)" }}>
+      <h2 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", marginBottom: 4 }}>💼 설정 프리셋</h2>
+      <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 12 }}>지금 설정 전체를 저장해두고, 상황(출장/마감임박 등)에 맞게 버튼 하나로 전환하세요.</p>
+
+      {presets.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+          {presets.map(p => (
+            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--bg-3)", borderRadius: 8, padding: "8px 12px" }}>
+              <span style={{ flex: 1, fontSize: 12, color: "var(--text-1)" }}>{p.name}</span>
+              <button onClick={() => applyPreset(p)} disabled={applying === p.id}
+                style={{ fontSize: 11, padding: "4px 10px", background: "var(--cyan)", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>
+                {applying === p.id ? "적용 중…" : "이걸로 전환"}
+              </button>
+              <button onClick={() => deletePreset(p.id)}
+                style={{ fontSize: 11, padding: "4px 8px", background: "transparent", color: "var(--text-3)", border: "none", cursor: "pointer" }}>
+                삭제
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="새 프리셋 이름 (예: 출장 모드)"
+          style={{ flex: 1, background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--text-1)", outline: "none" }} />
+        <button onClick={saveCurrentAsPreset} disabled={saving || !newName.trim()}
+          style={{ fontSize: 12, padding: "8px 14px", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text-2)", cursor: "pointer", whiteSpace: "nowrap" }}>
+          지금 설정 저장
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
   const [inputStyle, setInputStyle] = useState("log");
   const [homePriority, setHomePriority] = useState("today");
   const [consumptionStyle, setConsumptionStyle] = useState("unsure");
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
   const [mirrorCasualTone, setMirrorCasualTone] = useState(false);
+  const [dndStart, setDndStart] = useState("");
+  const [dndEnd, setDndEnd] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -323,6 +400,8 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
         setConsumptionStyle(data.consumption_style ?? "unsure");
         setEnabledFeatures(data.enabled_features ?? []);
         setMirrorCasualTone(!!data.mirror_casual_tone);
+        setDndStart(data.dnd_start_time?.slice(0, 5) ?? "");
+        setDndEnd(data.dnd_end_time?.slice(0, 5) ?? "");
       }
       setLoaded(true);
     });
@@ -344,6 +423,8 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
       consumption_style: consumptionStyle,
       enabled_features: enabledFeatures,
       mirror_casual_tone: mirrorCasualTone,
+      dnd_start_time: dndStart || null,
+      dnd_end_time: dndEnd || null,
       onboarding_completed: true,
       updated_at: new Date().toISOString(),
     }, { onConflict: "user_id" });
@@ -357,6 +438,7 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <PreferenceSuggestions myUserId={myUserId} supabase={supabase} onApplied={loadPrefs} />
       <ProfileHistory myUserId={myUserId} supabase={supabase} />
+      <PresetManager myUserId={myUserId} supabase={supabase} onApplied={loadPrefs} />
 
       <button onClick={() => setShowChat(true)}
         style={{
@@ -447,6 +529,25 @@ function StyleTab({ myUserId, supabase }: { myUserId: string; supabase: any }) {
             style={{ width: 16, height: 16, accentColor: "var(--cyan)", cursor: "pointer" }} />
           <span style={{ fontSize: 12, color: "var(--text-1)" }}>AI가 제 캐주얼한 말투도 따라하게 해주세요</span>
         </label>
+      </div>
+
+      <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius, 12px)", padding: 18, boxShadow: "var(--shadow, none)" }}>
+        <h2 style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", marginBottom: 4 }}>🌙 방해금지 시간대</h2>
+        <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 12 }}>이 시간대엔 알림이 안 뜨고, 시간대가 끝나면 모아서 보여드려요. 비워두면 항상 즉시 알림이에요.</p>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <input type="time" value={dndStart} onChange={e => setDndStart(e.target.value)}
+            style={{ background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 10px", fontSize: 12, color: "var(--text-1)", outline: "none", colorScheme: "dark" }} />
+          <span style={{ fontSize: 12, color: "var(--text-3)" }}>부터</span>
+          <input type="time" value={dndEnd} onChange={e => setDndEnd(e.target.value)}
+            style={{ background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 10px", fontSize: 12, color: "var(--text-1)", outline: "none", colorScheme: "dark" }} />
+          <span style={{ fontSize: 12, color: "var(--text-3)" }}>까지</span>
+          {(dndStart || dndEnd) && (
+            <button onClick={() => { setDndStart(""); setDndEnd(""); }}
+              style={{ fontSize: 11, color: "var(--text-3)", background: "transparent", border: "none", cursor: "pointer", marginLeft: "auto" }}>
+              지우기
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: "var(--radius, 12px)", padding: 18, boxShadow: "var(--shadow, none)" }}>
@@ -904,11 +1005,33 @@ function TeamTab({ isAdmin, myUserId, supabase }: { isAdmin: boolean; myUserId: 
 function PersonaMap({ supabase }: { supabase: any }) {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [trend, setTrend] = useState<{ period: string; casualPct: number; count: number }[]>([]);
 
   useEffect(() => {
     supabase.from("user_preferences")
       .select("*, user:users(name, role)")
       .then(({ data }: any) => { setRows(data ?? []); setLoading(false); });
+
+    // 6. 팀 전체 성향 트렌드 — 최근 60일, 2주 단위로 캐주얼 비중 집계
+    supabase.from("communication_profile_history")
+      .select("formality_level, created_at")
+      .gte("created_at", new Date(Date.now() - 60 * 86400000).toISOString())
+      .then(({ data }: any) => {
+        if (!data || data.length === 0) return;
+        const buckets: Record<string, { casual: number; total: number }> = {};
+        data.forEach((r: any) => {
+          const d = new Date(r.created_at);
+          const weekStart = new Date(d); weekStart.setDate(d.getDate() - (d.getDay() + 7 - 1) % 7);
+          const key = weekStart.toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
+          if (!buckets[key]) buckets[key] = { casual: 0, total: 0 };
+          buckets[key].total++;
+          if (r.formality_level === "casual") buckets[key].casual++;
+        });
+        const series = Object.entries(buckets)
+          .map(([period, v]) => ({ period, casualPct: Math.round((v.casual / v.total) * 100), count: v.total }))
+          .sort((a, b) => new Date(a.period).getTime() - new Date(b.period).getTime());
+        setTrend(series);
+      });
   }, []);
 
   const INPUT_LABEL: Record<string, string> = { plan: "📋 계획형", log: "📝 기록형", click: "🖱 클릭형" };
@@ -920,6 +1043,25 @@ function PersonaMap({ supabase }: { supabase: any }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <p style={{ fontSize: 11, color: "var(--text-3)" }}>팀원별로 설정한 스타일을 한눈에 볼 수 있어요.</p>
+
+      {trend.length >= 2 && (
+        <div style={{ background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 12, padding: 14 }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: "var(--text-2)", marginBottom: 10 }}>
+            📈 팀 전체 캐주얼 톤 비중 추이 (최근 60일)
+          </p>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 60 }}>
+            {trend.map(t => (
+              <div key={t.period} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                <div style={{ width: "100%", height: `${Math.max(t.casualPct, 4)}%`, background: "var(--cyan)", borderRadius: "3px 3px 0 0", minHeight: 2 }} />
+                <span style={{ fontSize: 9, color: "var(--text-3)" }}>{t.period}</span>
+              </div>
+            ))}
+          </div>
+          <p style={{ fontSize: 10, color: "var(--text-3)", marginTop: 8 }}>
+            막대가 높을수록 그 주엔 팀 전체적으로 캐주얼한 말투 비중이 높았다는 뜻이에요 (기록 {trend.reduce((s, t) => s + t.count, 0)}건 기준)
+          </p>
+        </div>
+      )}
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
           <thead>
