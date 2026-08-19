@@ -42,6 +42,13 @@ export default function TasksPage() {
   }, []);
 
   const load = useCallback(async () => {
+    // 활성 프로젝트 id 목록 — 보관된(on_hold 등) 프로젝트의 업무는 제외하기 위함
+    const { data: activeProjects } = await supabase.from("projects").select("id").eq("status", "active");
+    const activeIds = (activeProjects ?? []).map((p: any) => p.id);
+    const projectFilter = activeIds.length > 0
+      ? `project_id.is.null,project_id.in.(${activeIds.join(",")})`
+      : `project_id.is.null`;
+
     // 미배정 필터
     if (filter === "unassigned") {
       const { data } = await supabase.from("tasks")
@@ -59,6 +66,7 @@ export default function TasksPage() {
 
     let q = supabase.from("tasks")
       .select("*, assignee_ids, assignee:users!tasks_assignee_id_fkey(name,avatar_url), project:projects(name)")
+      .or(projectFilter)
       .order("due_date", { ascending: true, nullsFirst: false });
     if (filter !== "all") q = q.eq("status", filter);
     const { data } = await loadTasksWithAssignees(q);

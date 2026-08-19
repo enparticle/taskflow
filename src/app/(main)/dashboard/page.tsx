@@ -559,9 +559,17 @@ export default function DashboardPage() {
       await supabase.from("users").update({ last_seen_at: new Date().toISOString() }).eq("id", me.id);
     }
 
+    // 활성 프로젝트만 — 보관된 프로젝트의 업무는 홈 화면에도 안 보이게
+    const { data: activeProjectsForHome } = await supabase.from("projects").select("id").eq("status", "active");
+    const activeIdsForHome = (activeProjectsForHome ?? []).map((p: any) => p.id);
+    const homeProjectFilter = activeIdsForHome.length > 0
+      ? `project_id.is.null,project_id.in.(${activeIdsForHome.join(",")})`
+      : `project_id.is.null`;
+
     const { data: tasks } = await supabase.from("tasks")
       .select("*, project:projects(name)")
       .or(`assignee_id.eq.${authUser.userId},assignee_ids.cs.{${authUser.userId}}`)
+      .or(homeProjectFilter)
       .neq("status", "done")
       .order("due_date", { ascending: true, nullsFirst: false });
 
