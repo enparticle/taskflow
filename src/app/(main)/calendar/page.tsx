@@ -67,11 +67,11 @@ export default function CalendarPage() {
 
     if (viewer) {
       const { data } = await supabase.from("calendar_events")
-        .select("*, user:users(name), related_user:users!calendar_events_related_user_id_fkey(name)").eq("is_public", true).order("start_date");
+        .select("*, user:users!calendar_events_user_id_fkey(name), related_user:users!calendar_events_related_user_id_fkey(name)").eq("is_public", true).order("start_date");
       setEvents(data ?? []);
     } else {
       const { data } = await supabase.from("calendar_events")
-        .select("*, user:users(name), related_user:users!calendar_events_related_user_id_fkey(name)")
+        .select("*, user:users!calendar_events_user_id_fkey(name), related_user:users!calendar_events_related_user_id_fkey(name)")
         .or(`user_id.eq.${u?.userId},is_public.eq.true`)
         .order("start_date");
       setEvents(data ?? []);
