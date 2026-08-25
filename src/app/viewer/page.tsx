@@ -49,7 +49,7 @@ function isSameDay(a, b) {
 // ────────────────────────────────────────────────────────────
 // 슬라이드 1: 팀 전체 대시보드
 // ────────────────────────────────────────────────────────────
-function DashboardSlide({ projects, tasks, users }) {
+function DashboardSlide({ projects, tasks, users, vacationers, recentActivity }) {
   const now = new Date();
   const doing   = tasks.filter(t=>t.status==="doing").length;
   const done    = tasks.filter(t=>t.status==="done").length;
@@ -83,6 +83,15 @@ function DashboardSlide({ projects, tasks, users }) {
           ))}
         </div>
       </div>
+
+      {/* 오늘 휴가/부재중 배너 */}
+      {vacationers && vacationers.length > 0 && (
+        <div style={{display:"flex",alignItems:"center",gap:10,background:"rgba(22,163,74,0.08)",border:"1px solid rgba(22,163,74,0.25)",borderRadius:10,padding:"8px 18px"}}>
+          <span style={{fontSize:16}}>🌴</span>
+          <span style={{fontSize:14,color:"#16A34A",fontWeight:600}}>오늘 휴가:</span>
+          <span style={{fontSize:14,color:V.text2}}>{vacationers.map(v=>v.user?.name).filter(Boolean).join(", ")}</span>
+        </div>
+      )}
 
       {/* 프로젝트 카드 그리드 */}
       <div style={{flex:1,display:"grid",gap:12,gridTemplateColumns:"repeat(3,1fr)",gridTemplateRows:"1fr 1fr",alignItems:"stretch"}}>
@@ -148,6 +157,29 @@ function DashboardSlide({ projects, tasks, users }) {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* 최근 활동 티커 */}
+      {recentActivity && recentActivity.length > 0 && (
+        <div style={{display:"flex",alignItems:"center",gap:12,background:V.bg2,border:`1px solid ${V.border}`,borderRadius:10,padding:"8px 18px",overflow:"hidden"}}>
+          <span style={{fontSize:12,color:V.text3,fontWeight:600,flexShrink:0,paddingRight:12,borderRight:`1px solid ${V.border}`}}>🔔 최근 활동</span>
+          <div style={{display:"flex",gap:28,overflow:"hidden",whiteSpace:"nowrap",animation:"ticker 30s linear infinite"}}>
+            {[...recentActivity, ...recentActivity].map((e,i)=>{
+              const sc = STATUS_CONFIG[e.to_status]||STATUS_CONFIG.todo;
+              const mins = Math.round((Date.now()-new Date(e.changed_at).getTime())/60000);
+              const timeLabel = mins<1?"방금":mins<60?`${mins}분 전`:mins<1440?`${Math.round(mins/60)}시간 전`:`${Math.round(mins/1440)}일 전`;
+              return (
+                <span key={i} style={{fontSize:13,color:V.text2,flexShrink:0}}>
+                  <span style={{color:V.text3}}>{timeLabel}</span>{" "}
+                  <b style={{color:V.text1}}>{e.changer?.name??"누군가"}</b>님이{" "}
+                  <span style={{color:sc.color}}>{e.task?.title??"업무"}</span>를{" "}
+                  <span style={{color:sc.color,fontWeight:600}}>{sc.label}</span>(으)로 변경
+                </span>
+              );
+            })}
+          </div>
+          <style>{`@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}`}</style>
         </div>
       )}
     </div>
@@ -343,6 +375,8 @@ export default function ViewerPage() {
   const [users, setUsers]                 = useState([]);
   const [events, setEvents]               = useState([]);
   const [calendarTasks, setCalendarTasks] = useState([]);
+  const [vacationers, setVacationers]     = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
   const [slides, setSlides]               = useState([]);
   const [current, setCurrent]             = useState(0);
   const [progress, setProgress]           = useState(0);
@@ -357,14 +391,18 @@ export default function ViewerPage() {
   const containerRef= useRef(null);
 
   const load = useCallback(async () => {
-    const [{ data:p },{ data:t },{ data:u },{ data:ev },{ data:ct }] = await Promise.all([
+    const today = new Date().toISOString().slice(0, 10);
+    const [{ data:p },{ data:t },{ data:u },{ data:ev },{ data:ct },{ data:vac },{ data:recentEvents }] = await Promise.all([
       supabase.from("projects").select("*, owner:users!projects_owner_id_fkey(name), tasks(id,title,status,due_date,assignee_id,assignee_ids,assignee:users!tasks_assignee_id_fkey(name))").eq("status","active").order("created_at"),
       supabase.from("tasks").select("id,title,status,due_date,assignee_id,assignee_ids,project_id").neq("status","done"),
       supabase.from("users").select("id,name").eq("is_active",true).neq("role","viewer"),
       supabase.from("calendar_events").select("*").order("start_date"),
       supabase.from("tasks").select("id,title,status,due_date").neq("status","done").eq("show_on_calendar",true),
+      supabase.from("calendar_events").select("*, user:users(name)").eq("type","vacation").eq("is_public",true).lte("start_date",today).gte("end_date",today),
+      supabase.from("task_events").select("*, task:tasks(title), changer:users!task_events_changed_by_fkey(name)").order("changed_at",{ascending:false}).limit(8),
     ]);
     setProjects(p||[]); setAllTasks(t||[]); setUsers(u||[]); setEvents(ev||[]); setCalendarTasks(ct||[]);
+    setVacationers(vac||[]); setRecentActivity(recentEvents||[]);
     setSlides([{type:"dashboard"},...(p||[]).map(proj=>({type:"project",id:proj.id})),{type:"calendar"}]);
     setLastRefreshed(new Date());
     setLoading(false);
@@ -463,7 +501,7 @@ export default function ViewerPage() {
 
       {/* 슬라이드 영역 */}
       <div style={{flex:1,overflow:"hidden"}}>
-        {slide?.type==="dashboard"&&<DashboardSlide projects={projects} tasks={allTasks} users={users}/>}
+        {slide?.type==="dashboard"&&<DashboardSlide projects={projects} tasks={allTasks} users={users} vacationers={vacationers} recentActivity={recentActivity}/>}
         {slide?.type==="project"&&(()=>{const proj=projects.find(p=>p.id===slide.id);return proj?<ProjectSlide project={proj} tasks={proj.tasks||[]}/>:null;})()}
         {slide?.type==="calendar"&&<CalendarSlide events={events} tasks={calendarTasks}/>}
       </div>
