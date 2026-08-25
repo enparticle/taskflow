@@ -5,6 +5,7 @@ import { getAuthUser, getProjectRole, canDeleteTask } from "@/lib/auth";
 import { createPortal } from "react-dom";
 import TaskComments from "@/components/tasks/TaskComments";
 import TaskChecklist from "@/components/tasks/TaskChecklist";
+import TaskAttachments from "@/components/tasks/TaskAttachments";
 import TaskReviews from "@/components/tasks/TaskReviews";
 import TaskDependencies from "@/components/tasks/TaskDependencies";
 import MeetingPoll from "@/components/tasks/MeetingPoll";
@@ -519,6 +520,11 @@ export default function TaskDetail({ taskId, onClose, onRefresh }: Props) {
           {/* 체크리스트 (공동 담당자와 공유) */}
           <Section title="체크리스트">
             <TaskChecklist taskId={taskId} assigneeIds={(task as any).assignee_ids} />
+          </Section>
+
+          {/* 첨부파일 */}
+          <Section title="첨부파일">
+            <TaskAttachments taskId={taskId} />
           </Section>
 
           {/* 댓글 */}
