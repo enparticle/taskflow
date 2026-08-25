@@ -98,7 +98,7 @@ function DashboardSlide({ projects, tasks, users, vacationers, recentActivity })
         <div style={{display:"flex",alignItems:"center",gap:10,background:"rgba(22,163,74,0.08)",border:"1px solid rgba(22,163,74,0.25)",borderRadius:10,padding:"8px 18px"}}>
           <span style={{fontSize:16}}>🌴</span>
           <span style={{fontSize:14,color:"#16A34A",fontWeight:600}}>오늘 휴가:</span>
-          <span style={{fontSize:14,color:V.text2}}>{vacationers.map(v=>v.user?.name).filter(Boolean).join(", ")}</span>
+          <span style={{fontSize:14,color:V.text2}}>{vacationers.map(v=>v.related_user?.name ?? v.user?.name).filter(Boolean).join(", ")}</span>
         </div>
       )}
 
@@ -378,7 +378,7 @@ function CalendarSlide({ events, tasks }) {
 // 슬라이드: 생일 축하 🎉
 // ────────────────────────────────────────────────────────────
 function BirthdaySlide({ people }) {
-  const names = (people||[]).map(p=>p.user?.name).filter(Boolean);
+  const names = (people||[]).map(p=>p.related_user?.name ?? p.user?.name).filter(Boolean);
   const CONFETTI_COLORS = ["#EC4899","#F59E0B","#2563EB","#16A34A","#7C3AED","#DC2626"];
   const confetti = Array.from({length:36},(_,i)=>({
     left: Math.random()*100,
@@ -443,9 +443,9 @@ export default function ViewerPage() {
       supabase.from("users").select("id,name").eq("is_active",true).neq("role","viewer"),
       supabase.from("calendar_events").select("*").order("start_date"),
       supabase.from("tasks").select("id,title,status,due_date").neq("status","done").eq("show_on_calendar",true),
-      supabase.from("calendar_events").select("*, user:users(name)").eq("type","vacation").eq("is_public",true).lte("start_date",today).gte("end_date",today),
+      supabase.from("calendar_events").select("*, user:users(name), related_user:users!calendar_events_related_user_id_fkey(name)").eq("type","vacation").eq("is_public",true).lte("start_date",today).gte("end_date",today),
       supabase.from("task_events").select("*, task:tasks(title), changer:users!task_events_changed_by_fkey(name)").order("changed_at",{ascending:false}).limit(8),
-      supabase.from("calendar_events").select("*, user:users(name)").eq("type","birthday").eq("is_public",true).eq("start_date",today),
+      supabase.from("calendar_events").select("*, user:users(name), related_user:users!calendar_events_related_user_id_fkey(name)").eq("type","birthday").eq("is_public",true).eq("start_date",today),
     ]);
     setProjects(p||[]); setAllTasks(t||[]); setUsers(u||[]); setEvents(ev||[]); setCalendarTasks(ct||[]);
     setVacationers(vac||[]); setRecentActivity(recentEvents||[]);

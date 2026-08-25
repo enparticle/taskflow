@@ -45,8 +45,9 @@ export default function CalendarPage() {
   const [form, setForm] = useState({
     title: "", type: "personal", start_date: "", end_date: "",
     all_day: true, start_time: "", end_time: "",
-    description: "", is_public: false, color: "",
+    description: "", is_public: false, color: "", related_user_id: "",
   });
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const today = new Date();
 
   const load = useCallback(async () => {
@@ -54,6 +55,9 @@ export default function CalendarPage() {
     setMyUser(u);
     const viewer = u?.role === "viewer";
     setIsViewer(viewer);
+
+    const { data: members } = await supabase.from("users").select("id, name").eq("is_active", true).neq("role", "viewer");
+    setTeamMembers(members ?? []);
 
     if (u?.userId) {
       const { data: prefs } = await supabase.from("user_preferences")
@@ -63,11 +67,11 @@ export default function CalendarPage() {
 
     if (viewer) {
       const { data } = await supabase.from("calendar_events")
-        .select("*, user:users(name)").eq("is_public", true).order("start_date");
+        .select("*, user:users(name), related_user:users!calendar_events_related_user_id_fkey(name)").eq("is_public", true).order("start_date");
       setEvents(data ?? []);
     } else {
       const { data } = await supabase.from("calendar_events")
-        .select("*, user:users(name)")
+        .select("*, user:users(name), related_user:users!calendar_events_related_user_id_fkey(name)")
         .or(`user_id.eq.${u?.userId},is_public.eq.true`)
         .order("start_date");
       setEvents(data ?? []);
@@ -104,6 +108,7 @@ export default function CalendarPage() {
       start_time: form.all_day ? null : form.start_time || null,
       end_time: form.all_day ? null : form.end_time || null,
       description: form.description || null, is_public: form.is_public, color: form.color || null,
+      related_user_id: form.related_user_id || null,
     };
     if (editEvent) await supabase.from("calendar_events").update(payload).eq("id", editEvent.id);
     else await supabase.from("calendar_events").insert(payload);
@@ -118,19 +123,19 @@ export default function CalendarPage() {
 
   function openNewForm(date?: string) {
     setEditEvent(null);
-    setForm({ title: "", type: "personal", start_date: date ?? toLocalDateString(today), end_date: "", all_day: true, start_time: "", end_time: "", description: "", is_public: false, color: "" });
+    setForm({ title: "", type: "personal", start_date: date ?? toLocalDateString(today), end_date: "", all_day: true, start_time: "", end_time: "", description: "", is_public: false, color: "", related_user_id: "" });
     setShowForm(true);
   }
 
   function openEditForm(ev: any) {
     setEditEvent(ev);
-    setForm({ title: ev.title, type: ev.type, start_date: ev.start_date, end_date: ev.end_date ?? "", all_day: ev.all_day ?? true, start_time: ev.start_time ?? "", end_time: ev.end_time ?? "", description: ev.description ?? "", is_public: ev.is_public ?? false, color: ev.color ?? "" });
+    setForm({ title: ev.title, type: ev.type, start_date: ev.start_date, end_date: ev.end_date ?? "", all_day: ev.all_day ?? true, start_time: ev.start_time ?? "", end_time: ev.end_time ?? "", description: ev.description ?? "", is_public: ev.is_public ?? false, color: ev.color ?? "", related_user_id: ev.related_user_id ?? "" });
     setShowForm(true);
   }
 
   function closeForm() {
     setShowForm(false); setEditEvent(null);
-    setForm({ title: "", type: "personal", start_date: "", end_date: "", all_day: true, start_time: "", end_time: "", description: "", is_public: false, color: "" });
+    setForm({ title: "", type: "personal", start_date: "", end_date: "", all_day: true, start_time: "", end_time: "", description: "", is_public: false, color: "", related_user_id: "" });
   }
 
   function navigate(dir: number) {
@@ -159,6 +164,9 @@ export default function CalendarPage() {
     const cfg = EVENT_TYPE_CONFIG[ev.type] ?? EVENT_TYPE_CONFIG.personal;
     const color = ev.color || cfg.color;
     const isOwn = ev._type === "event" && ev.user_id === myUser?.userId;
+    // 생일/연차처럼 "만든 사람"과 "당사자"가 다를 수 있는 경우, related_user를 우선 표시
+    const displayName = ev.related_user?.name ?? ev.user?.name;
+    const showName = displayName && (ev.related_user?.name ? true : !isOwn);
     return (
       <div style={{
         background: `${color}12`, color, border: `1px solid ${color}33`,
@@ -167,9 +175,9 @@ export default function CalendarPage() {
         textOverflow: "ellipsis", cursor: "pointer",
       }}
         onClick={e => { e.stopPropagation(); ev._type === "task" ? setOpenDetail(ev.id) : openEditForm(ev); }}
-        title={ev.title + (ev.user?.name && !isOwn ? ` (${ev.user.name})` : "")}>
+        title={ev.title + (showName ? ` (${displayName})` : "")}>
         {ev._type === "task" ? "📌 " : ""}{ev.title}
-        {ev.user?.name && !isOwn && <span style={{ opacity: 0.6 }}> · {ev.user.name}</span>}
+        {showName && <span style={{ opacity: 0.6 }}> · {displayName}</span>}
       </div>
     );
   }
@@ -327,6 +335,18 @@ export default function CalendarPage() {
                   style={{ width: "100%", height: 36, borderRadius: 8, border: "1px solid var(--border)", padding: 2, cursor: "pointer", background: "var(--bg-3)" }} />
               </div>
             </div>
+
+            {["birthday", "vacation"].includes(form.type) && (
+              <div>
+                <label style={{ fontSize: 11, color: "var(--text-3)", display: "block", marginBottom: 5 }}>
+                  누구의 {form.type === "birthday" ? "생일" : "연차"}인가요?
+                </label>
+                <select value={form.related_user_id} onChange={e => setForm(f => ({ ...f, related_user_id: e.target.value }))} style={{ ...FS, width: "100%" }}>
+                  <option value="">선택 안 함 (나 자신)</option>
+                  {teamMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </div>
+            )}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
                 <label style={{ fontSize: 11, color: "var(--text-3)", display: "block", marginBottom: 5 }}>시작일</label>
