@@ -47,6 +47,14 @@ function isSameDay(a, b) {
   return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
 }
 
+// UTC 기준 toISOString() 대신 — 한국 등 UTC+시간대에서 자정 근처에 날짜가 하루 밀리는 버그 방지
+function getLocalDateString(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 // ────────────────────────────────────────────────────────────
 // 슬라이드 1: 팀 전체 대시보드
 // ────────────────────────────────────────────────────────────
@@ -428,7 +436,7 @@ export default function ViewerPage() {
   const containerRef= useRef(null);
 
   const load = useCallback(async () => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalDateString();
     const [{ data:p },{ data:t },{ data:u },{ data:ev },{ data:ct },{ data:vac },{ data:recentEvents },{ data:bday }] = await Promise.all([
       supabase.from("projects").select("*, owner:users!projects_owner_id_fkey(name), tasks(id,title,status,due_date,assignee_id,assignee_ids,assignee:users!tasks_assignee_id_fkey(name))").eq("status","active").order("created_at"),
       supabase.from("tasks").select("id,title,status,due_date,assignee_id,assignee_ids,project_id").neq("status","done"),

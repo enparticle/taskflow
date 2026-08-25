@@ -20,6 +20,13 @@ const DAYS = ["일","월","화","수","목","금","토"];
 function isSameDay(a: Date, b: Date) {
   return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
 }
+// UTC 기준 toISOString() 대신 — 자정 근처에 날짜가 하루 밀리는 버그 방지
+function toLocalDateString(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 function dateInRange(date: Date, start: Date, end: Date) {
   return date >= start && date <= end;
 }
@@ -111,7 +118,7 @@ export default function CalendarPage() {
 
   function openNewForm(date?: string) {
     setEditEvent(null);
-    setForm({ title: "", type: "personal", start_date: date ?? today.toISOString().slice(0,10), end_date: "", all_day: true, start_time: "", end_time: "", description: "", is_public: false, color: "" });
+    setForm({ title: "", type: "personal", start_date: date ?? toLocalDateString(today), end_date: "", all_day: true, start_time: "", end_time: "", description: "", is_public: false, color: "" });
     setShowForm(true);
   }
 
@@ -192,7 +199,7 @@ export default function CalendarPage() {
                 background: isSameDay(d,today) ? "rgba(37,99,235,0.03)" : "var(--bg-2)",
                 display: "flex", flexDirection: "column", gap: 3,
               }}
-                onClick={() => !isViewer && openNewForm(d.toISOString().slice(0,10))}>
+                onClick={() => !isViewer && openNewForm(toLocalDateString(d))}>
                 {dayEvs.slice(0,4).map((ev,j) => <EventChip key={j} ev={ev} />)}
                 {dayEvs.length>4 && <p style={{ fontSize: 10, color: "var(--text-3)", padding: "0 2px" }}>+{dayEvs.length-4}개</p>}
               </div>
@@ -229,7 +236,7 @@ export default function CalendarPage() {
                 borderRight: col<6 ? "1px solid var(--border)" : "none",
                 borderBottom: "1px solid var(--border)",
               }}
-                onClick={() => !isViewer && openNewForm(d.toISOString().slice(0,10))}>
+                onClick={() => !isViewer && openNewForm(toLocalDateString(d))}>
                 <div style={{ width: 22, height: 22, borderRadius: "50%", background: isToday ? "var(--cyan)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 2 }}>
                   <p style={{ fontSize: 11, fontWeight: 500, color: isToday ? "#fff" : col===0 ? "#DC2626" : col===6 ? "#2563EB" : "var(--text-2)" }}>{d.getDate()}</p>
                 </div>
@@ -272,7 +279,7 @@ export default function CalendarPage() {
           <button onClick={() => navigate(1)} style={{ padding: "5px 12px", background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 7, fontSize: 16, color: "var(--text-2)", cursor: "pointer" }}>›</button>
           <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)" }}>{getTitle()}</span>
           {!isViewer && (
-            <button onClick={() => openNewForm(today.toISOString().slice(0,10))}
+            <button onClick={() => openNewForm(toLocalDateString(today))}
               style={{ padding: "7px 14px", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer" }}>
               + 일정 추가
             </button>

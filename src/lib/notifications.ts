@@ -1,6 +1,14 @@
 // @ts-nocheck
 import { createClient } from "@/lib/supabase";
 
+// UTC 기준 toISOString() 대신 — 한국 등 UTC+시간대에서 자정 근처에 날짜가 하루 밀리는 버그 방지
+function getLocalDateString(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 // 알림 만들기 전에 수신자의 설정(나의 스타일)을 확인해서, 꺼놨거나 원치 않는 종류면 아예 안 만듭니다.
 //
 // ⚠️ 주의: type 값이 아래 5종("mention"/"deadline"/"blocked"/"approval"/"ai_suggestion")과
@@ -65,7 +73,7 @@ export async function createNotification({
 
   // 5. 부재/휴가 모드 — 오늘이 이 사람의 휴가 기간이면, 복귀일 다음날 아침으로 알림 예약
   try {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalDateString();
     const { data: vacation } = await supabase.from("calendar_events")
       .select("end_date").eq("user_id", userId).eq("type", "vacation")
       .lte("start_date", today).gte("end_date", today).maybeSingle();
