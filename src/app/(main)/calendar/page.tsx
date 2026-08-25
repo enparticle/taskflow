@@ -303,7 +303,12 @@ export default function CalendarPage() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
                 <label style={{ fontSize: 11, color: "var(--text-3)", display: "block", marginBottom: 5 }}>유형</label>
-                <select value={form.type} onChange={e => setForm(f=>({...f,type:e.target.value}))} style={FS}>
+                <select value={form.type} onChange={e => {
+                  const newType = e.target.value;
+                  // 연차/휴일/미팅은 팀이 알아야 의미가 있어서 기본을 공개로, 개인은 기본 비공개 유지 (수동으로 언제든 바꿀 수 있음)
+                  const suggestPublic = ["vacation", "holiday", "meeting"].includes(newType);
+                  setForm(f => ({ ...f, type: newType, is_public: suggestPublic ? true : f.is_public }));
+                }} style={FS}>
                   {Object.entries(EVENT_TYPE_CONFIG).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
                 </select>
               </div>
@@ -324,15 +329,22 @@ export default function CalendarPage() {
                 <input type="date" value={form.end_date} onChange={e => setForm(f=>({...f,end_date:e.target.value}))} style={FS} />
               </div>
             </div>
-            <div style={{ display: "flex", gap: 20 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-2)", cursor: "pointer" }}>
-                <input type="checkbox" checked={form.all_day} onChange={e => setForm(f=>({...f,all_day:e.target.checked}))} />
-                하루 종일
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-2)", cursor: "pointer" }}>
-                <input type="checkbox" checked={form.is_public} onChange={e => setForm(f=>({...f,is_public:e.target.checked}))} />
-                팀 공개
-              </label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ display: "flex", gap: 20 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-2)", cursor: "pointer" }}>
+                  <input type="checkbox" checked={form.all_day} onChange={e => setForm(f=>({...f,all_day:e.target.checked}))} />
+                  하루 종일
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-2)", cursor: "pointer" }}>
+                  <input type="checkbox" checked={form.is_public} onChange={e => setForm(f=>({...f,is_public:e.target.checked}))} />
+                  팀 전체에 공개
+                </label>
+              </div>
+              {!form.is_public && (
+                <p style={{ fontSize: 10, color: "var(--text-3)", margin: 0 }}>
+                  ⚠ 비공개면 나만 볼 수 있어요 — 연차처럼 팀이 알아야 하는 일정이면 꼭 체크해주세요
+                </p>
+              )}
             </div>
             {!form.all_day && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
