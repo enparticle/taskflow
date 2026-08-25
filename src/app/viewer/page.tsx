@@ -23,6 +23,7 @@ const STATUS_CONFIG = {
 };
 const EVENT_TYPE_CONFIG = {
   personal: { label: "개인",  color: "#7C3AED" },
+  birthday: { label: "생일",  color: "#EC4899" },
   vacation: { label: "연차",  color: "#16A34A" },
   holiday:  { label: "휴일",  color: "#DC2626" },
   meeting:  { label: "미팅",  color: "#2563EB" },
@@ -366,6 +367,41 @@ function CalendarSlide({ events, tasks }) {
 }
 
 // ────────────────────────────────────────────────────────────
+// 슬라이드: 생일 축하 🎉
+// ────────────────────────────────────────────────────────────
+function BirthdaySlide({ people }) {
+  const names = (people||[]).map(p=>p.user?.name).filter(Boolean);
+  const CONFETTI_COLORS = ["#EC4899","#F59E0B","#2563EB","#16A34A","#7C3AED","#DC2626"];
+  const confetti = Array.from({length:36},(_,i)=>({
+    left: Math.random()*100,
+    delay: Math.random()*4,
+    duration: 3+Math.random()*3,
+    color: CONFETTI_COLORS[i%CONFETTI_COLORS.length],
+    size: 8+Math.random()*8,
+  }));
+
+  return (
+    <div style={{height:"100%",position:"relative",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:`radial-gradient(circle at 50% 40%, #2A1A3A 0%, ${V.bg} 70%)`,overflow:"hidden"}}>
+      {confetti.map((c,i)=>(
+        <div key={i} style={{
+          position:"absolute", top:-20, left:`${c.left}%`, width:c.size, height:c.size,
+          background:c.color, borderRadius: i%2===0?"50%":"2px",
+          animation:`fall ${c.duration}s linear ${c.delay}s infinite`, opacity:0.85,
+        }}/>
+      ))}
+      <style>{`@keyframes fall{from{transform:translateY(-20px) rotate(0deg)}to{transform:translateY(110vh) rotate(360deg)}}`}</style>
+
+      <div style={{fontSize:88,marginBottom:12}}>🎂</div>
+      <h1 style={{fontSize:44,fontWeight:800,color:"#fff",margin:0,letterSpacing:-1,textAlign:"center"}}>
+        {names.join(", ")}{names.length>0?"님":""}
+      </h1>
+      <p style={{fontSize:26,color:"#F0A8D0",margin:"10px 0 0",fontWeight:600}}>생일 축하해요! 🎉</p>
+      <p style={{fontSize:15,color:V.text3,marginTop:20}}>오늘 하루 즐겁게 보내세요</p>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
 // 메인 뷰어 페이지
 // ────────────────────────────────────────────────────────────
 export default function ViewerPage() {
@@ -377,6 +413,7 @@ export default function ViewerPage() {
   const [calendarTasks, setCalendarTasks] = useState([]);
   const [vacationers, setVacationers]     = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
+  const [birthdays, setBirthdays]         = useState([]);
   const [slides, setSlides]               = useState([]);
   const [current, setCurrent]             = useState(0);
   const [progress, setProgress]           = useState(0);
@@ -392,7 +429,7 @@ export default function ViewerPage() {
 
   const load = useCallback(async () => {
     const today = new Date().toISOString().slice(0, 10);
-    const [{ data:p },{ data:t },{ data:u },{ data:ev },{ data:ct },{ data:vac },{ data:recentEvents }] = await Promise.all([
+    const [{ data:p },{ data:t },{ data:u },{ data:ev },{ data:ct },{ data:vac },{ data:recentEvents },{ data:bday }] = await Promise.all([
       supabase.from("projects").select("*, owner:users!projects_owner_id_fkey(name), tasks(id,title,status,due_date,assignee_id,assignee_ids,assignee:users!tasks_assignee_id_fkey(name))").eq("status","active").order("created_at"),
       supabase.from("tasks").select("id,title,status,due_date,assignee_id,assignee_ids,project_id").neq("status","done"),
       supabase.from("users").select("id,name").eq("is_active",true).neq("role","viewer"),
@@ -400,10 +437,18 @@ export default function ViewerPage() {
       supabase.from("tasks").select("id,title,status,due_date").neq("status","done").eq("show_on_calendar",true),
       supabase.from("calendar_events").select("*, user:users(name)").eq("type","vacation").eq("is_public",true).lte("start_date",today).gte("end_date",today),
       supabase.from("task_events").select("*, task:tasks(title), changer:users!task_events_changed_by_fkey(name)").order("changed_at",{ascending:false}).limit(8),
+      supabase.from("calendar_events").select("*, user:users(name)").eq("type","birthday").eq("is_public",true).eq("start_date",today),
     ]);
     setProjects(p||[]); setAllTasks(t||[]); setUsers(u||[]); setEvents(ev||[]); setCalendarTasks(ct||[]);
     setVacationers(vac||[]); setRecentActivity(recentEvents||[]);
-    setSlides([{type:"dashboard"},...(p||[]).map(proj=>({type:"project",id:proj.id})),{type:"calendar"}]);
+    const birthdayFolks = bday||[];
+    setBirthdays(birthdayFolks);
+    setSlides([
+      {type:"dashboard"},
+      ...(birthdayFolks.length>0 ? [{type:"birthday"}] : []),
+      ...(p||[]).map(proj=>({type:"project",id:proj.id})),
+      {type:"calendar"},
+    ]);
     setLastRefreshed(new Date());
     setLoading(false);
   }, []);
@@ -502,6 +547,7 @@ export default function ViewerPage() {
       {/* 슬라이드 영역 */}
       <div style={{flex:1,overflow:"hidden"}}>
         {slide?.type==="dashboard"&&<DashboardSlide projects={projects} tasks={allTasks} users={users} vacationers={vacationers} recentActivity={recentActivity}/>}
+        {slide?.type==="birthday"&&<BirthdaySlide people={birthdays}/>}
         {slide?.type==="project"&&(()=>{const proj=projects.find(p=>p.id===slide.id);return proj?<ProjectSlide project={proj} tasks={proj.tasks||[]}/>:null;})()}
         {slide?.type==="calendar"&&<CalendarSlide events={events} tasks={calendarTasks}/>}
       </div>

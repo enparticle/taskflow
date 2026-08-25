@@ -9,6 +9,7 @@ type ViewMode = "week" | "month";
 
 const EVENT_TYPE_CONFIG = {
   personal: { label: "개인",  color: "#7C3AED" },
+  birthday: { label: "생일",  color: "#EC4899" },
   vacation: { label: "연차",  color: "#16A34A" },
   holiday:  { label: "휴일",  color: "#DC2626" },
   meeting:  { label: "미팅",  color: "#2563EB" },
@@ -306,7 +307,7 @@ export default function CalendarPage() {
                 <select value={form.type} onChange={e => {
                   const newType = e.target.value;
                   // 연차/휴일/미팅은 팀이 알아야 의미가 있어서 기본을 공개로, 개인은 기본 비공개 유지 (수동으로 언제든 바꿀 수 있음)
-                  const suggestPublic = ["vacation", "holiday", "meeting"].includes(newType);
+                  const suggestPublic = ["vacation", "holiday", "meeting", "birthday"].includes(newType);
                   setForm(f => ({ ...f, type: newType, is_public: suggestPublic ? true : f.is_public }));
                 }} style={FS}>
                   {Object.entries(EVENT_TYPE_CONFIG).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
