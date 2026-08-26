@@ -41,6 +41,7 @@ export default function CalendarPage() {
   const [isViewer, setIsViewer] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editEvent, setEditEvent] = useState<any>(null);
+  const [dayDetailDate, setDayDetailDate] = useState<Date | null>(null);
   const [openDetail, setOpenDetail] = useState<string | null>(null);
   const [form, setForm] = useState({
     title: "", type: "personal", start_date: "", end_date: "",
@@ -209,7 +210,12 @@ export default function CalendarPage() {
               }}
                 onClick={() => !isViewer && openNewForm(toLocalDateString(d))}>
                 {dayEvs.slice(0,4).map((ev,j) => <EventChip key={j} ev={ev} />)}
-                {dayEvs.length>4 && <p style={{ fontSize: 10, color: "var(--text-3)", padding: "0 2px" }}>+{dayEvs.length-4}개</p>}
+                {dayEvs.length>4 && (
+                  <p onClick={e => { e.stopPropagation(); setDayDetailDate(d); }}
+                    style={{ fontSize: 10, color: "var(--cyan)", padding: "0 2px", cursor: "pointer", fontWeight: 600 }}>
+                    +{dayEvs.length-4}개 더보기
+                  </p>
+                )}
               </div>
             );
           })}
@@ -250,7 +256,12 @@ export default function CalendarPage() {
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                   {dayEvs.slice(0,3).map((ev,j) => <EventChip key={j} ev={ev} small />)}
-                  {dayEvs.length>3 && <p style={{ fontSize: 9, color: "var(--text-3)" }}>+{dayEvs.length-3}</p>}
+                  {dayEvs.length>3 && (
+                    <p onClick={e => { e.stopPropagation(); setDayDetailDate(d); }}
+                      style={{ fontSize: 9, color: "var(--cyan)", cursor: "pointer", fontWeight: 600 }}>
+                      +{dayEvs.length-3}
+                    </p>
+                  )}
                 </div>
               </div>
             );
@@ -409,6 +420,55 @@ export default function CalendarPage() {
       )}
 
       {openDetail && <TaskDetail taskId={openDetail} onClose={() => setOpenDetail(null)} onRefresh={() => { setOpenDetail(null); load(); }} />}
+
+      {dayDetailDate && (
+        <DayDetailModal
+          date={dayDetailDate}
+          events={getEventsForDay(dayDetailDate)}
+          onClose={() => setDayDetailDate(null)}
+          onEventClick={(ev: any) => { setDayDetailDate(null); ev._type === "task" ? setOpenDetail(ev.id) : openEditForm(ev); }}
+          onAddNew={() => { setDayDetailDate(null); openNewForm(toLocalDateString(dayDetailDate)); }}
+          isViewer={isViewer}
+          EventChip={EventChip}
+        />
+      )}
+    </div>
+  );
+}
+
+// 하루치 전체 일정을 보여주는 팝업 (달력 칸에 다 안 들어가는 "+N개" 클릭 시)
+function DayDetailModal({ date, events, onClose, onEventClick, onAddNew, isViewer, EventChip }: any) {
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.5)" }}
+      onClick={onClose}>
+      <div style={{ width: 360, maxHeight: "70vh", background: "var(--bg-2)", border: "1px solid var(--border-2)", borderRadius: 14, display: "flex", flexDirection: "column" }}
+        onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid var(--border)" }}>
+          <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)", margin: 0 }}>
+            {date.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}
+          </p>
+          <button onClick={onClose} style={{ fontSize: 18, color: "var(--text-3)", background: "transparent", border: "none", cursor: "pointer" }}>✕</button>
+        </div>
+        <div style={{ padding: 14, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+          {events.length === 0 ? (
+            <p style={{ fontSize: 12, color: "var(--text-3)", textAlign: "center", padding: "16px 0" }}>일정이 없어요</p>
+          ) : (
+            events.map((ev: any, i: number) => (
+              <div key={i} onClick={() => onEventClick(ev)} style={{ cursor: "pointer" }}>
+                <EventChip ev={ev} />
+              </div>
+            ))
+          )}
+        </div>
+        {!isViewer && (
+          <div style={{ padding: 14, borderTop: "1px solid var(--border)" }}>
+            <button onClick={onAddNew}
+              style={{ width: "100%", padding: "9px 0", background: "var(--cyan)", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, color: "#fff", cursor: "pointer" }}>
+              + 이 날짜에 일정 추가
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
