@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase";
 import { getAuthUser } from "@/lib/auth";
 import { authFetch } from "@/lib/authFetch";
 import { useRouter } from "next/navigation";
+import MeetingAudioArchive, { RecordingUpload } from "@/components/meetings/MeetingAudioArchive";
+import { recordingPath, uploadRecording } from "@/lib/meetingAudio";
 
 type Step = "write" | "analyzing" | "review" | "done";
 type View = "main" | "history";
@@ -168,6 +170,18 @@ export default function MeetingNotePage() {
   const [step, setStep] = useState<Step>("write");
   const [myUser, setMyUser] = useState<any>(null);
   const [draftId, setDraftId] = useState<string | null>(null);
+  const draftIdRef = useRef<string | null>(null);
+  const draftCreationRef = useRef<Promise<string> | null>(null);
+  const recordingRef = useRef(false);
+  const recordingStartingRef = useRef(false);
+  const recordingFinalizingRef = useRef(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const segmentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [uploads, setUploads] = useState<RecordingUpload[]>([]);
+  const uploadsRef = useRef<RecordingUpload[]>([]);
+  const activeUploads = useRef(new Set<string>());
+  const [recordingError, setRecordingError] = useState("");
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [result, setResult] = useState<any>(null);
   const [applying, setApplying] = useState(false);
@@ -191,10 +205,8 @@ export default function MeetingNotePage() {
   const [transcribeProgress, setTranscribeProgress] = useState("");
   const [recording, setRecording] = useState(false);
   const [recordTime, setRecordTime] = useState(0);
-  const [mediaRecorder, setMediaRecorder] = useState<any>(null);
   const [audioTab, setAudioTab] = useState<"upload" | "record">("upload");
   const timerRef = useRef<any>(null);
-  const allTextsRef = useRef<string[]>([]);
 
   // 데이터
   const [projects, setProjects] = useState<any[]>([]);
@@ -210,52 +222,118 @@ export default function MeetingNotePage() {
     return `${Math.floor(s/60).toString().padStart(2,"0")}:${(s%60).toString().padStart(2,"0")}`;
   }
 
-  async function startRecording() {
+  function updateUpload(item: RecordingUpload) {
+    const rest = uploadsRef.current.filter(u => u.path !== item.path);
+    uploadsRef.current = [...rest, item];
+    setUploads(uploadsRef.current);
+  }
+
+  async function saveRecording(item: RecordingUpload) {
+    if (activeUploads.current.has(item.path)) return;
+    activeUploads.current.add(item.path);
+    updateUpload({ ...item, status: "uploading", error: undefined });
     try {
+      await uploadRecording(supabase, item.path, item.file);
+      const { data: linkedMeeting, error: linkError } = await supabase.from("meeting_drafts")
+        .select("id").eq("id", item.meetingId).single();
+      if (linkError || !linkedMeeting) throw new Error("원본 업로드 후 회의록 연결을 확인하지 못했습니다. 재시도하거나 PC에 원본을 보관해 주세요.");
+      updateUpload({ ...item, status: "saved", error: undefined });
+    } catch (e: any) {
+      updateUpload({ ...item, status: "failed", error: e.message });
+    } finally { activeUploads.current.delete(item.path); }
+  }
+
+  function hasUnfinishedRecording() {
+    if (recordingRef.current || recordingStartingRef.current || recordingFinalizingRef.current || uploadsRef.current.some(u => u.status !== "saved")) {
+      alert("녹음을 중지하고 저장 완료를 확인해 주세요. 실패한 녹음은 재시도하거나 PC에 먼저 보관할 수 있습니다.");
+      return true;
+    }
+    return false;
+  }
+
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (recordingRef.current || recordingStartingRef.current || recordingFinalizingRef.current || uploadsRef.current.some(u => u.status !== "saved")) {
+        event.preventDefault(); event.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => {
+      window.removeEventListener("beforeunload", warn);
+      recordingRef.current = false;
+      if (segmentTimerRef.current) clearTimeout(segmentTimerRef.current);
+      clearInterval(timerRef.current);
+      if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+      streamRef.current?.getTracks().forEach(t => t.stop());
+    };
+  }, []);
+
+  async function startRecording() {
+    if (recordingRef.current || recordingStartingRef.current || recordingFinalizingRef.current) return;
+    recordingStartingRef.current = true;
+    setRecordingError("");
+    try {
+      if (!myUser || myUser.role === "viewer") throw new Error("녹음 저장 권한이 있는 계정으로 로그인해 주세요.");
+      const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"]
+        .find(type => MediaRecorder.isTypeSupported(type));
+      if (!mimeType) throw new Error("이 브라우저는 지원하는 녹음 형식이 없습니다.");
+      // Reserve one durable meeting ID before recording; all segments keep it.
+      const meetingId = await autoSave();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      allTextsRef.current = [];
+      streamRef.current = stream;
       let segIdx = 0;
+      recordingRef.current = true;
       const startSeg = () => {
+        if (!recordingRef.current) return;
         const chunks: Blob[] = [];
-        const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
+        const mr = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 64000 });
+        const segment = ++segIdx;
         mr.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-        mr.onstop = async () => {
-          const blob = new Blob(chunks, { type: "audio/webm" });
-          const f = new File([blob], `녹음_${segIdx + 1}.webm`, { type: "audio/webm" });
-          segIdx++;
-          // 녹음 파일을 audioFiles에 추가
-          setAudioFiles(prev => [...prev, f]);
-          // 자동 Whisper 변환 (서버 라우트)
-          try {
-            const form = new FormData();
-            form.append("file", f);
-            const res = await fetch("/api/transcribe", {
-              method: "POST", body: form,
-            });
-            if (res.ok) {
-              const d = await res.json();
-              if (d.text) allTextsRef.current.push(d.text);
-            }
-          } catch {}
+        mr.onstop = () => {
+          const blob = new Blob(chunks, { type: mimeType.split(";")[0] });
+          if (blob.size) {
+            const extension = mimeType.includes("mp4") ? "m4a" : "webm";
+            const f = new File([blob], `녹음_${segment}.${extension}`, { type: blob.type });
+            setAudioFiles(prev => [...prev, f]);
+            const fileId = `${new Date().toISOString().replace(/[:.]/g, "-")}_${crypto.randomUUID()}`;
+            void saveRecording({ meetingId, path: recordingPath(meetingId, fileId, mimeType), file: f, status: "uploading" });
+          }
+          recordingFinalizingRef.current = false;
+          if (recordingRef.current) startSeg();
+        };
+        mr.onerror = () => {
+          setRecordingError("녹음 장치 오류가 발생했습니다. 보관함의 저장 상태를 확인해 주세요.");
+          stopRecording();
         };
         mr.start();
-        setMediaRecorder(mr);
-        setTimeout(() => { if (mr.state === "recording") { mr.stop(); startSeg(); } }, 10 * 60 * 1000);
+        recorderRef.current = mr;
+        segmentTimerRef.current = setTimeout(() => {
+          if (mr.state === "recording") mr.stop();
+        }, 10 * 60 * 1000);
       };
       startSeg();
-      setRecording(true);
-      setRecordTime(0);
+      setRecording(true); setRecordTime(0);
       timerRef.current = setInterval(() => setRecordTime(t => t + 1), 1000);
-    } catch {
-      alert("마이크 접근 권한이 필요합니다.");
-    }
+    } catch (e: any) {
+      recordingRef.current = false;
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      setRecordingError(e.message || "마이크 접근 권한을 확인해 주세요.");
+    } finally { recordingStartingRef.current = false; }
   }
 
   function stopRecording() {
-    mediaRecorder?.stop();
+    recordingRef.current = false;
+    if (segmentTimerRef.current) clearTimeout(segmentTimerRef.current);
+    if (recorderRef.current?.state === "recording") {
+      recordingFinalizingRef.current = true;
+      recorderRef.current.stop();
+    }
+    streamRef.current?.getTracks().forEach(t => t.stop());
     setRecording(false);
     clearInterval(timerRef.current);
   }
+
+  const archive = <MeetingAudioArchive meetingId={draftId} uploads={uploads} retry={saveRecording} />;
 
   useEffect(() => {
     async function init() {
@@ -274,6 +352,7 @@ export default function MeetingNotePage() {
           setResult(data.result);
           setStep("review");
           setDraftId(data.id);
+          draftIdRef.current = data.id;
           setLastSaved(new Date(data.updated_at));
         }
       }
@@ -299,8 +378,8 @@ export default function MeetingNotePage() {
   useEffect(() => { if (myUser) loadHistory(); }, [myUser]);
 
   // 자동 저장
-  async function autoSave(overrideResult?: any) {
-    if (!myUser) return;
+  async function autoSave(overrideResult?: any): Promise<string> {
+    if (!myUser) throw new Error("로그인이 필요합니다.");
     const payload = {
       user_id: myUser.userId,
       input_text: buildTextSummary(),
@@ -309,13 +388,26 @@ export default function MeetingNotePage() {
       status: "draft",
       updated_at: new Date().toISOString(),
     };
-    if (draftId) {
-      await supabase.from("meeting_drafts").update(payload).eq("id", draftId);
-    } else {
-      const { data } = await supabase.from("meeting_drafts").insert(payload).select().single();
-      if (data) setDraftId(data.id);
+    if (!draftIdRef.current) {
+      if (!draftCreationRef.current) {
+        draftCreationRef.current = (async () => {
+          const { data, error } = await supabase.from("meeting_drafts").insert(payload).select("id").single();
+          if (error) throw error;
+          draftIdRef.current = data.id;
+          setDraftId(data.id);
+          return data.id;
+        })();
+      }
+      try { await draftCreationRef.current; }
+      finally { draftCreationRef.current = null; }
     }
+    const id = draftIdRef.current!;
+    // Existing meetings retain their author; only content is updated.
+    const { user_id, ...changes } = payload;
+    const { data, error } = await supabase.from("meeting_drafts").update(changes).eq("id", id).select("id").single();
+    if (error || !data) throw error ?? new Error("회의록 저장 권한을 확인해 주세요.");
     setLastSaved(new Date());
+    return id;
   }
 
   function buildTextSummary() {
@@ -384,6 +476,7 @@ export default function MeetingNotePage() {
   }
 
   async function analyze() {
+    if (hasUnfinishedRecording()) return;
     setStep("analyzing");
     try {
       // 음성 변환
@@ -531,6 +624,11 @@ export default function MeetingNotePage() {
   }
 
   function openHistoryItem(h: any) {
+    if (hasUnfinishedRecording()) return;
+    setResult(null);
+    setStep("write");
+    setAudioFiles([]);
+    draftIdRef.current = h.id;
     setDraftId(h.id);
     setView("main");
 
@@ -597,6 +695,9 @@ export default function MeetingNotePage() {
   }
 
   function resetAll() {
+    if (hasUnfinishedRecording()) return;
+    draftIdRef.current = null;
+    uploadsRef.current = []; setUploads([]);
     setStep("write"); setResult(null); setDraftId(null); setLastSaved(null);
     setTitle(""); setMeetingDate(new Date().toISOString().slice(0, 10));
     setStartTime(""); setEndTime(""); setLocation(""); setSelectedProject("");
@@ -608,6 +709,7 @@ export default function MeetingNotePage() {
   if (step === "done") return (
     <div style={{ maxWidth: 480, margin: "80px auto", textAlign: "center", display: "flex", flexDirection: "column", gap: 20, alignItems: "center" }}>
       <div style={{ fontSize: 48 }}>✅</div>
+      {archive}
       <div>
         <p style={{ fontSize: 18, fontWeight: 700, color: "var(--text-1)", marginBottom: 8 }}>업무가 등록됐습니다!</p>
         <p style={{ fontSize: 13, color: "var(--text-2)" }}>{result?._applied}건이 처리됐습니다</p>
@@ -649,6 +751,7 @@ export default function MeetingNotePage() {
         {lastSaved && <p style={{ fontSize: 11, color: "var(--text-3)", marginLeft: "auto" }}>🕐 {lastSaved.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 저장됨</p>}
       </div>
 
+      {archive}
       {/* 회의 요약 */}
       <div style={{ background: "#F5F3FF", border: "1px solid #DDD6FE", borderRadius: 12, padding: 16 }}>
         <p style={{ fontSize: 11, fontWeight: 600, color: "#7C3AED", marginBottom: 8 }}>
@@ -773,7 +876,7 @@ export default function MeetingNotePage() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {lastSaved && <p style={{ fontSize: 11, color: "var(--text-3)" }}>🕐 {lastSaved.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 자동저장</p>}
-          <button onClick={() => setView("history")}
+          <button onClick={() => { if (!hasUnfinishedRecording()) { loadHistory(); setView("history"); } }}
             style={{ padding: "6px 12px", background: "var(--bg-2)", border: "1px solid var(--border)", borderRadius: 7, fontSize: 12, color: "var(--text-2)", cursor: "pointer" }}>
             📋 이전 기록
           </button>
@@ -994,7 +1097,7 @@ export default function MeetingNotePage() {
                       <p style={{ fontSize: 12, fontWeight: 500, color: "var(--text-1)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</p>
                       <p style={{ fontSize: 11, color: "var(--text-3)", margin: 0 }}>{(f.size / 1024 / 1024).toFixed(1)} MB</p>
                     </div>
-                    <button onClick={() => setAudioFiles(prev => prev.filter(x => x !== f))}
+                    <button onClick={() => setAudioFiles(prev => prev.filter(x => x !== f))} title="분석 대상에서 제외합니다. 서버 원본은 유지됩니다."
                       style={{ fontSize: 12, color: "#DC2626", background: "transparent", border: "none", cursor: "pointer", flexShrink: 0 }}>✕</button>
                   </div>
                 ))}
@@ -1008,12 +1111,14 @@ export default function MeetingNotePage() {
         )}
 
         {/* 녹음 탭 */}
+        {recordingError && <p role="alert">{recordingError}</p>}
+        {archive}
         {audioTab === "record" && (
           <div style={{ textAlign: "center", padding: "20px 0" }}>
             {!recording ? (
               <div>
-                <p style={{ fontSize: 13, color: "var(--text-2)", marginBottom: 6 }}>10분마다 자동 분할 저장됩니다</p>
-                <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 16 }}>시간 제한 없이 녹음 가능</p>
+                <p style={{ fontSize: 13, color: "var(--text-2)", marginBottom: 6 }}>10분마다 녹음을 나눠 서버에 저장합니다</p>
+                <p style={{ fontSize: 11, color: "var(--text-3)", marginBottom: 16 }}>화면을 떠나기 전에 녹음 중지 후 저장 완료를 확인해 주세요</p>
                 {audioFiles.filter(f => f.name.startsWith("녹음_")).length > 0 && (
                   <div style={{ marginBottom: 14 }}>
                     <p style={{ fontSize: 12, color: "var(--text-2)", marginBottom: 8 }}>녹음된 파일 ({audioFiles.filter(f => f.name.startsWith("녹음_")).length}개)</p>
@@ -1021,7 +1126,7 @@ export default function MeetingNotePage() {
                       <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", background: "var(--bg-3)", border: "1px solid var(--border)", borderRadius: 8, marginBottom: 4, textAlign: "left" }}>
                         <span style={{ fontSize: 14 }}>🎙</span>
                         <p style={{ fontSize: 12, color: "var(--text-1)", margin: 0, flex: 1 }}>{f.name}</p>
-                        <button onClick={() => setAudioFiles(prev => prev.filter(x => x !== f))}
+                        <button onClick={() => setAudioFiles(prev => prev.filter(x => x !== f))} title="분석 대상에서 제외합니다. 서버 원본은 유지됩니다."
                           style={{ fontSize: 11, color: "#DC2626", background: "transparent", border: "none", cursor: "pointer" }}>✕</button>
                       </div>
                     ))}
@@ -1137,7 +1242,10 @@ export default function MeetingNotePage() {
                           {/* 분석 결과가 있으면 결과 보기 */}
                           {hasResult && (
                             <button onClick={() => {
+                              if (hasUnfinishedRecording()) return;
                               setResult({ ...h.result, tasks: (h.result.tasks ?? []).map((t: any) => ({ ...t, selected: true, projectId: t.projectId || h.project_id || "" })) });
+                              draftIdRef.current = h.id;
+                              setAudioFiles([]);
                               setDraftId(h.id);
                               setStep("review");
                               setView("main");
@@ -1152,7 +1260,7 @@ export default function MeetingNotePage() {
                             {isMyRecord ? "수정" : "열기"}
                           </button>
                           {isMyRecord && (
-                            <button onClick={async () => { if (!confirm("삭제할까요?")) return; await supabase.from("meeting_drafts").delete().eq("id", h.id); loadHistory(); }}
+                            <button onClick={async () => { if (!confirm("삭제할까요?")) return; const { error } = await supabase.from("meeting_drafts").delete().eq("id", h.id); if (error) { alert("삭제 실패: " + error.message); return; } loadHistory(); }}
                               style={{ padding: "6px 10px", background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 7, fontSize: 11, color: "#DC2626", cursor: "pointer" }}>
                               삭제
                             </button>
